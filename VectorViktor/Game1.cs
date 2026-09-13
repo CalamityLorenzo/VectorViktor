@@ -7,6 +7,15 @@ namespace VectorViktor
 {
     public class Game1 : Game
     {
+
+        private Model gameShip;
+        private Vector3 position = Vector3.One;
+        private float zoom = 2500;
+        private float rotationY = 0.0f;
+        private float rotationX = 0.0f;
+        private Matrix gameWorldRotation;
+        private float _modelRotation = 0f;  // Add this with your other fields
+        float speed = 0f;
         private GraphicsDeviceManager _graphics;
         private BasicEffect _effect;
         private SpriteBatch _spriteBatch;
@@ -202,6 +211,7 @@ namespace VectorViktor
 
         protected override void LoadContent()
         {
+            gameShip = Content.Load<Model>("fuelcarrier");
             _effect = new BasicEffect(GraphicsDevice)
             {
                 VertexColorEnabled = true,
@@ -248,6 +258,7 @@ namespace VectorViktor
 
             // Rotation controls: arrows rotate, Shift+arrows (Up/Down) zoom, Space toggles auto-spin, R resets
             const float rotSpeed = 1.6f;
+            _modelRotation += (float)gameTime.ElapsedGameTime.TotalSeconds * 1.5f;  // 3 radians/sec (adjust speed as needed)
             bool shiftHeld = keys.IsKeyDown(Keys.LeftShift) || keys.IsKeyDown(Keys.RightShift);
             if (keys.IsKeyDown(Keys.Left)) _yaw -= rotSpeed * dt;
             if (keys.IsKeyDown(Keys.Right)) _yaw += rotSpeed * dt;
@@ -508,6 +519,8 @@ namespace VectorViktor
 
                 // Car
                 DrawCar();
+
+                DrawModel(gameShip);
             }
 
             // Point-sample upscale to the window: fat pixels, hard stair-stepped edges
@@ -527,6 +540,80 @@ namespace VectorViktor
             base.Draw(gameTime);
         }
 
+        private void DrawModel(Model m)
+        {
+            if (m == null) return;
+
+            // Get car position and forward vector
+            var (pos, forward) = GetCarTransform();
+
+            // Bone transforms for the model
+            Matrix[] transforms = new Matrix[m.Bones.Count];
+            m.CopyAbsoluteBoneTransformsTo(transforms);
+
+            // Scale down the model, rotate with counter-clockwise spin, and position it
+            float scale = 0.007f;  // Adjust based on model size
+            Matrix modelWorld =
+                Matrix.CreateScale(scale) *
+                Matrix.CreateRotationY(-_modelRotation) *  // Negative for counter-clockwise
+                Matrix.CreateRotationY(MathHelper.Pi) *
+                Matrix.CreateWorld(pos + Vector3.Up * 0.2f, forward, Vector3.Up);
+
+            // Save current states
+            var previousRasterizerState = GraphicsDevice.RasterizerState;
+            var previousDepthStencilState = GraphicsDevice.DepthStencilState;
+            var previousBlendState = GraphicsDevice.BlendState;
+
+            // Pass 1: Draw solid geometry to populate depth buffer (no color write)
+            GraphicsDevice.RasterizerState = RasterizerState.CullCounterClockwise;
+            GraphicsDevice.DepthStencilState = DepthStencilState.Default;
+            GraphicsDevice.BlendState = new BlendState { ColorWriteChannels = ColorWriteChannels.None };
+
+            foreach (ModelMesh mesh in m.Meshes)
+            {
+                foreach (BasicEffect effect in mesh.Effects)
+                {
+                    effect.TextureEnabled = false;
+                    effect.DiffuseColor = Vector3.One;  // Color doesn't matter; won't be written
+                    effect.SpecularColor = Vector3.Zero;
+                    effect.EmissiveColor = Vector3.Zero;
+
+                    effect.View = _effect.View;
+                    effect.Projection = _effect.Projection;
+                    effect.World = transforms[mesh.ParentBone.Index] * modelWorld;
+                }
+                mesh.Draw();
+            }
+
+            // Pass 2: Draw wireframe edges with depth testing to occlude hidden edges
+            GraphicsDevice.BlendState = BlendState.Opaque;  // Restore normal color writing
+            GraphicsDevice.RasterizerState = new RasterizerState
+            {
+                FillMode = FillMode.WireFrame,
+                CullMode = CullMode.CullCounterClockwiseFace
+            };
+
+            foreach (ModelMesh mesh in m.Meshes)
+            {
+                foreach (BasicEffect effect in mesh.Effects)
+                {
+                    effect.TextureEnabled = false;
+                    effect.DiffuseColor = Color.White.ToVector3();
+                    effect.SpecularColor = Vector3.Zero;
+                    effect.EmissiveColor = Vector3.Zero;
+
+                    effect.View = _effect.View;
+                    effect.Projection = _effect.Projection;
+                    effect.World = transforms[mesh.ParentBone.Index] * modelWorld;
+                }
+                mesh.Draw();
+            }
+
+            // Restore previous states
+            GraphicsDevice.RasterizerState = previousRasterizerState;
+            GraphicsDevice.DepthStencilState = previousDepthStencilState;
+            GraphicsDevice.BlendState = previousBlendState;
+        }
         private void DrawBar(in Bar bar)
         {
             // Height follows a half-sine: grows from 0 to max, shrinks back to 0
