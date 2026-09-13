@@ -13,8 +13,8 @@ namespace VectorViktor
         private RenderTarget2D _renderTarget;
 
         // Internal low-res buffer, point-upscaled for chunky 8/16-bit pixels
-        private const int VirtualWidth = 320; //400;
-        private const int VirtualHeight = 200; //180;
+        private const int VirtualWidth = 640; //400;
+        private const int VirtualHeight = 256; //180;
 
         // Grid layout
         private const int GridSquares = 28;      // squares per side
@@ -906,6 +906,6 @@ namespace VectorViktor
             Vector3 chimneyCenter = chimneyBase + Vector3.Up * (chimneyHeight * 0.5f);
             DrawBox(chimneyCenter, Vector3.UnitZ, Vector3.UnitX, chimneyDepth, chimneyWidth, chimneyHeight, chimneyColor);
         }
-    }
+   }
 }
 
