@@ -13,11 +13,11 @@ namespace VectorViktor
         private RenderTarget2D _renderTarget;
 
         // Internal low-res buffer, point-upscaled for chunky 8/16-bit pixels
-        private const int VirtualWidth = 400;
-        private const int VirtualHeight = 180;
+        private const int VirtualWidth = 320; //400;
+        private const int VirtualHeight = 200; //180;
 
         // Grid layout
-        private const int GridSquares = 14;      // squares per side
+        private const int GridSquares = 28;      // squares per side
         private const float CellSize = 1.0f;
         private const float GridExtent = GridSquares * CellSize * 0.5f;
 
@@ -36,6 +36,21 @@ namespace VectorViktor
         private const float MaxCameraDistance = 30f;
         private const float ZoomSpeed = 8f;
         private float _cameraDistance = DefaultCameraDistance;
+
+        // Camera view: cycle between the free orbit camera and chase cams riding behind the car/bird
+        private enum CameraMode { Orbit, ChaseCar, ChaseBird }
+        private CameraMode _cameraMode = CameraMode.Orbit;
+        private const float CarChaseDistance = 1.4f;
+        private const float CarChaseHeight = 0.5f;
+        private const float CarChaseLookAhead = 0.6f;
+        private const float CarChaseTargetHeight = 0.15f;
+        private const float BirdChaseDistance = 1.6f;
+        private const float BirdChaseHeight = 0.4f;
+        private const float BirdChaseLookAhead = 1.0f;
+
+        // Chase camera rotation offsets
+        private float _chaseYaw = 0f;
+        private float _chasePitch = 0f;
 
         // Windowed size to restore when leaving fullscreen
         private const int WindowedWidth = 1280;
@@ -61,20 +76,50 @@ namespace VectorViktor
         private const float WingWaveCount = 1.1f;      // wave cycles across the span -> undulation
         private const float BirdScale = 1.3f;
 
+        // Bird flight variation: periodic dives toward the grid, and random cruising-speed changes
+        private const float BirdDiveIntervalMin = 4f;
+        private const float BirdDiveIntervalMax = 9f;
+        private const float BirdDiveDuration = 1.5f;
+        private const float BirdDiveLowHeight = 0.4f;   // altitude at the bottom of the dive
+        private const float BirdHeightVariance = 0.10f; // resting height settles within ±10% of BirdHeight
+        private const float BirdDivePitchSensitivity = 0.2f; // tilts the nose with vertical speed
+        private const float BirdDiveMaxPitch = 0.85f;        // ceiling the tilt saturates toward
+        private const float BirdSpeedChangeIntervalMin = 3f;
+        private const float BirdSpeedChangeIntervalMax = 7f;
+        private const float BirdSpeedMultMin = 0.6f;
+        private const float BirdSpeedMultMax = 1.8f;
+        private float _birdAngle;
+        private float _birdSpeedMult = 1f;
+        private float _birdSpeedTimer;
+        private float _birdBaseHeight = BirdHeight;
+        private float _birdDiveTimer;
+        private float _birdDiveElapsed = -1f;   // < 0 means not currently diving
+        private float _birdDiveStartHeight;
+        private float _birdDiveEndHeight;
+        private float _birdPrevHeight = BirdHeight;
+        private float _birdVerticalVelocity;
+
         // Car: drives along the grid lines, turning at intersections
         private Car _car;
         private const float CarSpeed = 1.1f;      // grid cells per second
-        private const float CarLength = 0.8f;
-        private const float CarWidth = 0.42f;
-        private const float WheelLength = 0.22f;
-        private const float WheelTrack = 0.1f;    // wheel thickness across the car's width
-        private const float WheelOutset = 0.08f;  // how far the wheels poke out past the body sides
+        private const float CarLength = 0.92f;    // 0.8f * 1.15
+        private const float CarWidth = 0.483f;    // 0.42f * 1.15
+        private const float CarBodyHeight = 0.115f; // 0.10f * 1.15
+        private const float CarCabinHeight = 0.161f; // 0.14f * 1.15
+        private const float CarCabinLength = CarLength * 0.55f;
+        private const float CarCabinWidth = CarWidth * 0.72f;
+        private const float CarCabinSetback = CarLength * 0.06f;  // glasshouse sits toward the rear
+        private const float WheelLength = 0.253f;  // 0.22f * 1.15
+        private const float WheelTrack = 0.115f;   // 0.1f * 1.15; wheel thickness across the car's width
+        private const float WheelHeight = 0.184f;  // 0.16f * 1.15; also doubles as the body's ground clearance
+        private const float WheelOutset = 0.092f;  // 0.08f * 1.15; how far the wheels poke out past the body sides
         private static readonly int[] DirX4 = { 1, -1, 0, 0 };
         private static readonly int[] DirZ4 = { 0, 0, 1, -1 };
-        private static readonly Color CarColor = Color.Yellow;
+        private static readonly Color CarColor = new Color(34, 85, 34);      // Dark green
+        private static readonly Color CarCabinColor = new Color(120, 200, 230);
         private static readonly Color WheelColor = new Color(40, 40, 40);
 
-        private static readonly Color BackgroundColor = Color.Black;
+        private static readonly Color BackgroundColor = new Color(66, 37, 251); // deep blue-purple
 
         private static readonly Color[] Palette =
         {
@@ -84,7 +129,7 @@ namespace VectorViktor
 
         private struct Bar
         {
-            public int CellX, CellZ;   // 0..GridSquares-1
+            public int CellX, CellZ;   // 0..GridSquares-1w
             public Color Color;
             public float Time;         // seconds elapsed in this cycle
             public float Duration;     // full grow+shrink cycle length
@@ -123,8 +168,21 @@ namespace VectorViktor
             _car.DirZ = 1;
             _car.Progress = 0f;
 
+            _birdDiveTimer = BirdDiveIntervalMin + (float)_rng.NextDouble() * (BirdDiveIntervalMax - BirdDiveIntervalMin);
+            _birdSpeedTimer = BirdSpeedChangeIntervalMin + (float)_rng.NextDouble() * (BirdSpeedChangeIntervalMax - BirdSpeedChangeIntervalMin);
+
+            Window.Title = $"Vector Viktor — {CameraModeName(_cameraMode)}";
+
             base.Initialize();
         }
+
+        private static string CameraModeName(CameraMode mode) => mode switch
+        {
+            CameraMode.Orbit => "Orbit View",
+            CameraMode.ChaseCar => "Chase Car",
+            CameraMode.ChaseBird => "Chase Bird",
+            _ => "",
+        };
 
         protected override void LoadContent()
         {
@@ -191,6 +249,13 @@ namespace VectorViktor
             if (keys.IsKeyDown(Keys.Space) && _prevKeys.IsKeyUp(Keys.Space)) _autoSpin = !_autoSpin;
             if (keys.IsKeyDown(Keys.C) && _prevKeys.IsKeyUp(Keys.C)) _colorsOn = !_colorsOn;
             if (keys.IsKeyDown(Keys.R)) { _yaw = 0f; _pitch = 0.45f; _cameraDistance = DefaultCameraDistance; }
+            if (keys.IsKeyDown(Keys.V) && _prevKeys.IsKeyUp(Keys.V))
+            {
+                _cameraMode = (CameraMode)(((int)_cameraMode + 1) % 3);
+                _chaseYaw = 0f;
+                _chasePitch = 0f;
+                Window.Title = $"Vector Viktor — {CameraModeName(_cameraMode)}";
+            }
 
             // F11 or Alt+Enter toggles fullscreen
             bool altEnter = keys.IsKeyDown(Keys.Enter) && _prevKeys.IsKeyUp(Keys.Enter)
@@ -214,10 +279,66 @@ namespace VectorViktor
             }
 
             _birdTime += dt;
+            UpdateBird(dt);
             UpdateCar(dt);
 
             base.Update(gameTime);
         }
+
+        private void UpdateBird(float dt)
+        {
+            // Cruising speed drifts up or down at random intervals
+            _birdSpeedTimer -= dt;
+            if (_birdSpeedTimer <= 0f)
+            {
+                _birdSpeedMult = BirdSpeedMultMin + (float)_rng.NextDouble() * (BirdSpeedMultMax - BirdSpeedMultMin);
+                _birdSpeedTimer = BirdSpeedChangeIntervalMin + (float)_rng.NextDouble() * (BirdSpeedChangeIntervalMax - BirdSpeedChangeIntervalMin);
+            }
+            _birdAngle += BirdOrbitSpeed * _birdSpeedMult * dt;
+
+            // Periodically dive toward the grid, then climb back to a height near the original ±10%
+            if (_birdDiveElapsed < 0f)
+            {
+                _birdDiveTimer -= dt;
+                if (_birdDiveTimer <= 0f)
+                {
+                    _birdDiveStartHeight = _birdBaseHeight;
+                    float variance = 1f + (float)(_rng.NextDouble() * 2 - 1) * BirdHeightVariance;
+                    _birdDiveEndHeight = BirdHeight * variance;
+                    _birdDiveElapsed = 0f;
+                }
+            }
+            else
+            {
+                _birdDiveElapsed += dt;
+                if (_birdDiveElapsed >= BirdDiveDuration)
+                {
+                    _birdDiveElapsed = -1f;
+                    _birdBaseHeight = _birdDiveEndHeight;
+                    _birdDiveTimer = BirdDiveIntervalMin + (float)_rng.NextDouble() * (BirdDiveIntervalMax - BirdDiveIntervalMin);
+                }
+            }
+
+            float currentHeight = GetBirdHeight();
+            _birdVerticalVelocity = dt > 0f ? (currentHeight - _birdPrevHeight) / dt : 0f;
+            _birdPrevHeight = currentHeight;
+        }
+
+        // Height follows a down-then-up smoothstep during a dive; otherwise holds at the resting height
+        private float GetBirdHeight()
+        {
+            if (_birdDiveElapsed < 0f)
+                return _birdBaseHeight;
+
+            float phase = _birdDiveElapsed / BirdDiveDuration;
+            if (phase < 0.5f)
+                return MathHelper.Lerp(_birdDiveStartHeight, BirdDiveLowHeight, Smooth(phase / 0.5f));
+            return MathHelper.Lerp(BirdDiveLowHeight, _birdDiveEndHeight, Smooth((phase - 0.5f) / 0.5f));
+        }
+
+        // Quintic smootherstep: unlike a cubic smoothstep, this also zeroes out at both ends,
+        // so the dive eases in and out with no kink in acceleration — no harsh snap at the bottom.
+        private static float Smooth(float t) => t * t * t * (t * (t * 6f - 15f) + 10f);
 
         private void UpdateCar(float dt)
         {
@@ -295,8 +416,59 @@ namespace VectorViktor
             GraphicsDevice.RasterizerState = RasterizerState.CullNone;
             GraphicsDevice.BlendState = BlendState.Opaque;
 
-            _effect.World = Matrix.CreateRotationY(_yaw) * Matrix.CreateRotationX(_pitch);
-            _effect.View = Matrix.CreateLookAt(new Vector3(0, 0, _cameraDistance), Vector3.Zero, Vector3.Up);
+            switch (_cameraMode)
+            {
+                case CameraMode.ChaseCar:
+                {
+                    var (carPos, carForward) = GetCarTransform();
+                    Vector3 carRight = Vector3.Cross(carForward, Vector3.Up);
+
+                    // Build offset in car's local coordinate frame using spherical coordinates
+                    float r = CarChaseDistance;
+                    float baseHeight = CarChaseHeight;
+
+                    // Local offset: (side, height, back)
+                    float localX = r * (float)Math.Sin(_chaseYaw) * (float)Math.Cos(_chasePitch);
+                    float localY = baseHeight + r * (float)Math.Sin(_chasePitch);
+                    float localZ = -r * (float)Math.Cos(_chaseYaw) * (float)Math.Cos(_chasePitch);
+
+                    // Transform to world space using car's basis
+                    Vector3 offsetInWorld = carRight * localX + Vector3.Up * localY + carForward * localZ;
+
+                    Vector3 eye = carPos + offsetInWorld;
+                    Vector3 target = carPos + carForward * CarChaseLookAhead + Vector3.Up * CarChaseTargetHeight;
+                    _effect.World = Matrix.Identity;
+                    _effect.View = Matrix.  (eye, target, Vector3.Up);
+                    break;
+                }
+                case CameraMode.ChaseBird:
+                {
+                    var (birdPos, birdForward) = GetBirdTransform();
+                    Vector3 birdRight = Vector3.Cross(birdForward, Vector3.Up);
+
+                    // Build offset in bird's local coordinate frame using spherical coordinates
+                    float r = BirdChaseDistance;
+                    float baseHeight = BirdChaseHeight;
+
+                    // Local offset: (side, height, back)
+                    float localX = r * (float)Math.Sin(_chaseYaw) * (float)Math.Cos(_chasePitch);
+                    float localY = baseHeight + r * (float)Math.Sin(_chasePitch);
+                    float localZ = -r * (float)Math.Cos(_chaseYaw) * (float)Math.Cos(_chasePitch);
+
+                    // Transform to world space using bird's basis
+                    Vector3 offsetInWorld = birdRight * localX + Vector3.Up * localY + birdForward * localZ;
+
+                    Vector3 eye = birdPos + offsetInWorld;
+                    Vector3 target = birdPos + birdForward * BirdChaseLookAhead;
+                    _effect.World = Matrix.Identity;
+                    _effect.View = Matrix.CreateLookAt(eye, target, Vector3.Up);
+                    break;
+                }
+                default:
+                    _effect.World = Matrix.CreateRotationY(_yaw) * Matrix.CreateRotationX(_pitch);
+                    _effect.View = Matrix.CreateLookAt(new Vector3(0, 0, _cameraDistance), Vector3.Zero, Vector3.Up);
+                    break;
+            }
             _effect.Projection = Matrix.CreatePerspectiveFieldOfView(
                 MathHelper.PiOver4, (float)VirtualWidth / VirtualHeight, 0.1f, 100f);
 
@@ -409,16 +581,28 @@ namespace VectorViktor
             GraphicsDevice.DrawUserPrimitives(PrimitiveType.LineList, edges, 0, 12);
         }
 
-        private void DrawBird()
+        // Orbits above the grid at a speed and height that drift over time; the bird's nose tilts
+        // with its vertical speed so dives and climbs read as actual diving rather than floating
+        private (Vector3 pos, Vector3 forward) GetBirdTransform()
         {
-            // Slow orbit above the grid; the bird always faces along its flight path
-            float angle = _birdTime * BirdOrbitSpeed;
+            float angle = _birdAngle;
+            float height = GetBirdHeight();
             Vector3 center = new Vector3(
                 (float)Math.Cos(angle) * BirdOrbitRadius,
-                BirdHeight,
+                height,
                 (float)Math.Sin(angle) * BirdOrbitRadius);
 
-            Vector3 forward = new Vector3(-(float)Math.Sin(angle), 0f, (float)Math.Cos(angle));
+            // tanh saturates smoothly at speed rather than hard-clamping, so the tilt itself
+            // eases toward its max instead of snapping flat the instant velocity peaks
+            float pitch = (float)Math.Tanh(_birdVerticalVelocity * BirdDivePitchSensitivity) * BirdDiveMaxPitch;
+            Vector3 forward = Vector3.Normalize(new Vector3(
+                -(float)Math.Sin(angle), pitch, (float)Math.Cos(angle)));
+            return (center, forward);
+        }
+
+        private void DrawBird()
+        {
+            var (center, forward) = GetBirdTransform();
             Vector3 up = Vector3.Up;
             Vector3 right = Vector3.Cross(forward, up);
 
@@ -491,63 +675,113 @@ namespace VectorViktor
             GraphicsDevice.DrawUserPrimitives(PrimitiveType.LineList, edges, 0, WingSegments);
         }
 
-        private void DrawCar()
+        // Interpolate between the current and next grid intersection
+        private (Vector3 pos, Vector3 forward) GetCarTransform()
         {
-            // Interpolate between the current and next grid intersection
             float x0 = -GridExtent + _car.GridX * CellSize;
             float z0 = -GridExtent + _car.GridZ * CellSize;
             float x1 = -GridExtent + (_car.GridX + _car.DirX) * CellSize;
             float z1 = -GridExtent + (_car.GridZ + _car.DirZ) * CellSize;
             Vector3 pos = Vector3.Lerp(new Vector3(x0, 0f, z0), new Vector3(x1, 0f, z1), _car.Progress);
             pos.Y = 0.015f; // lift slightly above the grid to avoid z-fighting
-
             Vector3 forward = new Vector3(_car.DirX, 0f, _car.DirZ); // already unit length
+            return (pos, forward);
+        }
+
+        private void DrawCar()
+        {
+            var (pos, forward) = GetCarTransform();
             Vector3 right = Vector3.Cross(forward, Vector3.Up);
 
             Color bodyColor = _colorsOn ? CarColor : BackgroundColor;
+            Color cabinColor = _colorsOn ? CarCabinColor : BackgroundColor;
             Color wheelColor = _colorsOn ? WheelColor : BackgroundColor;
 
-            // Body: a flat rectangle lying on the grid plane, like a painted vector decal
-            Vector3 bf = forward * (CarLength * 0.5f);
-            Vector3 br = right * (CarWidth * 0.5f);
-            DrawFlatQuad(pos + bf + br, pos + bf - br, pos - bf - br, pos - bf + br, bodyColor);
-
-            // Wheels: small rectangles poking out past the body's four corners
+            // Wheels: low-poly boxes at the four corners, giving the body its ground clearance
             Vector3 frontAxle = pos + forward * (CarLength * 0.32f);
             Vector3 rearAxle = pos - forward * (CarLength * 0.32f);
             DrawWheel(frontAxle, forward, right, +1, wheelColor);
             DrawWheel(frontAxle, forward, right, -1, wheelColor);
             DrawWheel(rearAxle, forward, right, +1, wheelColor);
             DrawWheel(rearAxle, forward, right, -1, wheelColor);
+
+            // Body: a low chassis box riding on top of the wheels
+            Vector3 bodyBottom = pos + Vector3.Up * WheelHeight;
+            DrawBox(bodyBottom, forward, right, CarLength, CarWidth, CarBodyHeight, bodyColor);
+
+            // Cabin: a shorter, narrower glasshouse set back toward the rear — hatchback roofline
+            Vector3 cabinBottom = bodyBottom + Vector3.Up * CarBodyHeight - forward * CarCabinSetback;
+            DrawBox(cabinBottom, forward, right, CarCabinLength, CarCabinWidth, CarCabinHeight, cabinColor);
         }
 
         private void DrawWheel(Vector3 axleCenter, Vector3 forward, Vector3 right, int side, Color color)
         {
             float outerEdge = CarWidth * 0.5f + WheelOutset;
             Vector3 wheelCenter = axleCenter + right * (side * (outerEdge - WheelTrack * 0.5f));
-            Vector3 wf = forward * (WheelLength * 0.5f);
-            Vector3 wr = right * (WheelTrack * 0.5f);
-            DrawFlatQuad(wheelCenter + wf + wr, wheelCenter + wf - wr, wheelCenter - wf - wr, wheelCenter - wf + wr, color);
+            DrawBox(wheelCenter, forward, right, WheelLength, WheelTrack, WheelHeight, color);
         }
 
-        // Flat filled quad plus a white wireframe outline — the vector-graphics signature
-        private void DrawFlatQuad(Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3, Color fill)
+        // Shaded box (flat-shaded sides + brighter top) with a white wireframe outline over it —
+        // the same solid-vector look as the grid's animated bars, built from a ground-level center
+        // plus the forward/right basis so it can be oriented along the car's direction of travel.
+        private void DrawBox(Vector3 bottomCenter, Vector3 forward, Vector3 right, float length, float width, float height, Color color)
         {
-            var tris = new[]
-            {
-                new VertexPositionColor(p0, fill), new VertexPositionColor(p1, fill), new VertexPositionColor(p2, fill),
-                new VertexPositionColor(p0, fill), new VertexPositionColor(p2, fill), new VertexPositionColor(p3, fill),
-            };
-            GraphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, tris, 0, 2);
+            Vector3 hf = forward * (length * 0.5f);
+            Vector3 hr = right * (width * 0.5f);
+            Vector3 hu = Vector3.Up * height;
 
-            var edges = new[]
+            Vector3 a = bottomCenter - hf - hr;
+            Vector3 b = bottomCenter + hf - hr;
+            Vector3 c = bottomCenter + hf + hr;
+            Vector3 d = bottomCenter - hf + hr;
+            Vector3 e = a + hu;
+            Vector3 f = b + hu;
+            Vector3 g = c + hu;
+            Vector3 h = d + hu;
+
+            Color side, sideDim, top;
+            if (_colorsOn)
             {
-                new VertexPositionColor(p0, Color.White), new VertexPositionColor(p1, Color.White),
-                new VertexPositionColor(p1, Color.White), new VertexPositionColor(p2, Color.White),
-                new VertexPositionColor(p2, Color.White), new VertexPositionColor(p3, Color.White),
-                new VertexPositionColor(p3, Color.White), new VertexPositionColor(p0, Color.White),
-            };
-            GraphicsDevice.DrawUserPrimitives(PrimitiveType.LineList, edges, 0, 4);
+                side = color;
+                sideDim = new Color((int)(side.R * 0.55f), (int)(side.G * 0.55f), (int)(side.B * 0.55f));
+                top = Color.Lerp(side, Color.White, 0.35f);
+            }
+            else
+            {
+                side = sideDim = top = BackgroundColor;
+            }
+
+            var tris = new VertexPositionColor[30];
+            int v = 0;
+            void Quad(Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3, Color col)
+            {
+                tris[v++] = new VertexPositionColor(p0, col);
+                tris[v++] = new VertexPositionColor(p1, col);
+                tris[v++] = new VertexPositionColor(p2, col);
+                tris[v++] = new VertexPositionColor(p0, col);
+                tris[v++] = new VertexPositionColor(p2, col);
+                tris[v++] = new VertexPositionColor(p3, col);
+            }
+            Quad(a, b, f, e, side);     // flank (-right)
+            Quad(c, d, h, g, side);     // flank (+right)
+            Quad(b, c, g, f, sideDim);  // nose  (+forward)
+            Quad(d, a, e, h, sideDim);  // tail  (-forward)
+            Quad(e, f, g, h, top);      // roof
+
+            GraphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, tris, 0, 10);
+
+            var edges = new VertexPositionColor[24];
+            v = 0;
+            void Edge(Vector3 p0, Vector3 p1)
+            {
+                edges[v++] = new VertexPositionColor(p0, Color.White);
+                edges[v++] = new VertexPositionColor(p1, Color.White);
+            }
+            Edge(a, b); Edge(b, c); Edge(c, d); Edge(d, a); // base
+            Edge(e, f); Edge(f, g); Edge(g, h); Edge(h, e); // roof rim
+            Edge(a, e); Edge(b, f); Edge(c, g); Edge(d, h); // verticals
+
+            GraphicsDevice.DrawUserPrimitives(PrimitiveType.LineList, edges, 0, 12);
         }
     }
 }
