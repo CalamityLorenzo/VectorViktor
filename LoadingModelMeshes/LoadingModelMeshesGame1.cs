@@ -29,6 +29,7 @@ namespace LoadingModelMeshes
         private KeyboardState _prevKeys;
         private MouseState _prevMouse;
 
+
         private Matrix _view;
         private Matrix _projection;
         private bool _isRotating = true;
@@ -91,9 +92,10 @@ namespace LoadingModelMeshes
             // Content.Load<Model>(...) call - each unique asset's edge cache and bounds are
             // only computed once, in GetOrBuildRenderData.
             Model carModel = Content.Load<Model>("EastGermanCar");
-            float spacing = WireframeGeometry.ComputeLocalBounds(carModel).Radius * 3f;
+            Model fullHouse = Content.Load<Model>("FullHouse");
+            float spacing = WireframeGeometry.ComputeLocalBounds(fullHouse).Radius * 3f;
             AddModelInstance(carModel, new Vector3(-spacing, 0, 0));
-            AddModelInstance(carModel, Vector3.Zero);
+            AddModelInstance(fullHouse, Vector3.Zero);
             AddModelInstance(carModel, new Vector3(spacing, 0, 0));
 
             // Frame the camera from the whole scene's bounding sphere instead of a guessed
