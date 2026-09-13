@@ -8,7 +8,7 @@ namespace VectorViktor
     public class Game1 : Game
     {
 
-        private Model gameShip;
+        //private Model gameShip;
         private Vector3 position = Vector3.One;
         private float zoom = 2500;
         private float rotationY = 0.0f;
@@ -211,7 +211,6 @@ namespace VectorViktor
 
         protected override void LoadContent()
         {
-            gameShip = Content.Load<Model>("fuelcarrier");
             _effect = new BasicEffect(GraphicsDevice)
             {
                 VertexColorEnabled = true,
@@ -519,8 +518,6 @@ namespace VectorViktor
 
                 // Car
                 DrawCar();
-
-                DrawModel(gameShip);
             }
 
             // Point-sample upscale to the window: fat pixels, hard stair-stepped edges
