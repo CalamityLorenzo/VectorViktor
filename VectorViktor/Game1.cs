@@ -63,6 +63,10 @@ namespace VectorViktor
         private readonly Bar[] _bars = new Bar[BarCount];
         private readonly Random _rng = new Random();
 
+        // Houses: static structures placed at random grid locations
+        private const int HouseCount = 5;
+        private readonly House[] _houses = new House[HouseCount];
+
         // Vector bird: slow orbit above the grid, wings ripple with a traveling wave
         private float _birdTime;
         private const float BirdOrbitRadius = 5.0f;
@@ -142,6 +146,11 @@ namespace VectorViktor
             public float Progress;     // 0..1 progress toward the next intersection
         }
 
+        private struct House
+        {
+            public int GridX, GridZ;   // corner position on grid (0..GridSquares)
+        }
+
         public Game1()
         {
             _graphics = new GraphicsDeviceManager(this)
@@ -161,6 +170,13 @@ namespace VectorViktor
             BuildGridLines();
             for (int i = 0; i < BarCount; i++)
                 SpawnBar(ref _bars[i], randomStartPhase: true);
+
+            // Initialize houses at random grid locations
+            for (int i = 0; i < HouseCount; i++)
+            {
+                _houses[i].GridX = _rng.Next(1, GridSquares - 2);  // Leave room for 2-wide house
+                _houses[i].GridZ = _rng.Next(1, GridSquares - 2);
+            }
 
             _car.GridX = GridSquares / 2;
             _car.GridZ = 0;
@@ -438,7 +454,7 @@ namespace VectorViktor
                     Vector3 eye = carPos + offsetInWorld;
                     Vector3 target = carPos + carForward * CarChaseLookAhead + Vector3.Up * CarChaseTargetHeight;
                     _effect.World = Matrix.Identity;
-                    _effect.View = Matrix.  (eye, target, Vector3.Up);
+                    _effect.View = Matrix.CreateLookAt(eye, target, Vector3.Up);
                     break;
                 }
                 case CameraMode.ChaseBird:
@@ -482,6 +498,10 @@ namespace VectorViktor
                 // Bars
                 for (int i = 0; i < BarCount; i++)
                     DrawBar(in _bars[i]);
+
+                // Houses
+                for (int i = 0; i < HouseCount; i++)
+                    DrawHouse(_houses[i]);
 
                 // Bird
                 DrawBird();
@@ -783,5 +803,109 @@ namespace VectorViktor
 
             GraphicsDevice.DrawUserPrimitives(PrimitiveType.LineList, edges, 0, 12);
         }
+
+        private void DrawHouse(House house)
+        {
+            // House dimensions: 2 grid cells wide (X), 1 grid cell deep (Z), 1 story tall
+            float houseWidth = 2.0f * CellSize;    // 2 grid squares
+            float houseDepth = 1.0f * CellSize;    // 1 grid square
+            float wallHeight = 0.6f;               // 1 story
+            float roofPeakHeight = 0.3f;           // roof adds this much height
+
+            // Position house base at grid corner
+            float x = -GridExtent + house.GridX * CellSize;
+            float z = -GridExtent + house.GridZ * CellSize;
+            float y = 0.02f;  // slightly above grid to avoid z-fighting
+
+            Vector3 houseCenter = new Vector3(x + houseWidth * 0.5f, y, z + houseDepth * 0.5f);
+
+            // Colors
+            Color wallColor = _colorsOn ? new Color(210, 140, 80) : BackgroundColor;      // Terracotta
+            Color roofColor = _colorsOn ? new Color(150, 80, 200) : BackgroundColor;      // Purple
+            Color doorColor = _colorsOn ? Color.White : BackgroundColor;
+            Color windowColor = _colorsOn ? Color.Blue : BackgroundColor;
+            Color chimneyColor = _colorsOn ? new Color(80, 40, 20) : BackgroundColor;    // Dark brown
+
+            // Draw main walls (box)
+            DrawBox(houseCenter, Vector3.UnitZ, Vector3.UnitX, houseDepth, houseWidth, wallHeight, wallColor);
+
+            // Draw roof (pyramid-like shape - two triangular faces)
+            Vector3 roofBase = houseCenter + Vector3.Up * wallHeight;
+            Vector3 roofPeak = roofBase + Vector3.Up * roofPeakHeight;
+
+            // Roof front and back triangles
+            float roofHalfWidth = houseWidth * 0.5f;
+            float roofHalfDepth = houseDepth * 0.5f;
+
+            Vector3 roofFrontLeft = roofBase - Vector3.UnitZ * roofHalfDepth - Vector3.UnitX * roofHalfWidth;
+            Vector3 roofFrontRight = roofBase - Vector3.UnitZ * roofHalfDepth + Vector3.UnitX * roofHalfWidth;
+            Vector3 roofBackLeft = roofBase + Vector3.UnitZ * roofHalfDepth - Vector3.UnitX * roofHalfWidth;
+            Vector3 roofBackRight = roofBase + Vector3.UnitZ * roofHalfDepth + Vector3.UnitX * roofHalfWidth;
+
+            // Draw roof triangles
+            var roofTris = new VertexPositionColor[12];
+            int v = 0;
+
+            // Front roof slope
+            roofTris[v++] = new VertexPositionColor(roofFrontLeft, roofColor);
+            roofTris[v++] = new VertexPositionColor(roofFrontRight, roofColor);
+            roofTris[v++] = new VertexPositionColor(roofPeak, roofColor);
+
+            // Back roof slope
+            roofTris[v++] = new VertexPositionColor(roofBackRight, roofColor);
+            roofTris[v++] = new VertexPositionColor(roofBackLeft, roofColor);
+            roofTris[v++] = new VertexPositionColor(roofPeak, roofColor);
+
+            // Left roof slope
+            roofTris[v++] = new VertexPositionColor(roofFrontLeft, roofColor);
+            roofTris[v++] = new VertexPositionColor(roofBackLeft, roofColor);
+            roofTris[v++] = new VertexPositionColor(roofPeak, roofColor);
+
+            // Right roof slope
+            roofTris[v++] = new VertexPositionColor(roofBackRight, roofColor);
+            roofTris[v++] = new VertexPositionColor(roofFrontRight, roofColor);
+            roofTris[v++] = new VertexPositionColor(roofPeak, roofColor);
+
+            GraphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, roofTris, 0, 4);
+
+            // Draw roof edges
+            var roofEdges = new VertexPositionColor[12];
+            v = 0;
+            roofEdges[v++] = new VertexPositionColor(roofFrontLeft, Color.White);
+            roofEdges[v++] = new VertexPositionColor(roofPeak, Color.White);
+            roofEdges[v++] = new VertexPositionColor(roofFrontRight, Color.White);
+            roofEdges[v++] = new VertexPositionColor(roofPeak, Color.White);
+            roofEdges[v++] = new VertexPositionColor(roofBackLeft, Color.White);
+            roofEdges[v++] = new VertexPositionColor(roofPeak, Color.White);
+            roofEdges[v++] = new VertexPositionColor(roofBackRight, Color.White);
+            roofEdges[v++] = new VertexPositionColor(roofPeak, Color.White);
+            roofEdges[v++] = new VertexPositionColor(roofFrontLeft, Color.White);
+            roofEdges[v++] = new VertexPositionColor(roofBackLeft, Color.White);
+            roofEdges[v++] = new VertexPositionColor(roofFrontRight, Color.White);
+            roofEdges[v++] = new VertexPositionColor(roofBackRight, Color.White);
+
+            GraphicsDevice.DrawUserPrimitives(PrimitiveType.LineList, roofEdges, 0, 6);
+
+            // Draw front door (on front face, centered in bottom half)
+            float doorWidth = 0.3f;
+            float doorHeight = 0.35f;
+            Vector3 doorCenter = houseCenter - Vector3.UnitZ * (houseDepth * 0.5f + 0.01f) + Vector3.Up * (doorHeight * 0.5f);
+            DrawBox(doorCenter, Vector3.UnitZ, Vector3.UnitX, 0.01f, doorWidth, doorHeight, doorColor);
+
+            // Draw front window (on front face, above door)
+            float windowWidth = 0.2f;
+            float windowHeight = 0.15f;
+            Vector3 windowCenter = houseCenter - Vector3.UnitZ * (houseDepth * 0.5f + 0.02f) + Vector3.Up * (wallHeight - windowHeight);
+            DrawBox(windowCenter, Vector3.UnitZ, Vector3.UnitX, 0.01f, windowWidth, windowHeight, windowColor);
+
+            // Draw chimney (on roof right side)
+            float chimneyWidth = 0.15f;
+            float chimneyDepth = 0.1f;
+            float chimneyHeight = 0.3f;
+            Vector3 chimneyBase = roofBase + Vector3.UnitX * (roofHalfWidth - chimneyWidth * 0.5f) - Vector3.UnitZ * (roofHalfDepth * 0.5f);
+            Vector3 chimneyCenter = chimneyBase + Vector3.Up * (chimneyHeight * 0.5f);
+            DrawBox(chimneyCenter, Vector3.UnitZ, Vector3.UnitX, chimneyDepth, chimneyWidth, chimneyHeight, chimneyColor);
+        }
     }
 }
+
