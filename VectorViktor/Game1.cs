@@ -886,26 +886,42 @@ namespace VectorViktor
 
             GraphicsDevice.DrawUserPrimitives(PrimitiveType.LineList, roofEdges, 0, 6);
 
-            // Draw front door (on front face, centered in bottom half)
-            float doorWidth = 0.3f;
-            float doorHeight = 0.35f;
-            Vector3 doorCenter = houseCenter - Vector3.UnitZ * (houseDepth * 0.5f + 0.01f) + Vector3.Up * (doorHeight * 0.5f);
+                      // Draw front door on one side of the facade
+            float doorWidth = 0.24f;
+            float doorHeight = 0.38f;
+            Vector3 doorCenter = houseCenter
+                + Vector3.UnitX * (houseWidth * -0.22f)
+                - Vector3.UnitZ * (houseDepth * 0.5f + 0.01f)
+                + Vector3.Up * (doorHeight * 0.5f);
             DrawBox(doorCenter, Vector3.UnitZ, Vector3.UnitX, 0.01f, doorWidth, doorHeight, doorColor);
 
-            // Draw front window (on front face, above door)
-            float windowWidth = 0.2f;
-            float windowHeight = 0.15f;
-            Vector3 windowCenter = houseCenter - Vector3.UnitZ * (houseDepth * 0.5f + 0.02f) + Vector3.Up * (wallHeight - windowHeight);
+            // Draw a larger front window on the opposite side, with a plus symbol to suggest a peek-through pane
+            float windowWidth = 0.46f;
+            float windowHeight = 0.30f;
+            Vector3 windowCenter = houseCenter
+                + Vector3.UnitX * (houseWidth * 0.22f)
+                - Vector3.UnitZ * (houseDepth * 0.5f + 0.02f)
+                + Vector3.Up * (wallHeight * 0.45f);
             DrawBox(windowCenter, Vector3.UnitZ, Vector3.UnitX, 0.01f, windowWidth, windowHeight, windowColor);
+
+            var windowPlus = new VertexPositionColor[]
+            {
+                new VertexPositionColor(windowCenter - Vector3.UnitX * (windowWidth * 0.18f), Color.White),
+                new VertexPositionColor(windowCenter + Vector3.UnitX * (windowWidth * 0.18f), Color.White),
+                new VertexPositionColor(windowCenter - Vector3.Up * (windowHeight * 0.18f), Color.White),
+                new VertexPositionColor(windowCenter + Vector3.Up * (windowHeight * 0.18f), Color.White),
+            };
+            GraphicsDevice.DrawUserPrimitives(PrimitiveType.LineList, windowPlus, 0, 2);
 
             // Draw chimney (on roof right side)
             float chimneyWidth = 0.15f;
             float chimneyDepth = 0.1f;
             float chimneyHeight = 0.3f;
             Vector3 chimneyBase = roofBase + Vector3.UnitX * (roofHalfWidth - chimneyWidth * 0.5f) - Vector3.UnitZ * (roofHalfDepth * 0.5f);
-            Vector3 chimneyCenter = chimneyBase + Vector3.Up * (chimneyHeight * 0.5f);
+            Vector3 chimneyCenter = chimneyBase; // + Vector3.Up * (chimneyHeight * 0.5f);
             DrawBox(chimneyCenter, Vector3.UnitZ, Vector3.UnitX, chimneyDepth, chimneyWidth, chimneyHeight, chimneyColor);
         }
    }
 }
 
+ 
