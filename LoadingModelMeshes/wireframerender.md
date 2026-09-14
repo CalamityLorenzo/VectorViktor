@@ -67,9 +67,10 @@ then runs two full passes over *all* instances (not one instance at a time):
 1. **Fill pass** — every instance drawn solid, in the background colour, with backface culling
    (`_fillRasterizerState`). This is invisible against the background, but writes the depth
    buffer for the whole scene.
-2. **Edge pass** — every instance's precomputed hard-edge lines are drawn on top via
+2. **Edge pass** — every instance's edge lines are drawn on top via
    `GraphicsDevice.DrawUserPrimitives(PrimitiveType.LineList, ...)`, through a dedicated
-   `BasicEffect` (`_edgeEffect`).
+   `BasicEffect` (`_edgeEffect`). Which lines depends on the instance's `WireframeMode` — see
+   below.
 
 Because pass 1 writes depth for the *entire* scene before pass 2 draws *any* edges, an edge
 gets correctly hidden whether it's occluded by its own mesh or by a completely different
@@ -97,6 +98,33 @@ each face. `BuildHardEdgeVertices` avoids this by reading the actual geometry:
    (dot ≈ 1), so it's correctly excluded — only the real edges of the shape remain.
 4. The surviving edges become a flat `VertexPosition[]` (pairs of endpoints) per mesh, ready
    to hand straight to `DrawUserPrimitives(PrimitiveType.LineList, ...)`.
+
+This works well for shapes with genuinely flat faces (a cube, the car body), where adjacent
+triangles on the same face share a normal and so get excluded. It doesn't work for a shape
+that's curved in every direction (a torus): there's no flat region anywhere, so *every*
+segment boundary counts as a crease and the full triangulation grid renders.
+
+## Silhouette edges (`WireframeMode.Silhouette`)
+
+For a doubly-curved mesh, `WireframeGeometry.BuildSilhouetteCandidates` extracts the same
+candidate edges as hard-edge extraction (mesh boundaries and creases past the same threshold),
+but instead of committing them to a static line list, it keeps each candidate's adjacent
+triangle normals and centroids. Nothing is decided at load time.
+
+Each frame, `WireframeGeometry.ComputeSilhouetteEdgeVertices` re-evaluates every candidate
+against the camera's current position (transformed into that mesh's local space): a boundary
+edge always qualifies; an interior edge qualifies only when its adjacent triangles aren't all
+facing the camera the same way (one faces it, the other faces away). That's the definition of
+a silhouette/contour edge. For a torus this converges to one or two closed loops that read as
+circles from any angle — the "low-poly circle" look — instead of the full facet grid, and it
+stays correct as the camera orbits or the model spins.
+
+This is strictly more expensive than hard edges (a matrix invert plus a full candidate scan,
+per instance, per frame), so it's opt-in per `WireframeModel` via its `Mode` — set when calling
+`AddModelInstance(model, position, WireframeMode.Silhouette)`. Everything else (the car) stays
+on the cheap, precomputed `HardEdge` path. `ModelRenderData` caches whichever of the two
+(`HardEdgeVerticesByMesh` / `SilhouetteCandidatesByMesh`) a given `Model` asset's instances
+have actually asked for, so the extraction for either still only runs once per asset.
 
 ## Adding more meshes/models
 

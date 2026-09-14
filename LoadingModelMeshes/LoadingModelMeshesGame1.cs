@@ -35,6 +35,7 @@ namespace LoadingModelMeshes
 
         // Orbit camera state: spherical coordinates around the scene's combined bounding sphere.
         private Vector3 _cameraTarget;
+        private Vector3 _cameraPosition;
         private float _cameraYaw;
         private float _cameraPitch;
         private float _cameraDistance;
@@ -47,7 +48,11 @@ namespace LoadingModelMeshes
 
         private sealed class ModelRenderData
         {
-            public Dictionary<ModelMesh, VertexPosition[]> EdgeVerticesByMesh;
+            // Only the dictionary matching a requested WireframeMode gets built (see
+            // AddModelInstance) - the other stays null unless some instance of this same Model
+            // later asks for the other mode too.
+            public Dictionary<ModelMesh, VertexPosition[]> HardEdgeVerticesByMesh;
+            public Dictionary<ModelMesh, WireframeGeometry.SilhouetteEdgeCandidate[]> SilhouetteCandidatesByMesh;
             public BoundingSphere LocalBounds;
         }
 
@@ -91,9 +96,13 @@ namespace LoadingModelMeshes
             // Content.Load<Model>(...) call - each unique asset's edge cache and bounds are
             // only computed once, in GetOrBuildRenderData.
             Model carModel = Content.Load<Model>("EastGermanCar");
-            float spacing = WireframeGeometry.ComputeLocalBounds(carModel).Radius * 3f;
+            Model wheels = Content.Load<Model>("Wheeels");
+            float spacing = WireframeGeometry.ComputeLocalBounds(wheels).Radius * 3f;
             AddModelInstance(carModel, new Vector3(-spacing, 0, 0));
-            AddModelInstance(carModel, Vector3.Zero);
+            // The wheel/torus asset is curved in both directions (no flat faces for HardEdge to
+            // collapse onto), so every triangulation seam would otherwise render. Silhouette
+            // mode instead shows just its contour, giving the "low-poly circle" look.
+            AddModelInstance(wheels, Vector3.Zero, WireframeMode.Silhouette);
             AddModelInstance(carModel, new Vector3(spacing, 0, 0));
 
             // Frame the camera from the whole scene's bounding sphere instead of a guessed
@@ -116,21 +125,22 @@ namespace LoadingModelMeshes
             UpdateViewMatrix();
         }
 
-        // Adds a placed instance of a model to the scene, building (and caching) its hard-edge
-        // data the first time this Model asset is seen.
-        private WireframeModel AddModelInstance(Model model, Vector3 position)
+        // Adds a placed instance of a model to the scene, building (and caching) the edge data
+        // its WireframeMode needs the first time this Model asset is seen in that mode.
+        private WireframeModel AddModelInstance(Model model, Vector3 position, WireframeMode mode = WireframeMode.HardEdge)
         {
             if (!_renderDataByModel.TryGetValue(model, out ModelRenderData data))
             {
-                data = new ModelRenderData
-                {
-                    EdgeVerticesByMesh = WireframeGeometry.BuildHardEdgeVertices(model),
-                    LocalBounds = WireframeGeometry.ComputeLocalBounds(model)
-                };
+                data = new ModelRenderData { LocalBounds = WireframeGeometry.ComputeLocalBounds(model) };
                 _renderDataByModel[model] = data;
             }
 
-            var instance = new WireframeModel(model, data.EdgeVerticesByMesh, data.LocalBounds, position);
+            if (mode == WireframeMode.HardEdge && data.HardEdgeVerticesByMesh == null)
+                data.HardEdgeVerticesByMesh = WireframeGeometry.BuildHardEdgeVertices(model);
+            if (mode == WireframeMode.Silhouette && data.SilhouetteCandidatesByMesh == null)
+                data.SilhouetteCandidatesByMesh = WireframeGeometry.BuildSilhouetteCandidates(model);
+
+            var instance = new WireframeModel(model, mode, data.HardEdgeVerticesByMesh, data.SilhouetteCandidatesByMesh, data.LocalBounds, position);
             _sceneModels.Add(instance);
             return instance;
         }
@@ -150,7 +160,8 @@ namespace LoadingModelMeshes
                 _cameraDistance * (float)System.Math.Sin(_cameraPitch),
                 _cameraDistance * (float)System.Math.Cos(_cameraPitch) * (float)System.Math.Cos(_cameraYaw));
 
-            _view = Matrix.CreateLookAt(_cameraTarget + offset, _cameraTarget, Vector3.Up);
+            _cameraPosition = _cameraTarget + offset;
+            _view = Matrix.CreateLookAt(_cameraPosition, _cameraTarget, Vector3.Up);
         }
 
         protected override void Update(GameTime gameTime)
@@ -239,23 +250,43 @@ namespace LoadingModelMeshes
             foreach (var entry in frame)
                 DrawMeshes(entry.Instance.Model, entry.BoneTransforms, entry.World, _view, _projection, _backgroundColour);
 
-            // Pass 2: only the visible hard edges survive the depth test written in pass 1.
+            // Pass 2: only the visible edges survive the depth test written in pass 1. HardEdge
+            // instances draw their precomputed line list; Silhouette instances get theirs
+            // recomputed here from the current viewpoint (see DrawEdges).
             _edgeEffect.View = _view;
             _edgeEffect.Projection = _projection;
             _edgeEffect.DiffuseColor = _wireColour.ToVector3();
             foreach (var entry in frame)
-                DrawHardEdges(entry.Instance.Model, entry.Instance.EdgeVerticesByMesh, entry.BoneTransforms, entry.World);
+                DrawEdges(entry.Instance, entry.BoneTransforms, entry.World);
         }
 
-        private void DrawHardEdges(Model model, IReadOnlyDictionary<ModelMesh, VertexPosition[]> edgeVerticesByMesh, Matrix[] boneTransforms, Matrix world)
+        private void DrawEdges(WireframeModel instance, Matrix[] boneTransforms, Matrix world)
         {
-            foreach (ModelMesh mesh in model.Meshes)
+            foreach (ModelMesh mesh in instance.Model.Meshes)
             {
-                VertexPosition[] vertices = edgeVerticesByMesh[mesh];
+                Matrix meshWorld = boneTransforms[mesh.ParentBone.Index] * world;
+                VertexPosition[] vertices;
+
+                if (instance.Mode == WireframeMode.Silhouette)
+                {
+                    WireframeGeometry.SilhouetteEdgeCandidate[] candidates = instance.SilhouetteCandidatesByMesh[mesh];
+                    if (candidates.Length == 0)
+                        continue;
+
+                    // Candidates are stored in the mesh's local space, so bring the camera into
+                    // that same space rather than transforming every candidate into world space.
+                    Vector3 localCameraPosition = Vector3.Transform(_cameraPosition, Matrix.Invert(meshWorld));
+                    vertices = WireframeGeometry.ComputeSilhouetteEdgeVertices(candidates, localCameraPosition);
+                }
+                else
+                {
+                    vertices = instance.HardEdgeVerticesByMesh[mesh];
+                }
+
                 if (vertices.Length == 0)
                     continue;
 
-                _edgeEffect.World = boneTransforms[mesh.ParentBone.Index] * world;
+                _edgeEffect.World = meshWorld;
 
                 foreach (EffectPass pass in _edgeEffect.CurrentTechnique.Passes)
                 {
