@@ -29,6 +29,7 @@ namespace LoadingModelMeshes
         private KeyboardState _prevKeys;
         private MouseState _prevMouse;
 
+
         private Matrix _view;
         private Matrix _projection;
         private bool _isRotating = true;
