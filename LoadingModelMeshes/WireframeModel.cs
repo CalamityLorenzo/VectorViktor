@@ -35,6 +35,8 @@ namespace LoadingModelMeshes
         // on the silhouette depends on the viewpoint.
         public IReadOnlyDictionary<ModelMesh, WireframeGeometry.SilhouetteEdgeCandidate[]> SilhouetteCandidatesByMesh { get; }
 
+        private readonly IReadOnlyDictionary<string, WireframeMode> _meshModes;
+
         public BoundingSphere LocalBounds { get; }
 
         public Vector3 Position { get; set; }
@@ -46,7 +48,8 @@ namespace LoadingModelMeshes
             IReadOnlyDictionary<ModelMesh, VertexPosition[]> hardEdgeVerticesByMesh,
             IReadOnlyDictionary<ModelMesh, WireframeGeometry.SilhouetteEdgeCandidate[]> silhouetteCandidatesByMesh,
             BoundingSphere localBounds,
-            Vector3 position = default)
+            Vector3 position = default,
+            IReadOnlyDictionary<string, WireframeMode> meshModes = null)
         {
             Model = model;
             Mode = mode;
@@ -54,6 +57,15 @@ namespace LoadingModelMeshes
             SilhouetteCandidatesByMesh = silhouetteCandidatesByMesh;
             LocalBounds = localBounds;
             Position = position;
+            _meshModes = meshModes;
+        }
+
+        public WireframeMode GetMeshMode(ModelMesh mesh)
+        {
+            if (_meshModes != null && _meshModes.TryGetValue(mesh.Name, out WireframeMode meshMode))
+                return meshMode;
+
+            return Mode;
         }
 
         // Spins the model around its own bounding-sphere center rather than the scene origin,
