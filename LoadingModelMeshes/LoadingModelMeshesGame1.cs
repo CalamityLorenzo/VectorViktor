@@ -149,21 +149,6 @@ namespace LoadingModelMeshes
             return meshModes;
         }
 
-        private static Dictionary<string, WireframeMode> BuildMeshModeOverrides(
-            WireframeMode defaultMode,
-            WireframeMode overrideMode,
-            params string[] meshNames)
-        {
-            // Convenience overload for the opposite pattern: keep the model on defaultMode
-            // unless a selected mesh name is in the override list, in which case use
-            // overrideMode instead.
-            var meshModes = new Dictionary<string, WireframeMode>();
-            foreach (string meshName in meshNames)
-                meshModes[meshName] = overrideMode;
-
-            return meshModes;
-        }
-
         // Adds a placed instance of a model to the scene. The default WireframeMode applies to
         // every mesh unless mesh-specific overrides are supplied.
         private WireframeModel AddModelInstance(
