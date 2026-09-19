@@ -98,12 +98,24 @@ namespace LoadingModelMeshes
             // only computed once, in GetOrBuildRenderData.
             Model carModel = Content.Load<Model>("EastGermanCar");
             Model wheels = Content.Load<Model>("Wheeels");
-            float spacing = WireframeGeometry.ComputeLocalBounds(wheels).Radius * 3f;
-            AddModelInstance(carModel, new Vector3(-spacing, 0, 0));
+
+            // Hybrid example: keep the car body's meshes on HardEdge, but override the wheel
+            // meshes to Silhouette so the contour reads cleanly while the body remains crisp.
+            var carMeshModes = BuildMeshModeOverrides(WireframeMode.Silhouette, "w1", "w2", "w3", "w4");
+            var wheelsMesModes = BuildMeshModeOverrides(WireframeMode.HardEdge, "cylinder");
+            // Example of the opposite pattern, if you want to force some meshes back to HardEdge
+            // while leaving the rest of the model on Silhouette:
+            // var carMeshModes = BuildMeshModeOverrides(
+            //     WireframeMode.Silhouette,
+            //     WireframeMode.HardEdge,
+            //     "body", "roofBody", "mesh");
+
+            float spacing = WireframeGeometry.ComputeLocalBounds(carModel).Radius * 3f;
+            AddModelInstance(carModel, new Vector3(-spacing, 0, 0), meshModes: carMeshModes);
             // The wheel/torus asset is curved in both directions (no flat faces for HardEdge to
             // collapse onto), so every triangulation seam would otherwise render. Silhouette
             // mode instead shows just its contour, giving the "low-poly circle" look.
-            AddModelInstance(wheels, Vector3.Zero, WireframeMode.Silhouette);
+            AddModelInstance(wheels, Vector3.Zero, WireframeMode.Silhouette, meshModes: wheelsMesModes);
             AddModelInstance(carModel, new Vector3(spacing, 0, 0));
 
             // Frame the camera from the whole scene's bounding sphere instead of a guessed
@@ -126,9 +138,24 @@ namespace LoadingModelMeshes
             UpdateViewMatrix();
         }
 
-        // Adds a placed instance of a model to the scene, building (and caching) the edge data
-        // its WireframeMode needs the first time this Model asset is seen in that mode.
-        private WireframeModel AddModelInstance(Model model, Vector3 position, WireframeMode mode = WireframeMode.HardEdge)
+        private static Dictionary<string, WireframeMode> BuildMeshModeOverrides(
+            WireframeMode mode,
+            params string[] meshNames)
+        {
+            var meshModes = new Dictionary<string, WireframeMode>();
+            foreach (string meshName in meshNames)
+                meshModes[meshName] = mode;
+
+            return meshModes;
+        }
+
+        // Adds a placed instance of a model to the scene. The default WireframeMode applies to
+        // every mesh unless mesh-specific overrides are supplied.
+        private WireframeModel AddModelInstance(
+            Model model,
+            Vector3 position,
+            WireframeMode mode = WireframeMode.HardEdge,
+            IReadOnlyDictionary<string, WireframeMode> meshModes = null)
         {
             if (!_renderDataByModel.TryGetValue(model, out ModelRenderData data))
             {
@@ -136,12 +163,20 @@ namespace LoadingModelMeshes
                 _renderDataByModel[model] = data;
             }
 
-            if (mode == WireframeMode.HardEdge && data.HardEdgeVerticesByMesh == null)
+            if (data.HardEdgeVerticesByMesh == null)
                 data.HardEdgeVerticesByMesh = WireframeGeometry.BuildHardEdgeVertices(model);
-            if (mode == WireframeMode.Silhouette && data.SilhouetteCandidatesByMesh == null)
+            if (data.SilhouetteCandidatesByMesh == null)
                 data.SilhouetteCandidatesByMesh = WireframeGeometry.BuildSilhouetteCandidates(model);
 
-            var instance = new WireframeModel(model, mode, data.HardEdgeVerticesByMesh, data.SilhouetteCandidatesByMesh, data.LocalBounds, position);
+            var instance = new WireframeModel(
+                model,
+                mode,
+                data.HardEdgeVerticesByMesh,
+                data.SilhouetteCandidatesByMesh,
+                data.LocalBounds,
+                position,
+                meshModes);
+
             _sceneModels.Add(instance);
             return instance;
         }
@@ -268,7 +303,8 @@ namespace LoadingModelMeshes
                 Matrix meshWorld = boneTransforms[mesh.ParentBone.Index] * world;
                 VertexPosition[] vertices;
 
-                if (instance.Mode == WireframeMode.Silhouette)
+                WireframeMode meshMode = instance.GetMeshMode(mesh);
+                if (meshMode == WireframeMode.Silhouette)
                 {
                     WireframeGeometry.SilhouetteEdgeCandidate[] candidates = instance.SilhouetteCandidatesByMesh[mesh];
                     if (candidates.Length == 0)
