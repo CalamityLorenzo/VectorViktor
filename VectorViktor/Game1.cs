@@ -317,7 +317,10 @@ namespace VectorViktor
             if (_autoSpin)
                 _yaw += 0.25f * dt;
 
-            _pitch = MathHelper.Clamp(_pitch, -MathHelper.PiOver2, MathHelper.PiOver2);
+            // Kept just short of ±90°: at exactly ±90° the orbit camera's eye sits directly
+            // above/below the origin, which makes the up vector in CreateLookAt degenerate.
+            const float maxPitch = MathHelper.PiOver2 - 0.01f;
+            _pitch = MathHelper.Clamp(_pitch, -maxPitch, maxPitch);
 
             // Advance bar animations; respawn each bar elsewhere when its cycle ends
             for (int i = 0; i < BarCount; i++)
@@ -514,9 +517,17 @@ namespace VectorViktor
                     break;
                 }
                 default:
-                    _effect.World = Matrix.CreateRotationY(_yaw) * Matrix.CreateRotationX(_pitch);
-                    _effect.View = Matrix.CreateLookAt(new Vector3(0, 0, _cameraDistance), Vector3.Zero, Vector3.Up);
+                {
+                    // Orbit camera: the eye moves around the origin on a sphere of radius
+                    // _cameraDistance, driven by yaw/pitch; the world itself stays fixed,
+                    // matching the chase cams' convention of a moving camera + identity world.
+                    float eyeX = _cameraDistance * (float)Math.Sin(_yaw) * (float)Math.Cos(_pitch);
+                    float eyeY = _cameraDistance * (float)Math.Sin(_pitch);
+                    float eyeZ = _cameraDistance * (float)Math.Cos(_yaw) * (float)Math.Cos(_pitch);
+                    _effect.World = Matrix.Identity;
+                    _effect.View = Matrix.CreateLookAt(new Vector3(eyeX, eyeY, eyeZ), Vector3.Zero, Vector3.Up);
                     break;
+                }
             }
             _effect.Projection = Matrix.CreatePerspectiveFieldOfView(
                 MathHelper.PiOver4, (float)VirtualWidth / VirtualHeight, 0.1f, 100f);
@@ -559,81 +570,6 @@ namespace VectorViktor
             _spriteBatch.End();
 
             base.Draw(gameTime);
-        }
-
-        private void DrawModel(Model m)
-        {
-            if (m == null) return;
-
-            // Get car position and forward vector
-            var (pos, forward) = GetCarTransform();
-
-            // Bone transforms for the model
-            Matrix[] transforms = new Matrix[m.Bones.Count];
-            m.CopyAbsoluteBoneTransformsTo(transforms);
-
-            // Scale down the model, rotate with counter-clockwise spin, and position it
-            float scale = 0.007f;  // Adjust based on model size
-            Matrix modelWorld =
-                Matrix.CreateScale(scale) *
-                Matrix.CreateRotationY(-_modelRotation) *  // Negative for counter-clockwise
-                Matrix.CreateRotationY(MathHelper.Pi) *
-                Matrix.CreateWorld(pos + Vector3.Up * 0.2f, forward, Vector3.Up);
-
-            // Save current states
-            var previousRasterizerState = GraphicsDevice.RasterizerState;
-            var previousDepthStencilState = GraphicsDevice.DepthStencilState;
-            var previousBlendState = GraphicsDevice.BlendState;
-
-            // Pass 1: Draw solid geometry to populate depth buffer (no color write)
-            GraphicsDevice.RasterizerState = RasterizerState.CullCounterClockwise;
-            GraphicsDevice.DepthStencilState = DepthStencilState.Default;
-            GraphicsDevice.BlendState = new BlendState { ColorWriteChannels = ColorWriteChannels.None };
-
-            foreach (ModelMesh mesh in m.Meshes)
-            {
-                foreach (BasicEffect effect in mesh.Effects)
-                {
-                    effect.TextureEnabled = false;
-                    effect.DiffuseColor = Vector3.One;  // Color doesn't matter; won't be written
-                    effect.SpecularColor = Vector3.Zero;
-                    effect.EmissiveColor = Vector3.Zero;
-
-                    effect.View = _effect.View;
-                    effect.Projection = _effect.Projection;
-                    effect.World = transforms[mesh.ParentBone.Index] * modelWorld;
-                }
-                mesh.Draw();
-            }
-
-            // Pass 2: Draw wireframe edges with depth testing to occlude hidden edges
-            GraphicsDevice.BlendState = BlendState.Opaque;  // Restore normal color writing
-            GraphicsDevice.RasterizerState = new RasterizerState
-            {
-                FillMode = FillMode.WireFrame,
-                CullMode = CullMode.CullCounterClockwiseFace
-            };
-
-            foreach (ModelMesh mesh in m.Meshes)
-            {
-                foreach (BasicEffect effect in mesh.Effects)
-                {
-                    effect.TextureEnabled = false;
-                    effect.DiffuseColor = Color.White.ToVector3();
-                    effect.SpecularColor = Vector3.Zero;
-                    effect.EmissiveColor = Vector3.Zero;
-
-                    effect.View = _effect.View;
-                    effect.Projection = _effect.Projection;
-                    effect.World = transforms[mesh.ParentBone.Index] * modelWorld;
-                }
-                mesh.Draw();
-            }
-
-            // Restore previous states
-            GraphicsDevice.RasterizerState = previousRasterizerState;
-            GraphicsDevice.DepthStencilState = previousDepthStencilState;
-            GraphicsDevice.BlendState = previousBlendState;
         }
         private void DrawBar(in Bar bar)
         {
@@ -860,7 +796,7 @@ namespace VectorViktor
 
         // Builds the vertex/edge arrays for a shaded+outlined box without drawing it, so callers
         // with static geometry (e.g. houses) can build once and cache the result instead of
-        // rebuilding it every frame.
+        // rebuilding it every frame.r
         private (VertexPositionColor[] tris, VertexPositionColor[] edges) BuildBoxGeometry(
             Vector3 bottomCenter, Vector3 forward, Vector3 right, float length, float width, float height, Color color, bool colorsOn)
         {
