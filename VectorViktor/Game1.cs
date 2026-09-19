@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -116,6 +117,11 @@ namespace VectorViktor
 
         // Car: drives along the grid lines, turning at intersections
         private Car _car;
+        // The car's shape only depends on its heading (one of 4 axis-aligned directions) and the
+        // colour toggle, so — like houses — that geometry is built once per combination up front.
+        // Only the translation (its position along the current grid segment) changes every frame.
+        private CarGeometry[] _carGeometryColorsOn;
+        private CarGeometry[] _carGeometryColorsOff;
         private const float CarSpeed = 1.1f;      // grid cells per second
         private const float CarLength = 0.92f;    // 0.8f * 1.15
         private const float CarWidth = 0.483f;    // 0.42f * 1.15
@@ -159,7 +165,8 @@ namespace VectorViktor
 
         private struct House
         {
-            public int GridX, GridZ;   // corner position on grid (0..GridSquares)
+            public int GridX, GridZ;   // corner of the house's footprint, in grid cells
+            public int Rotation;       // 0..3, one 90° step each: 0°, 90°, 180°, 270°
         }
 
         // Precomputed vertex/edge data for a single house, built once since houses never move.
@@ -173,6 +180,19 @@ namespace VectorViktor
             public VertexPositionColor[] WindowTris, WindowEdges;
             public VertexPositionColor[] WindowPlusEdges;
             public VertexPositionColor[] ChimneyTris, ChimneyEdges;
+        }
+
+        // Precomputed vertex/edge data for the car's body panels, built once per heading (the car
+        // only ever faces one of 4 axis-aligned directions) since only its position — not its
+        // shape — changes every frame. Cached separately per colour state, same as houses.
+        private struct CarGeometry
+        {
+            public VertexPositionColor[] BodyTris, BodyEdges;
+            public VertexPositionColor[] CabinTris, CabinEdges;
+            public VertexPositionColor[] WheelFrontATris, WheelFrontAEdges;
+            public VertexPositionColor[] WheelFrontBTris, WheelFrontBEdges;
+            public VertexPositionColor[] WheelRearATris, WheelRearAEdges;
+            public VertexPositionColor[] WheelRearBTris, WheelRearBEdges;
         }
 
         public Game1()
@@ -195,13 +215,37 @@ namespace VectorViktor
             for (int i = 0; i < BarCount; i++)
                 SpawnBar(ref _bars[i], randomStartPhase: true);
 
-            // Initialize houses at random grid locations
+            // Initialize houses at random grid locations, each facing a random 90° step, with no
+            // two houses sharing a grid cell.
             _houseGeometryColorsOn = new HouseGeometry[HouseCount];
             _houseGeometryColorsOff = new HouseGeometry[HouseCount];
+            var occupiedCells = new HashSet<(int x, int z)>();
             for (int i = 0; i < HouseCount; i++)
             {
-                _houses[i].GridX = _rng.Next(1, GridSquares - 2);  // Leave room for 2-wide house
-                _houses[i].GridZ = _rng.Next(1, GridSquares - 2);
+                int rotation, gridX, gridZ;
+                var footprint = new List<(int x, int z)>();
+                int attempts = 0;
+                do
+                {
+                    rotation = _rng.Next(4);
+                    var (footprintWidth, footprintDepth) = GetHouseFootprint(rotation);
+                    gridX = _rng.Next(1, GridSquares - footprintWidth - 1);
+                    gridZ = _rng.Next(1, GridSquares - footprintDepth - 1);
+
+                    footprint.Clear();
+                    for (int dx = 0; dx < footprintWidth; dx++)
+                        for (int dz = 0; dz < footprintDepth; dz++)
+                            footprint.Add((gridX + dx, gridZ + dz));
+
+                    attempts++;
+                } while (attempts < 200 && footprint.Exists(occupiedCells.Contains));
+
+                foreach (var cell in footprint)
+                    occupiedCells.Add(cell);
+
+                _houses[i].GridX = gridX;
+                _houses[i].GridZ = gridZ;
+                _houses[i].Rotation = rotation;
 
                 // Houses are static, so their vertex/edge data is built once here rather than
                 // every frame in Draw(). Both colour states are cached since colours can be
@@ -215,6 +259,19 @@ namespace VectorViktor
             _car.DirX = 0;
             _car.DirZ = 1;
             _car.Progress = 0f;
+
+            // The car can only ever face one of 4 axis-aligned headings, so its local-space shape
+            // is built once per heading here (both colour states) instead of every frame in
+            // Draw() — DrawCar() then just points the effect's World matrix at the car's current
+            // position and lets the GPU place the cached geometry, which is the only thing that
+            // actually changes frame to frame.
+            _carGeometryColorsOn = new CarGeometry[4];
+            _carGeometryColorsOff = new CarGeometry[4];
+            for (int heading = 0; heading < 4; heading++)
+            {
+                _carGeometryColorsOn[heading] = BuildCarGeometry(heading, colorsOn: true);
+                _carGeometryColorsOff[heading] = BuildCarGeometry(heading, colorsOn: false);
+            }
 
             _birdDiveTimer = BirdDiveIntervalMin + (float)_rng.NextDouble() * (BirdDiveIntervalMax - BirdDiveIntervalMin);
             _birdSpeedTimer = BirdSpeedChangeIntervalMin + (float)_rng.NextDouble() * (BirdSpeedChangeIntervalMax - BirdSpeedChangeIntervalMin);
@@ -552,7 +609,7 @@ namespace VectorViktor
                 DrawBird();
 
                 // Car
-                DrawCar();
+                DrawCar(pass);
             }
 
             // Point-sample upscale to the window: fat pixels, hard stair-stepped edges
@@ -752,46 +809,83 @@ namespace VectorViktor
             return (pos, forward);
         }
 
-        private void DrawCar()
+        // Maps the car's current (DirX, DirZ) to the matching index into the 4 precomputed
+        // headings (see BuildCarGeometry) — heading 0 is +Z, then 90° steps the same way house
+        // rotation does.
+        private static int CarHeadingIndex(int dirX, int dirZ)
         {
-            var (pos, forward) = GetCarTransform();
+            if (dirZ == 1) return 0;
+            if (dirX == 1) return 1;
+            if (dirZ == -1) return 2;
+            return 3; // dirX == -1
+        }
+
+        // The car's cached geometry is local space with heading already baked in (see
+        // BuildCarGeometry) — same shape, every frame. Rather than re-transforming its vertices on
+        // the CPU each frame (as any moving mesh would otherwise need to), position is applied via
+        // the effect's World matrix and left to the GPU, so this does zero per-frame CPU work
+        // beyond picking the cached array and issuing the draw calls.
+        private void DrawCar(EffectPass pass)
+        {
+            var (pos, _) = GetCarTransform();
+            int heading = CarHeadingIndex(_car.DirX, _car.DirZ);
+            var geo = _colorsOn ? _carGeometryColorsOn[heading] : _carGeometryColorsOff[heading];
+
+            _effect.World = Matrix.CreateTranslation(pos);
+            pass.Apply();
+
+            DrawBoxGeometry(geo.WheelFrontATris, geo.WheelFrontAEdges);
+            DrawBoxGeometry(geo.WheelFrontBTris, geo.WheelFrontBEdges);
+            DrawBoxGeometry(geo.WheelRearATris, geo.WheelRearAEdges);
+            DrawBoxGeometry(geo.WheelRearBTris, geo.WheelRearBEdges);
+            DrawBoxGeometry(geo.BodyTris, geo.BodyEdges);
+            DrawBoxGeometry(geo.CabinTris, geo.CabinEdges);
+
+            // Everything else this frame assumes World == Identity (its vertices are already in
+            // world space), so restore it before the next draw call relies on that.
+            _effect.World = Matrix.Identity;
+            pass.Apply();
+        }
+
+        // Builds the car's local-space geometry (centred on its ground-contact point, at the
+        // origin) for one of its 4 possible headings. Called once per heading per colour state at
+        // startup and cached, since heading only changes at intersections and colour only on the
+        // C key — DrawCar() then just translates these cached vertices to the car's live position.
+        private CarGeometry BuildCarGeometry(int heading, bool colorsOn)
+        {
+            Vector3 forward = Vector3.Transform(Vector3.UnitZ, Matrix.CreateRotationY(heading * MathHelper.PiOver2));
             Vector3 right = Vector3.Cross(forward, Vector3.Up);
 
-            Color bodyColor = _colorsOn ? CarColor : BackgroundColor;
-            Color cabinColor = _colorsOn ? CarCabinColor : BackgroundColor;
-            Color wheelColor = _colorsOn ? WheelColor : BackgroundColor;
+            Color bodyColor = colorsOn ? CarColor : BackgroundColor;
+            Color cabinColor = colorsOn ? CarCabinColor : BackgroundColor;
+            Color wheelColor = colorsOn ? WheelColor : BackgroundColor;
+
+            var geo = new CarGeometry();
 
             // Wheels: low-poly boxes at the four corners, giving the body its ground clearance
-            Vector3 frontAxle = pos + forward * (CarLength * 0.32f);
-            Vector3 rearAxle = pos - forward * (CarLength * 0.32f);
-            DrawWheel(frontAxle, forward, right, +1, wheelColor);
-            DrawWheel(frontAxle, forward, right, -1, wheelColor);
-            DrawWheel(rearAxle, forward, right, +1, wheelColor);
-            DrawWheel(rearAxle, forward, right, -1, wheelColor);
+            Vector3 frontAxle = forward * (CarLength * 0.32f);
+            Vector3 rearAxle = -forward * (CarLength * 0.32f);
+            (geo.WheelFrontATris, geo.WheelFrontAEdges) = BuildWheelGeometry(frontAxle, forward, right, +1, wheelColor, colorsOn);
+            (geo.WheelFrontBTris, geo.WheelFrontBEdges) = BuildWheelGeometry(frontAxle, forward, right, -1, wheelColor, colorsOn);
+            (geo.WheelRearATris, geo.WheelRearAEdges) = BuildWheelGeometry(rearAxle, forward, right, +1, wheelColor, colorsOn);
+            (geo.WheelRearBTris, geo.WheelRearBEdges) = BuildWheelGeometry(rearAxle, forward, right, -1, wheelColor, colorsOn);
 
             // Body: a low chassis box riding on top of the wheels
-            Vector3 bodyBottom = pos + Vector3.Up * WheelHeight;
-            DrawBox(bodyBottom, forward, right, CarLength, CarWidth, CarBodyHeight, bodyColor);
+            Vector3 bodyBottom = Vector3.Up * WheelHeight;
+            (geo.BodyTris, geo.BodyEdges) = BuildBoxGeometry(bodyBottom, forward, right, CarLength, CarWidth, CarBodyHeight, bodyColor, colorsOn);
 
             // Cabin: a shorter, narrower glasshouse set back toward the rear — hatchback roofline
             Vector3 cabinBottom = bodyBottom + Vector3.Up * CarBodyHeight - forward * CarCabinSetback;
-            DrawBox(cabinBottom, forward, right, CarCabinLength, CarCabinWidth, CarCabinHeight, cabinColor);
+            (geo.CabinTris, geo.CabinEdges) = BuildBoxGeometry(cabinBottom, forward, right, CarCabinLength, CarCabinWidth, CarCabinHeight, cabinColor, colorsOn);
+
+            return geo;
         }
 
-        private void DrawWheel(Vector3 axleCenter, Vector3 forward, Vector3 right, int side, Color color)
+        private (VertexPositionColor[] tris, VertexPositionColor[] edges) BuildWheelGeometry(Vector3 axleCenter, Vector3 forward, Vector3 right, int side, Color color, bool colorsOn)
         {
             float outerEdge = CarWidth * 0.5f + WheelOutset;
             Vector3 wheelCenter = axleCenter + right * (side * (outerEdge - WheelTrack * 0.5f));
-            DrawBox(wheelCenter, forward, right, WheelLength, WheelTrack, WheelHeight, color);
-        }
-
-        // Shaded box (flat-shaded sides + brighter top) with a white wireframe outline over it —
-        // the same solid-vector look as the grid's animated bars, built from a ground-level center
-        // plus the forward/right basis so it can be oriented along the car's direction of travel.
-        private void DrawBox(Vector3 bottomCenter, Vector3 forward, Vector3 right, float length, float width, float height, Color color)
-        {
-            var (tris, edges) = BuildBoxGeometry(bottomCenter, forward, right, length, width, height, color, _colorsOn);
-            DrawBoxGeometry(tris, edges);
+            return BuildBoxGeometry(wheelCenter, forward, right, WheelLength, WheelTrack, WheelHeight, color, colorsOn);
         }
 
         // Builds the vertex/edge arrays for a shaded+outlined box without drawing it, so callers
@@ -862,8 +956,38 @@ namespace VectorViktor
             GraphicsDevice.DrawUserPrimitives(PrimitiveType.LineList, edges, 0, 12);
         }
 
+        // A house's unrotated footprint is 2 grid cells wide (local X) by 1 deep (local Z).
+        // Rotating it by 90°/270° swaps which world axis is wide vs. deep.
+        private static (int width, int depth) GetHouseFootprint(int rotation) =>
+            rotation % 2 == 0 ? (2, 1) : (1, 2);
+
+        // World-space centre of a house's occupied footprint, accounting for its rotation.
+        private Vector3 GetHouseWorldCenter(House house)
+        {
+            var (footprintWidth, footprintDepth) = GetHouseFootprint(house.Rotation);
+            float x = -GridExtent + house.GridX * CellSize + footprintWidth * CellSize * 0.5f;
+            float z = -GridExtent + house.GridZ * CellSize + footprintDepth * CellSize * 0.5f;
+            return new Vector3(x, 0.02f, z); // y: slightly above grid to avoid z-fighting
+        }
+
+        // Rotates each vertex's position about the origin, then translates it — used to place a
+        // house's local-space geometry (built facing its default orientation) at its actual
+        // world position and 90°-step rotation.
+        private static VertexPositionColor[] TransformVerts(VertexPositionColor[] verts, Matrix rotation, Vector3 translation)
+        {
+            var result = new VertexPositionColor[verts.Length];
+            for (int i = 0; i < verts.Length; i++)
+            {
+                Vector3 pos = Vector3.Transform(verts[i].Position, rotation) + translation;
+                result[i] = new VertexPositionColor(pos, verts[i].Color);
+            }
+            return result;
+        }
+
         // Builds all vertex/edge data for a house without drawing it, so it can be computed once
-        // (houses never move) and cached rather than rebuilt every frame.
+        // (houses never move) and cached rather than rebuilt every frame. Shape is built in local
+        // space (centred on the origin, facing its default 0° orientation) and rotated/placed at
+        // the end, so the same math produces a house facing any of the four 90° steps.
         private HouseGeometry BuildHouseGeometry(House house, bool colorsOn)
         {
             // House dimensions: 2 grid cells wide (X), 1 grid cell deep (Z), 1 story tall
@@ -872,12 +996,7 @@ namespace VectorViktor
             float wallHeight = 0.6f;               // 1 story
             float roofPeakHeight = 0.3f;           // roof adds this much height
 
-            // Position house base at grid corner
-            float x = -GridExtent + house.GridX * CellSize;
-            float z = -GridExtent + house.GridZ * CellSize;
-            float y = 0.02f;  // slightly above grid to avoid z-fighting
-
-            Vector3 houseCenter = new Vector3(x + houseWidth * 0.5f, y, z + houseDepth * 0.5f);
+            Vector3 houseCenter = Vector3.Zero;    // local space; rotated + placed at the end
 
             // Colors
             Color wallColor = colorsOn ? new Color(210, 140, 80) : BackgroundColor;      // Terracotta
@@ -985,6 +1104,22 @@ namespace VectorViktor
             Vector3 chimneyBase = roofBase + Vector3.UnitX * (roofHalfWidth - chimneyWidth * 0.5f) - Vector3.UnitZ * (roofHalfDepth * 0.5f);
             Vector3 chimneyCenter = chimneyBase; // + Vector3.Up * (chimneyHeight * 0.5f);
             (geo.ChimneyTris, geo.ChimneyEdges) = BuildBoxGeometry(chimneyCenter, Vector3.UnitZ, Vector3.UnitX, chimneyDepth, chimneyWidth, chimneyHeight, chimneyColor, colorsOn);
+
+            // Rotate the local-space shape to the house's facing and place it at its actual grid position.
+            Matrix rotation = Matrix.CreateRotationY(house.Rotation * MathHelper.PiOver2);
+            Vector3 worldCenter = GetHouseWorldCenter(house);
+
+            geo.WallTris = TransformVerts(geo.WallTris, rotation, worldCenter);
+            geo.WallEdges = TransformVerts(geo.WallEdges, rotation, worldCenter);
+            geo.RoofTris = TransformVerts(geo.RoofTris, rotation, worldCenter);
+            geo.RoofEdges = TransformVerts(geo.RoofEdges, rotation, worldCenter);
+            geo.DoorTris = TransformVerts(geo.DoorTris, rotation, worldCenter);
+            geo.DoorEdges = TransformVerts(geo.DoorEdges, rotation, worldCenter);
+            geo.WindowTris = TransformVerts(geo.WindowTris, rotation, worldCenter);
+            geo.WindowEdges = TransformVerts(geo.WindowEdges, rotation, worldCenter);
+            geo.WindowPlusEdges = TransformVerts(geo.WindowPlusEdges, rotation, worldCenter);
+            geo.ChimneyTris = TransformVerts(geo.ChimneyTris, rotation, worldCenter);
+            geo.ChimneyEdges = TransformVerts(geo.ChimneyEdges, rotation, worldCenter);
 
             return geo;
         }
