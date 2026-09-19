@@ -943,28 +943,39 @@ namespace VectorViktor
 
             // Front door on one side of the facade
             float doorWidth = 0.24f;
-            float doorHeight = 0.38f;
+            float doorHeight = wallHeight * 0.85f; // slightly shorter than the wall
+            // BuildBoxGeometry treats its position argument as the box's bottom, not its center,
+            // so no vertical offset here — houseCenter.Y is already the wall's base, and the door
+            // should sit flush with it rather than floating half its height above the ground.
             Vector3 doorCenter = houseCenter
                 + Vector3.UnitX * (houseWidth * -0.22f)
-                - Vector3.UnitZ * (houseDepth * 0.5f + 0.01f)
-                + Vector3.Up * (doorHeight * 0.5f);
+                - Vector3.UnitZ * (houseDepth * 0.5f + 0.01f);
             (geo.DoorTris, geo.DoorEdges) = BuildBoxGeometry(doorCenter, Vector3.UnitZ, Vector3.UnitX, 0.01f, doorWidth, doorHeight, doorColor, colorsOn);
 
             // A larger front window on the opposite side, with a plus symbol to suggest a peek-through pane
-            float windowWidth = 0.46f;
-            float windowHeight = 0.30f;
+            float windowWidth = 0.52f;
+            float windowHeight = 0.33f;
             Vector3 windowCenter = houseCenter
                 + Vector3.UnitX * (houseWidth * 0.22f)
                 - Vector3.UnitZ * (houseDepth * 0.5f + 0.02f)
                 + Vector3.Up * (wallHeight * 0.45f);
             (geo.WindowTris, geo.WindowEdges) = BuildBoxGeometry(windowCenter, Vector3.UnitZ, Vector3.UnitX, 0.01f, windowWidth, windowHeight, windowColor, colorsOn);
 
+            // windowCenter is the window box's bottom (BuildBoxGeometry's bottomCenter convention),
+            // so the true mid-height point is windowHeight/2 above it. The cross spans the full
+            // pane edge to edge: the horizontal bar runs the full width at mid-height, the
+            // vertical bar runs the full height from the window's bottom to its top.
+            // Pulled 0.01 further out (-Z, the same direction the window already projects out
+            // from the wall) so it clears the pane's own front face — at the box's exact center
+            // Z it was sandwiched inside the 0.01-thick pane and z-fighting against it.
+            Vector3 crossOrigin = windowCenter - Vector3.UnitZ * 0.01f;
+            Vector3 windowMid = crossOrigin + Vector3.Up * (windowHeight * 0.5f);
             geo.WindowPlusEdges = new[]
             {
-                new VertexPositionColor(windowCenter - Vector3.UnitX * (windowWidth * 0.18f), Color.White),
-                new VertexPositionColor(windowCenter + Vector3.UnitX * (windowWidth * 0.18f), Color.White),
-                new VertexPositionColor(windowCenter - Vector3.Up * (windowHeight * 0.18f), Color.White),
-                new VertexPositionColor(windowCenter + Vector3.Up * (windowHeight * 0.18f), Color.White),
+                new VertexPositionColor(windowMid - Vector3.UnitX * (windowWidth * 0.5f), Color.White),
+                new VertexPositionColor(windowMid + Vector3.UnitX * (windowWidth * 0.5f), Color.White),
+                new VertexPositionColor(crossOrigin, Color.White),
+                new VertexPositionColor(crossOrigin + Vector3.Up * windowHeight, Color.White),
             };
 
             // Chimney (on roof right side)
