@@ -75,6 +75,8 @@ namespace VectorViktor
         // Houses: static structures placed at random grid locations
         private const int HouseCount = 5;
         private readonly House[] _houses = new House[HouseCount];
+        private HouseGeometry[] _houseGeometryColorsOn;
+        private HouseGeometry[] _houseGeometryColorsOff;
 
         // Vector bird: slow orbit above the grid, wings ripple with a traveling wave
         private float _birdTime;
@@ -160,6 +162,19 @@ namespace VectorViktor
             public int GridX, GridZ;   // corner position on grid (0..GridSquares)
         }
 
+        // Precomputed vertex/edge data for a single house, built once since houses never move.
+        // Cached separately per colour state so toggling colours (C key) still works without
+        // rebuilding geometry every frame.
+        private struct HouseGeometry
+        {
+            public VertexPositionColor[] WallTris, WallEdges;
+            public VertexPositionColor[] RoofTris, RoofEdges;
+            public VertexPositionColor[] DoorTris, DoorEdges;
+            public VertexPositionColor[] WindowTris, WindowEdges;
+            public VertexPositionColor[] WindowPlusEdges;
+            public VertexPositionColor[] ChimneyTris, ChimneyEdges;
+        }
+
         public Game1()
         {
             _graphics = new GraphicsDeviceManager(this)
@@ -181,10 +196,18 @@ namespace VectorViktor
                 SpawnBar(ref _bars[i], randomStartPhase: true);
 
             // Initialize houses at random grid locations
+            _houseGeometryColorsOn = new HouseGeometry[HouseCount];
+            _houseGeometryColorsOff = new HouseGeometry[HouseCount];
             for (int i = 0; i < HouseCount; i++)
             {
                 _houses[i].GridX = _rng.Next(1, GridSquares - 2);  // Leave room for 2-wide house
                 _houses[i].GridZ = _rng.Next(1, GridSquares - 2);
+
+                // Houses are static, so their vertex/edge data is built once here rather than
+                // every frame in Draw(). Both colour states are cached since colours can be
+                // toggled live (C key).
+                _houseGeometryColorsOn[i] = BuildHouseGeometry(_houses[i], colorsOn: true);
+                _houseGeometryColorsOff[i] = BuildHouseGeometry(_houses[i], colorsOn: false);
             }
 
             _car.GridX = GridSquares / 2;
@@ -509,9 +532,10 @@ namespace VectorViktor
                 for (int i = 0; i < BarCount; i++)
                     DrawBar(in _bars[i]);
 
-                // Houses
+                // Houses (static; geometry built once in Initialize rather than rebuilt per frame)
+                var houseGeometry = _colorsOn ? _houseGeometryColorsOn : _houseGeometryColorsOff;
                 for (int i = 0; i < HouseCount; i++)
-                    DrawHouse(_houses[i]);
+                    DrawHouseGeometry(in houseGeometry[i]);
 
                 // Bird
                 DrawBird();
@@ -830,6 +854,16 @@ namespace VectorViktor
         // plus the forward/right basis so it can be oriented along the car's direction of travel.
         private void DrawBox(Vector3 bottomCenter, Vector3 forward, Vector3 right, float length, float width, float height, Color color)
         {
+            var (tris, edges) = BuildBoxGeometry(bottomCenter, forward, right, length, width, height, color, _colorsOn);
+            DrawBoxGeometry(tris, edges);
+        }
+
+        // Builds the vertex/edge arrays for a shaded+outlined box without drawing it, so callers
+        // with static geometry (e.g. houses) can build once and cache the result instead of
+        // rebuilding it every frame.
+        private (VertexPositionColor[] tris, VertexPositionColor[] edges) BuildBoxGeometry(
+            Vector3 bottomCenter, Vector3 forward, Vector3 right, float length, float width, float height, Color color, bool colorsOn)
+        {
             Vector3 hf = forward * (length * 0.5f);
             Vector3 hr = right * (width * 0.5f);
             Vector3 hu = Vector3.Up * height;
@@ -844,7 +878,7 @@ namespace VectorViktor
             Vector3 h = d + hu;
 
             Color side, sideDim, top;
-            if (_colorsOn)
+            if (colorsOn)
             {
                 side = color;
                 sideDim = new Color((int)(side.R * 0.55f), (int)(side.G * 0.55f), (int)(side.B * 0.55f));
@@ -872,8 +906,6 @@ namespace VectorViktor
             Quad(d, a, e, h, sideDim);  // tail  (-forward)
             Quad(e, f, g, h, top);      // roof
 
-            GraphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, tris, 0, 10);
-
             var edges = new VertexPositionColor[24];
             v = 0;
             void Edge(Vector3 p0, Vector3 p1)
@@ -885,10 +917,18 @@ namespace VectorViktor
             Edge(e, f); Edge(f, g); Edge(g, h); Edge(h, e); // roof rim
             Edge(a, e); Edge(b, f); Edge(c, g); Edge(d, h); // verticals
 
+            return (tris, edges);
+        }
+
+        private void DrawBoxGeometry(VertexPositionColor[] tris, VertexPositionColor[] edges)
+        {
+            GraphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, tris, 0, 10);
             GraphicsDevice.DrawUserPrimitives(PrimitiveType.LineList, edges, 0, 12);
         }
 
-        private void DrawHouse(House house)
+        // Builds all vertex/edge data for a house without drawing it, so it can be computed once
+        // (houses never move) and cached rather than rebuilt every frame.
+        private HouseGeometry BuildHouseGeometry(House house, bool colorsOn)
         {
             // House dimensions: 2 grid cells wide (X), 1 grid cell deep (Z), 1 story tall
             float houseWidth = 2.0f * CellSize;    // 2 grid squares
@@ -904,20 +944,21 @@ namespace VectorViktor
             Vector3 houseCenter = new Vector3(x + houseWidth * 0.5f, y, z + houseDepth * 0.5f);
 
             // Colors
-            Color wallColor = _colorsOn ? new Color(210, 140, 80) : BackgroundColor;      // Terracotta
-            Color roofColor = _colorsOn ? new Color(150, 80, 200) : BackgroundColor;      // Purple
-            Color doorColor = _colorsOn ? Color.White : BackgroundColor;
-            Color windowColor = _colorsOn ? Color.Blue : BackgroundColor;
-            Color chimneyColor = _colorsOn ? new Color(80, 40, 20) : BackgroundColor;    // Dark brown
+            Color wallColor = colorsOn ? new Color(210, 140, 80) : BackgroundColor;      // Terracotta
+            Color roofColor = colorsOn ? new Color(150, 80, 200) : BackgroundColor;      // Purple
+            Color doorColor = colorsOn ? Color.White : BackgroundColor;
+            Color windowColor = colorsOn ? Color.Blue : BackgroundColor;
+            Color chimneyColor = colorsOn ? new Color(80, 40, 20) : BackgroundColor;    // Dark brown
 
-            // Draw main walls (box)
-            DrawBox(houseCenter, Vector3.UnitZ, Vector3.UnitX, houseDepth, houseWidth, wallHeight, wallColor);
+            var geo = new HouseGeometry();
 
-            // Draw roof (pyramid-like shape - two triangular faces)
+            // Main walls (box)
+            (geo.WallTris, geo.WallEdges) = BuildBoxGeometry(houseCenter, Vector3.UnitZ, Vector3.UnitX, houseDepth, houseWidth, wallHeight, wallColor, colorsOn);
+
+            // Roof (pyramid-like shape - four triangular faces)
             Vector3 roofBase = houseCenter + Vector3.Up * wallHeight;
             Vector3 roofPeak = roofBase + Vector3.Up * roofPeakHeight;
 
-            // Roof front and back triangles
             float roofHalfWidth = houseWidth * 0.5f;
             float roofHalfDepth = houseDepth * 0.5f;
 
@@ -926,84 +967,93 @@ namespace VectorViktor
             Vector3 roofBackLeft = roofBase + Vector3.UnitZ * roofHalfDepth - Vector3.UnitX * roofHalfWidth;
             Vector3 roofBackRight = roofBase + Vector3.UnitZ * roofHalfDepth + Vector3.UnitX * roofHalfWidth;
 
-            // Draw roof triangles
-            var roofTris = new VertexPositionColor[12];
+            geo.RoofTris = new VertexPositionColor[12];
             int v = 0;
 
             // Front roof slope
-            roofTris[v++] = new VertexPositionColor(roofFrontLeft, roofColor);
-            roofTris[v++] = new VertexPositionColor(roofFrontRight, roofColor);
-            roofTris[v++] = new VertexPositionColor(roofPeak, roofColor);
+            geo.RoofTris[v++] = new VertexPositionColor(roofFrontLeft, roofColor);
+            geo.RoofTris[v++] = new VertexPositionColor(roofFrontRight, roofColor);
+            geo.RoofTris[v++] = new VertexPositionColor(roofPeak, roofColor);
 
             // Back roof slope
-            roofTris[v++] = new VertexPositionColor(roofBackRight, roofColor);
-            roofTris[v++] = new VertexPositionColor(roofBackLeft, roofColor);
-            roofTris[v++] = new VertexPositionColor(roofPeak, roofColor);
+            geo.RoofTris[v++] = new VertexPositionColor(roofBackRight, roofColor);
+            geo.RoofTris[v++] = new VertexPositionColor(roofBackLeft, roofColor);
+            geo.RoofTris[v++] = new VertexPositionColor(roofPeak, roofColor);
 
             // Left roof slope
-            roofTris[v++] = new VertexPositionColor(roofFrontLeft, roofColor);
-            roofTris[v++] = new VertexPositionColor(roofBackLeft, roofColor);
-            roofTris[v++] = new VertexPositionColor(roofPeak, roofColor);
+            geo.RoofTris[v++] = new VertexPositionColor(roofFrontLeft, roofColor);
+            geo.RoofTris[v++] = new VertexPositionColor(roofBackLeft, roofColor);
+            geo.RoofTris[v++] = new VertexPositionColor(roofPeak, roofColor);
 
             // Right roof slope
-            roofTris[v++] = new VertexPositionColor(roofBackRight, roofColor);
-            roofTris[v++] = new VertexPositionColor(roofFrontRight, roofColor);
-            roofTris[v++] = new VertexPositionColor(roofPeak, roofColor);
+            geo.RoofTris[v++] = new VertexPositionColor(roofBackRight, roofColor);
+            geo.RoofTris[v++] = new VertexPositionColor(roofFrontRight, roofColor);
+            geo.RoofTris[v++] = new VertexPositionColor(roofPeak, roofColor);
 
-            GraphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, roofTris, 0, 4);
-
-            // Draw roof edges
-            var roofEdges = new VertexPositionColor[12];
+            geo.RoofEdges = new VertexPositionColor[12];
             v = 0;
-            roofEdges[v++] = new VertexPositionColor(roofFrontLeft, Color.White);
-            roofEdges[v++] = new VertexPositionColor(roofPeak, Color.White);
-            roofEdges[v++] = new VertexPositionColor(roofFrontRight, Color.White);
-            roofEdges[v++] = new VertexPositionColor(roofPeak, Color.White);
-            roofEdges[v++] = new VertexPositionColor(roofBackLeft, Color.White);
-            roofEdges[v++] = new VertexPositionColor(roofPeak, Color.White);
-            roofEdges[v++] = new VertexPositionColor(roofBackRight, Color.White);
-            roofEdges[v++] = new VertexPositionColor(roofPeak, Color.White);
-            roofEdges[v++] = new VertexPositionColor(roofFrontLeft, Color.White);
-            roofEdges[v++] = new VertexPositionColor(roofBackLeft, Color.White);
-            roofEdges[v++] = new VertexPositionColor(roofFrontRight, Color.White);
-            roofEdges[v++] = new VertexPositionColor(roofBackRight, Color.White);
+            geo.RoofEdges[v++] = new VertexPositionColor(roofFrontLeft, Color.White);
+            geo.RoofEdges[v++] = new VertexPositionColor(roofPeak, Color.White);
+            geo.RoofEdges[v++] = new VertexPositionColor(roofFrontRight, Color.White);
+            geo.RoofEdges[v++] = new VertexPositionColor(roofPeak, Color.White);
+            geo.RoofEdges[v++] = new VertexPositionColor(roofBackLeft, Color.White);
+            geo.RoofEdges[v++] = new VertexPositionColor(roofPeak, Color.White);
+            geo.RoofEdges[v++] = new VertexPositionColor(roofBackRight, Color.White);
+            geo.RoofEdges[v++] = new VertexPositionColor(roofPeak, Color.White);
+            geo.RoofEdges[v++] = new VertexPositionColor(roofFrontLeft, Color.White);
+            geo.RoofEdges[v++] = new VertexPositionColor(roofBackLeft, Color.White);
+            geo.RoofEdges[v++] = new VertexPositionColor(roofFrontRight, Color.White);
+            geo.RoofEdges[v++] = new VertexPositionColor(roofBackRight, Color.White);
 
-            GraphicsDevice.DrawUserPrimitives(PrimitiveType.LineList, roofEdges, 0, 6);
-
-                      // Draw front door on one side of the facade
+            // Front door on one side of the facade
             float doorWidth = 0.24f;
             float doorHeight = 0.38f;
             Vector3 doorCenter = houseCenter
                 + Vector3.UnitX * (houseWidth * -0.22f)
                 - Vector3.UnitZ * (houseDepth * 0.5f + 0.01f)
                 + Vector3.Up * (doorHeight * 0.5f);
-            DrawBox(doorCenter, Vector3.UnitZ, Vector3.UnitX, 0.01f, doorWidth, doorHeight, doorColor);
+            (geo.DoorTris, geo.DoorEdges) = BuildBoxGeometry(doorCenter, Vector3.UnitZ, Vector3.UnitX, 0.01f, doorWidth, doorHeight, doorColor, colorsOn);
 
-            // Draw a larger front window on the opposite side, with a plus symbol to suggest a peek-through pane
+            // A larger front window on the opposite side, with a plus symbol to suggest a peek-through pane
             float windowWidth = 0.46f;
             float windowHeight = 0.30f;
             Vector3 windowCenter = houseCenter
                 + Vector3.UnitX * (houseWidth * 0.22f)
                 - Vector3.UnitZ * (houseDepth * 0.5f + 0.02f)
                 + Vector3.Up * (wallHeight * 0.45f);
-            DrawBox(windowCenter, Vector3.UnitZ, Vector3.UnitX, 0.01f, windowWidth, windowHeight, windowColor);
+            (geo.WindowTris, geo.WindowEdges) = BuildBoxGeometry(windowCenter, Vector3.UnitZ, Vector3.UnitX, 0.01f, windowWidth, windowHeight, windowColor, colorsOn);
 
-            var windowPlus = new VertexPositionColor[]
+            geo.WindowPlusEdges = new[]
             {
                 new VertexPositionColor(windowCenter - Vector3.UnitX * (windowWidth * 0.18f), Color.White),
                 new VertexPositionColor(windowCenter + Vector3.UnitX * (windowWidth * 0.18f), Color.White),
                 new VertexPositionColor(windowCenter - Vector3.Up * (windowHeight * 0.18f), Color.White),
                 new VertexPositionColor(windowCenter + Vector3.Up * (windowHeight * 0.18f), Color.White),
             };
-            GraphicsDevice.DrawUserPrimitives(PrimitiveType.LineList, windowPlus, 0, 2);
 
-            // Draw chimney (on roof right side)
+            // Chimney (on roof right side)
             float chimneyWidth = 0.15f;
             float chimneyDepth = 0.1f;
             float chimneyHeight = 0.3f;
             Vector3 chimneyBase = roofBase + Vector3.UnitX * (roofHalfWidth - chimneyWidth * 0.5f) - Vector3.UnitZ * (roofHalfDepth * 0.5f);
             Vector3 chimneyCenter = chimneyBase; // + Vector3.Up * (chimneyHeight * 0.5f);
-            DrawBox(chimneyCenter, Vector3.UnitZ, Vector3.UnitX, chimneyDepth, chimneyWidth, chimneyHeight, chimneyColor);
+            (geo.ChimneyTris, geo.ChimneyEdges) = BuildBoxGeometry(chimneyCenter, Vector3.UnitZ, Vector3.UnitX, chimneyDepth, chimneyWidth, chimneyHeight, chimneyColor, colorsOn);
+
+            return geo;
+        }
+
+        private void DrawHouseGeometry(in HouseGeometry geo)
+        {
+            DrawBoxGeometry(geo.WallTris, geo.WallEdges);
+
+            GraphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, geo.RoofTris, 0, 4);
+            GraphicsDevice.DrawUserPrimitives(PrimitiveType.LineList, geo.RoofEdges, 0, 6);
+
+            DrawBoxGeometry(geo.DoorTris, geo.DoorEdges);
+            DrawBoxGeometry(geo.WindowTris, geo.WindowEdges);
+            GraphicsDevice.DrawUserPrimitives(PrimitiveType.LineList, geo.WindowPlusEdges, 0, 2);
+
+            DrawBoxGeometry(geo.ChimneyTris, geo.ChimneyEdges);
         }
    }
 }
