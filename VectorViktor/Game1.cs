@@ -3,18 +3,13 @@ using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using VectorViktor.Models;
 
 namespace VectorViktor
 {
     public class Game1 : Game
     {
 
-        //private Model gameShip;
-        private Vector3 position = Vector3.One;
-        private float zoom = 2500;
-        private float rotationY = 0.0f;
-        private float rotationX = 0.0f;
-        private Matrix gameWorldRotation;
         private float _modelRotation = 0f;  // Add this with your other fields
         float speed = 0f;
         private GraphicsDeviceManager _graphics;
@@ -147,53 +142,6 @@ namespace VectorViktor
             Color.Cyan, Color.Magenta, Color.Yellow,
             Color.Lime, Color.Red, Color.Orange, Color.DeepSkyBlue
         };
-
-        private struct Bar
-        {
-            public int CellX, CellZ;   // 0..GridSquares-1w
-            public Color Color;
-            public float Time;         // seconds elapsed in this cycle
-            public float Duration;     // full grow+shrink cycle length
-        }
-
-        private struct Car
-        {
-            public int GridX, GridZ;   // current intersection, 0..GridSquares
-            public int DirX, DirZ;     // travel direction: one of (±1,0) or (0,±1)
-            public float Progress;     // 0..1 progress toward the next intersection
-        }
-
-        private struct House
-        {
-            public int GridX, GridZ;   // corner of the house's footprint, in grid cells
-            public int Rotation;       // 0..3, one 90° step each: 0°, 90°, 180°, 270°
-        }
-
-        // Precomputed vertex/edge data for a single house, built once since houses never move.
-        // Cached separately per colour state so toggling colours (C key) still works without
-        // rebuilding geometry every frame.
-        private struct HouseGeometry
-        {
-            public VertexPositionColor[] WallTris, WallEdges;
-            public VertexPositionColor[] RoofTris, RoofEdges;
-            public VertexPositionColor[] DoorTris, DoorEdges;
-            public VertexPositionColor[] WindowTris, WindowEdges;
-            public VertexPositionColor[] WindowPlusEdges;
-            public VertexPositionColor[] ChimneyTris, ChimneyEdges;
-        }
-
-        // Precomputed vertex/edge data for the car's body panels, built once per heading (the car
-        // only ever faces one of 4 axis-aligned directions) since only its position — not its
-        // shape — changes every frame. Cached separately per colour state, same as houses.
-        private struct CarGeometry
-        {
-            public VertexPositionColor[] BodyTris, BodyEdges;
-            public VertexPositionColor[] CabinTris, CabinEdges;
-            public VertexPositionColor[] WheelFrontATris, WheelFrontAEdges;
-            public VertexPositionColor[] WheelFrontBTris, WheelFrontBEdges;
-            public VertexPositionColor[] WheelRearATris, WheelRearAEdges;
-            public VertexPositionColor[] WheelRearBTris, WheelRearBEdges;
-        }
 
         public Game1()
         {

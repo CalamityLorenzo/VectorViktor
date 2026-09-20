@@ -1,4 +1,5 @@
 <Solution>
+  <Project Path="BasicTests/BasicTests.csproj" Id="4a0456e5-9545-4412-90cd-1f46d930596d" />
   <Project Path="LoadingModelMeshes/LoadingModelMeshes.csproj" Id="9768a101-db23-4524-92f4-6914108d7008" />
   <Project Path="VectorViktor/VectorViktor.csproj" />
 </Solution>
