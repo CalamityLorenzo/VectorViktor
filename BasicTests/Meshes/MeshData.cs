@@ -1,15 +1,17 @@
-﻿using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
+﻿using Microsoft.Xna.Framework.Graphics;
 using System;
 
 namespace BasicTests.Meshes
 {
-    struct MeshData
+    sealed class MeshData : IDisposable
     {
-        public Vector3[] Vertices;
-        public VertexPositionColor[] EdgeVertex;
-        public VertexBuffer EdgeBuffer;
-        public VertexPositionColor[] SolidVertex;
-        public VertexBuffer SolidBuffer;
+        public VertexBuffer Edges;
+        public VertexBuffer Solids;
+
+        public void Dispose()
+        {
+            this.Edges.Dispose();
+            this.Solids.Dispose();
+        }
     }
 }

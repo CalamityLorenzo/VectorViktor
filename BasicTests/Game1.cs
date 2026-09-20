@@ -14,7 +14,7 @@ namespace BasicTests
         private bool _edgesOnly;
         private RasterizerState _rasterizerState;
         private VertexPositionColor[] _triangleVertices;
-
+        private MeshCache _meshCache = new MeshCache(RawData.Basic_Ingot_Frustrum);
         private IngotFrustrum _ingotFrustrum;
 
         private static readonly Color TopColor = Color.Gold;
@@ -31,7 +31,6 @@ namespace BasicTests
         protected override void Initialize()
         {
             // TODO: Add your initialization logic here
-
             base.Initialize();
         }
 
@@ -53,8 +52,8 @@ namespace BasicTests
 
             _rasterizerState = new RasterizerState { CullMode = CullMode.None };
             _triangleVertices = BuildIsoscelesTriangle();
-            _ingotFrustrum = new IngotFrustrum(new IngotFrustrumMeshBuilder(RawData.Basic_Ingot_Frustrum), TopColor, SideColor, OtherColor);
-            _ingotFrustrum.Configure(GraphicsDevice);
+            var ingotFrustrumMeshData = _meshCache.BuildIngot(GraphicsDevice, TopColor, SideColor, OtherColor);
+            _ingotFrustrum = new IngotFrustrum(ingotFrustrumMeshData, TopColor, SideColor, OtherColor);
 
         }
 
@@ -68,9 +67,7 @@ namespace BasicTests
             if (keyboard.IsKeyDown(Keys.Space) && _previousKeyboard.IsKeyUp(Keys.Space))
                 _edgesOnly = !_edgesOnly;
 
-
-
-                _previousKeyboard = keyboard;
+            _previousKeyboard = keyboard;
             _ingotFrustrum.Yaw += _ingotFrustrum.YawSpeed * (float)gameTime.ElapsedGameTime.TotalSeconds;
             _ingotFrustrum.Pitch += _ingotFrustrum.PitchSpeed * (float)gameTime.ElapsedGameTime.TotalSeconds;
             _ingotFrustrum.Update(gameTime);
@@ -110,6 +107,18 @@ namespace BasicTests
                 pass.Apply();
                 GraphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, _triangleVertices, 0, 1);
             }
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if(disposing)
+            {
+                _meshCache.Dispose();
+                _basicEffect?.Dispose();
+                _rasterizerState?.Dispose();
+                _spriteBatch?.Dispose();
+            }
+            base.Dispose(disposing);
         }
     }
 }

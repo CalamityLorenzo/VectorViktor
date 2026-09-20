@@ -1,24 +1,24 @@
 ﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 
 namespace BasicTests.Meshes
 {
-    internal class IngotFrustrumMeshBuilder :IDisposable
+    internal class MeshCache : IDisposable, IEnumerable<MeshData>
     {
         private Vector3[] _rawMeshData;
         private Dictionary<(Color, Color, Color), MeshData> _meshDataCache = new Dictionary<(Color, Color, Color), MeshData>();
-        private bool disposedValue;
 
-        public IngotFrustrumMeshBuilder(Vector3[] vertices)
+        public MeshCache(Vector3[] vertices)
         {
             _rawMeshData = vertices;
         }
 
-        public MeshData Build(GraphicsDevice device, Color TopColor, Color SideColor, Color OtherColor)
+        public MeshData BuildIngot(GraphicsDevice device, Color TopColor, Color SideColor, Color OtherColor)
         {
-            var key = (TopColor,SideColor,OtherColor);
+            var key = (TopColor, SideColor, OtherColor);
             if (_meshDataCache.TryGetValue(key, out var cachedMeshData))
             {
                 return cachedMeshData;
@@ -41,11 +41,8 @@ namespace BasicTests.Meshes
             edgeVertex.SetData(edges);
             return new MeshData
             {
-                Vertices = _rawMeshData,
-                EdgeVertex = edges,
-                EdgeBuffer = edgeVertex,
-                SolidVertex = solid,
-                SolidBuffer = solidVertex
+                Edges = edgeVertex,
+                Solids = solidVertex
             };
         }
         private static VertexPositionColor[] BuildEdges(Vector3[] RawMeshData, Color TopColor, Color SideColor, Color OtherColor)
@@ -56,7 +53,7 @@ namespace BasicTests.Meshes
             {
                 var next = (i + 1) % 4;
                 AddLine(vertices, RawMeshData[4 + i], RawMeshData[4 + next], TopColor, ref index);  // top loop
-                AddLine(vertices, RawMeshData[i], RawMeshData[next], SideColor, ref index);         // bottom loop
+                AddLine(vertices, RawMeshData[i], RawMeshData[next], OtherColor, ref index);         // bottom loop
                 AddLine(vertices, RawMeshData[i], RawMeshData[4 + i], SideColor, ref index);        // vertical edge
             }
 
@@ -101,38 +98,23 @@ namespace BasicTests.Meshes
             vertices[index++] = new VertexPositionColor(d, color);
         }
 
-        protected virtual void Dispose(bool disposing)
-        {
-            if (!disposedValue)
-            {
-                if (disposing)
-                {
-                    // TODO: dispose managed state (managed objects)
-                    foreach(var obj in this._meshDataCache)
-                    {
-                        obj.Value.EdgeBuffer.Dispose();
-                        obj.Value.SolidBuffer.Dispose();
-                    }
-                }
-
-                // TODO: free unmanaged resources (unmanaged objects) and override finalizer
-                // TODO: set large fields to null
-                disposedValue = true;
-            }
-        }
-
-        // // TODO: override finalizer only if 'Dispose(bool disposing)' has code to free unmanaged resources
-        ~IngotFrustrumMeshBuilder()
-        {
-            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
-            Dispose(disposing: false);
-        }
-
         public void Dispose()
         {
-            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
-            Dispose(disposing: true);
-            GC.SuppressFinalize(this);
+            foreach (var meshData in _meshDataCache.Values)
+            {
+                meshData.Dispose();
+            }
+            _meshDataCache.Clear();
+        }
+
+        public IEnumerator<MeshData> GetEnumerator()
+        {
+            return _meshDataCache.Values.GetEnumerator();
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
         }
     }
 }
