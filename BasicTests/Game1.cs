@@ -1,4 +1,5 @@
-﻿using Microsoft.Xna.Framework;
+﻿using BasicTests.Meshes;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 
@@ -18,12 +19,7 @@ namespace BasicTests
 
         private static readonly Color TopColor = Color.Gold;
         private static readonly Color SideColor = Color.DarkGoldenrod;
-
-
-
-        private static readonly Matrix GoldBarWorld = Matrix.CreateRotationX(MathHelper.ToRadians(20f))
-            * Matrix.CreateRotationY(MathHelper.ToRadians(35f))
-            * Matrix.CreateTranslation(0.7f, 0f, 0f);
+        private static readonly Color OtherColor = Color.Silver;
 
         public Game1()
         {
@@ -57,7 +53,7 @@ namespace BasicTests
 
             _rasterizerState = new RasterizerState { CullMode = CullMode.None };
             _triangleVertices = BuildIsoscelesTriangle();
-            _ingotFrustrum = new IngotFrustrum(TopColor, SideColor);
+            _ingotFrustrum = new IngotFrustrum(new IngotFrustrumMeshBuilder(RawData.Basic_Ingot_Frustrum), TopColor, SideColor, OtherColor);
             _ingotFrustrum.Configure(GraphicsDevice);
 
         }
@@ -72,8 +68,11 @@ namespace BasicTests
             if (keyboard.IsKeyDown(Keys.Space) && _previousKeyboard.IsKeyUp(Keys.Space))
                 _edgesOnly = !_edgesOnly;
 
-            _previousKeyboard = keyboard;
+
+
+                _previousKeyboard = keyboard;
             _ingotFrustrum.Yaw += _ingotFrustrum.YawSpeed * (float)gameTime.ElapsedGameTime.TotalSeconds;
+            _ingotFrustrum.Pitch += _ingotFrustrum.PitchSpeed * (float)gameTime.ElapsedGameTime.TotalSeconds;
             _ingotFrustrum.Update(gameTime);
 
             base.Update(gameTime);
