@@ -3,8 +3,24 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace BasicTests
 {
-    internal class IngotMeshDetails(Vector3[] rawMeshData, Color TopColor, Color SideColor, Color OtherColor)
+    struct MeshData
     {
+        public Vector3[] Vertices;
+        public MeshData(Vector3[] vertices, Color topColor, Color sideColor, Color otherColor)
+        {
+            Vertices = vertices;
+            VertexPositionColor[] EdgeVertex;
+            VertexBuffer EdgeBuffer;
+
+            VertexPositionColor[] SolidVertex;
+            VertexBuffer SolidBuffer;
+        }
+    }
+
+    internal class MeshBuilders
+    {
+
+
         public Vector3[] RawMeshData { get; } = rawMeshData;
         public Color TopColor { get; } = TopColor;
         public Color SideColor { get; } = SideColor;
