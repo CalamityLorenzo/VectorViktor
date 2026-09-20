@@ -15,6 +15,9 @@ namespace BasicTests
         private readonly Color _sideColor;
         private readonly Color _otherColor;
 
+        public bool EdgesOnly { get; set; } = false;
+        public bool NoEdgeColor { get; set; } = false;
+
         // The state is the source of truth; the world matrix is rebuilt from it, never accumulated.
         public Vector3 Position { get; set; } = new Vector3(0.7f, 0f, 0f);
         public float Pitch { get; set; } = MathHelper.ToRadians(20f);   // fixed jaunty tilt
@@ -22,7 +25,10 @@ namespace BasicTests
         public float YawSpeed { get; set; } = MathHelper.ToRadians(45f); // radians per second
         public float PitchSpeed { get; set; } = MathHelper.ToRadians(37f); // radians per second
 
-        public Matrix World => Matrix.CreateRotationX(Pitch)
+        public float Scale { get; set; } = 1f;
+
+        public Matrix World => Matrix.CreateScale(Scale)
+            * Matrix.CreateRotationX(Pitch)
             * Matrix.CreateRotationY(Yaw)
             * Matrix.CreateTranslation(Position);
 
@@ -51,16 +57,20 @@ namespace BasicTests
 
         }
 
-        public void Draw(GameTime gameTime, GraphicsDevice graphicsDevice, BasicEffect basicEffect, bool edgesOnly)
+        public void Draw(GameTime gameTime, GraphicsDevice graphicsDevice, BasicEffect basicEffect)
         {
-            var _world = basicEffect.World;
+            var world = basicEffect.World;
+            var diffuse = basicEffect.DiffuseColor;
+            var vertexColor = basicEffect.VertexColorEnabled;
             basicEffect.World = World;
+            // The buffers are position-only; colour comes from DiffuseColor per draw range.
+            basicEffect.VertexColorEnabled = false;
             try
             {
                 /// Solid only needs 1 pass.
-                if (!edgesOnly)
+                if (!EdgesOnly)
                 {
-                    DrawBuffer(graphicsDevice, basicEffect, _meshData.Solids, PrimitiveType.TriangleList, _meshData.Solids.VertexCount / 3);
+                    DrawSolid(graphicsDevice, basicEffect);
                     return;
                 }
 
@@ -80,11 +90,39 @@ namespace BasicTests
                 graphicsDevice.RasterizerState = previousRasterizer;
                 // Pass 2: the lines, depth-tested against those invisible faces, so any edge
                 // behind the bar is discarded.
-                DrawBuffer(graphicsDevice, basicEffect, _meshData.Edges, PrimitiveType.LineList, _meshData.Edges.VertexCount / 2);
+                DrawEdges(graphicsDevice, basicEffect);
             }
             finally
             {
-                basicEffect.World = _world;
+                basicEffect.World = world;
+                basicEffect.DiffuseColor = diffuse;
+                basicEffect.VertexColorEnabled = vertexColor;
+            }
+        }
+
+        private void DrawSolid(GraphicsDevice gd, BasicEffect fx)
+        {
+            gd.SetVertexBuffer(_meshData.Solids);
+            DrawRange(gd, fx, _topColor, PrimitiveType.TriangleList, MeshData.SolidTopStart, MeshData.SolidTopPrimitives);
+            DrawRange(gd, fx, _otherColor, PrimitiveType.TriangleList, MeshData.SolidBottomStart, MeshData.SolidBottomPrimitives);
+            DrawRange(gd, fx, _sideColor, PrimitiveType.TriangleList, MeshData.SolidSidesStart, MeshData.SolidSidesPrimitives);
+        }
+
+        private void DrawEdges(GraphicsDevice gd, BasicEffect fx)
+        {
+            gd.SetVertexBuffer(_meshData.Edges);
+            DrawRange(gd, fx, NoEdgeColor? Color.White: _topColor, PrimitiveType.LineList, MeshData.EdgeTopStart, MeshData.EdgeTopPrimitives);
+            DrawRange(gd, fx, NoEdgeColor ? Color.White : _sideColor, PrimitiveType.LineList, MeshData.EdgeSidesStart, MeshData.EdgeSidesPrimitives);
+        }
+
+        private static void DrawRange(GraphicsDevice gd, BasicEffect fx, Color c,
+                                      PrimitiveType type, int startVertex, int primitiveCount)
+        {
+            fx.DiffuseColor = c.ToVector3();
+            foreach (var pass in fx.CurrentTechnique.Passes)
+            {
+                pass.Apply();                       // must re-apply so the new colour uploads
+                gd.DrawPrimitives(type, startVertex, primitiveCount);
             }
         }
 

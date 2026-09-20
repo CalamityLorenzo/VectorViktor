@@ -2,6 +2,8 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using System;
+using System.Collections.Generic;
 
 namespace BasicTests
 {
@@ -11,15 +13,29 @@ namespace BasicTests
         private SpriteBatch _spriteBatch;
         private BasicEffect _basicEffect;
         private KeyboardState _previousKeyboard;
-        private bool _edgesOnly;
         private RasterizerState _rasterizerState;
         private VertexPositionColor[] _triangleVertices;
         private MeshCache _meshCache = new MeshCache(RawData.Basic_Ingot_Frustrum);
-        private IngotFrustrum _ingotFrustrum;
+        private readonly List<IngotFrustrum> _ingots = new List<IngotFrustrum>();
+        private bool _edgesOnly;
+        private bool _noEdgeColor;
 
-        private static readonly Color TopColor = Color.Gold;
-        private static readonly Color SideColor = Color.DarkGoldenrod;
-        private static readonly Color OtherColor = Color.Silver;
+        private const int IngotCount = 40;
+        private static readonly Vector3 CameraPosition = new Vector3(0f, 0f, 3f);
+
+        // (top, side, other) schemes for the coloured ingots.
+        private static readonly (Color Top, Color Side, Color Other)[] ColorSchemes =
+        {
+            (Color.Gold, Color.DarkGoldenrod, Color.Silver),
+            (Color.OrangeRed, Color.DarkRed, Color.SaddleBrown),
+            (Color.LimeGreen, Color.DarkGreen, Color.Olive),
+            (Color.DeepSkyBlue, Color.RoyalBlue, Color.Navy),
+            (Color.Orchid, Color.DarkMagenta, Color.Indigo),
+            (Color.Teal, Color.DarkSlateGray, Color.Aquamarine),
+        };
+
+        // "Without colour": greys, so the faces are still distinguishable (there's no lighting).
+        private static readonly (Color Top, Color Side, Color Other) GreyScheme = (Color.LightGray, Color.Gray, Color.DimGray);
 
         public Game1()
         {
@@ -42,7 +58,7 @@ namespace BasicTests
             {
                 VertexColorEnabled = true,
                 World = Matrix.Identity,
-                View = Matrix.CreateLookAt(new Vector3(0f, 0f, 3f), Vector3.Zero, Vector3.Up),
+                View = Matrix.CreateLookAt(CameraPosition, Vector3.Zero, Vector3.Up),
                 Projection = Matrix.CreatePerspectiveFieldOfView(
                     MathHelper.PiOver4,
                     GraphicsDevice.Viewport.AspectRatio,
@@ -52,9 +68,44 @@ namespace BasicTests
 
             _rasterizerState = new RasterizerState { CullMode = CullMode.None };
             _triangleVertices = BuildIsoscelesTriangle();
-            var ingotFrustrumMeshData = _meshCache.BuildIngot(GraphicsDevice, TopColor, SideColor, OtherColor);
-            _ingotFrustrum = new IngotFrustrum(ingotFrustrumMeshData, TopColor, SideColor, OtherColor);
+            // One shared mesh; every ingot only carries its own transform and colours.
+            var ingotFrustrumMeshData = _meshCache.BuildIngot(GraphicsDevice);
+            BuildIngots(ingotFrustrumMeshData);
+        }
 
+        private void BuildIngots(MeshData mesh)
+        {
+            var rng = new Random(1234);   // fixed seed: same scene every run
+            var halfFovTan = MathF.Tan(MathHelper.PiOver4 / 2f);
+            var aspect = GraphicsDevice.Viewport.AspectRatio;
+
+            float Between(float min, float max) => min + (max - min) * rng.NextSingle();
+            float RandomSign() => rng.Next(2) == 0 ? -1f : 1f;
+
+            for (var i = 0; i < IngotCount; i++)
+            {
+                var colored = rng.NextDouble() < 0.6;
+                var scheme = colored ? ColorSchemes[rng.Next(ColorSchemes.Length)] : GreyScheme;
+
+                // Distance in front of the camera. Spread x/y across the visible area at that
+                // depth (90% of it) so near and far ingots are all on screen.
+                var distance = Between(3f, 20f);
+                var halfHeight = halfFovTan * distance * 0.9f;
+                var halfWidth = halfHeight * aspect;
+
+                _ingots.Add(new IngotFrustrum(mesh, scheme.Top, scheme.Side, scheme.Other)
+                {
+                    Position = new Vector3(
+                        Between(-halfWidth, halfWidth),
+                        Between(-halfHeight, halfHeight),
+                        CameraPosition.Z - distance),
+                    Scale = Between(0.3f, 1.5f),
+                    Yaw = Between(0f, MathHelper.TwoPi),
+                    Pitch = Between(0f, MathHelper.TwoPi),
+                    YawSpeed = RandomSign() * MathHelper.ToRadians(Between(15f, 120f)),
+                    PitchSpeed = RandomSign() * MathHelper.ToRadians(Between(15f, 100f)),
+                });
+            }
         }
 
         protected override void Update(GameTime gameTime)
@@ -66,11 +117,19 @@ namespace BasicTests
 
             if (keyboard.IsKeyDown(Keys.Space) && _previousKeyboard.IsKeyUp(Keys.Space))
                 _edgesOnly = !_edgesOnly;
+            if (keyboard.IsKeyDown(Keys.K) && _previousKeyboard.IsKeyUp(Keys.K))
+                _noEdgeColor = !_noEdgeColor;
 
             _previousKeyboard = keyboard;
-            _ingotFrustrum.Yaw += _ingotFrustrum.YawSpeed * (float)gameTime.ElapsedGameTime.TotalSeconds;
-            _ingotFrustrum.Pitch += _ingotFrustrum.PitchSpeed * (float)gameTime.ElapsedGameTime.TotalSeconds;
-            _ingotFrustrum.Update(gameTime);
+            var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
+            foreach (var ingot in _ingots)
+            {
+                ingot.EdgesOnly = _edgesOnly;
+                ingot.NoEdgeColor = _noEdgeColor;
+                ingot.Yaw += ingot.YawSpeed * dt;
+                ingot.Pitch += ingot.PitchSpeed * dt;
+                ingot.Update(gameTime);
+            }
 
             base.Update(gameTime);
         }
@@ -81,7 +140,8 @@ namespace BasicTests
             GraphicsDevice.RasterizerState = _rasterizerState;
 
             DrawIsoscelesTriangle();
-            _ingotFrustrum.Draw(gameTime, GraphicsDevice, _basicEffect, _edgesOnly);
+            foreach (var ingot in _ingots)
+                ingot.Draw(gameTime, GraphicsDevice, _basicEffect);
 
             base.Draw(gameTime);
         }
@@ -111,7 +171,7 @@ namespace BasicTests
 
         protected override void Dispose(bool disposing)
         {
-            if(disposing)
+            if (disposing)
             {
                 _meshCache.Dispose();
                 _basicEffect?.Dispose();
