@@ -1,0 +1,111 @@
+using BasicTests.Meshes;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using System;
+
+namespace BasicTests
+{
+    // Borrows a MeshData from the MeshCache (must not outlive it); carries only transform + palette.
+    internal class MeshInstance
+    {
+
+        private static readonly RasterizerState _faceRasterizer;
+        private readonly MeshData _meshData;
+        private readonly Color[] _palette;
+
+        // Off: faces take the background colour (wireframe). Edges are always drawn, always white.
+        public bool ColorsOn { get; set; } = true;
+
+        // The state is the source of truth; the world matrix is rebuilt from it, never accumulated.
+        public Vector3 Position { get; set; } = new Vector3(0.7f, 0f, 0f);
+        public float Pitch { get; set; } = MathHelper.ToRadians(20f);   // fixed jaunty tilt
+        public float Yaw { get; set; } = MathHelper.ToRadians(35f);
+        public float YawSpeed { get; set; } = MathHelper.ToRadians(45f); // radians per second
+        public float PitchSpeed { get; set; } = MathHelper.ToRadians(37f); // radians per second
+
+        public float Scale { get; set; } = 1f;
+
+        public Matrix World => Matrix.CreateScale(Scale)
+            * Matrix.CreateRotationX(Pitch)
+            * Matrix.CreateRotationY(Yaw)
+            * Matrix.CreateTranslation(Position);
+
+        public MeshInstance(MeshData meshData, Color[] palette)
+        {
+            _meshData = meshData ?? throw new ArgumentNullException(nameof(meshData));
+            ArgumentNullException.ThrowIfNull(palette);
+            if (palette.Length < meshData.PaletteSize)
+                throw new ArgumentException($"Palette has {palette.Length} colours but the mesh needs {meshData.PaletteSize}.", nameof(palette));
+            _palette = palette;
+        }
+
+        // A static constructor is used to initialize static members of the class. It is called automatically before the first instance is created or any static members are referenced.
+        static MeshInstance()
+        {
+            _faceRasterizer = new RasterizerState
+            {
+                CullMode = CullMode.None,
+                DepthBias = 0.0001f, // Nudges the faces slightly away so the edges on their boundaries don't z-fight.
+                SlopeScaleDepthBias = 1f,
+            };
+        }
+
+        public void Update(GameTime gameTime)
+        {
+
+        }
+
+        // Faces are always drawn (in their palette colours, or the background colour when colours are
+        // off, which gives the wireframe look and hides the lines behind them). Edges are then always
+        // drawn on top in white, depth-tested against those faces.
+        public void Draw(GameTime gameTime, GraphicsDevice graphicsDevice, BasicEffect basicEffect, Color backgroundColor)
+        {
+            var world = basicEffect.World;
+            var diffuse = basicEffect.DiffuseColor;
+            var vertexColor = basicEffect.VertexColorEnabled;
+            var previousRasterizer = graphicsDevice.RasterizerState;
+            basicEffect.World = World;
+            // The buffers are position-only; colour comes from DiffuseColor per draw range.
+            basicEffect.VertexColorEnabled = false;
+            try
+            {
+                graphicsDevice.RasterizerState = _faceRasterizer;
+                DrawSolid(graphicsDevice, basicEffect, backgroundColor);
+
+                graphicsDevice.RasterizerState = previousRasterizer;
+                DrawEdges(graphicsDevice, basicEffect);
+            }
+            finally
+            {
+                graphicsDevice.RasterizerState = previousRasterizer;
+                basicEffect.World = world;
+                basicEffect.DiffuseColor = diffuse;
+                basicEffect.VertexColorEnabled = vertexColor;
+            }
+        }
+
+        private void DrawSolid(GraphicsDevice gd, BasicEffect fx, Color backgroundColor)
+        {
+            gd.SetVertexBuffer(_meshData.Solids);
+            foreach (var range in _meshData.SolidRanges)
+                DrawRange(gd, fx, ColorsOn ? _palette[range.ColorSlot] : backgroundColor, PrimitiveType.TriangleList, range.Start, range.Primitives);
+        }
+
+        private void DrawEdges(GraphicsDevice gd, BasicEffect fx)
+        {
+            gd.SetVertexBuffer(_meshData.Edges);
+            DrawRange(gd, fx, Color.White, PrimitiveType.LineList, 0, _meshData.Edges.VertexCount / 2);
+        }
+
+        private static void DrawRange(GraphicsDevice gd, BasicEffect fx, Color c,
+                                      PrimitiveType type, int startVertex, int primitiveCount)
+        {
+            fx.DiffuseColor = c.ToVector3();
+            foreach (var pass in fx.CurrentTechnique.Passes)
+            {
+                pass.Apply();                       // must re-apply so the new colour uploads
+                gd.DrawPrimitives(type, startVertex, primitiveCount);
+            }
+        }
+    }
+}
