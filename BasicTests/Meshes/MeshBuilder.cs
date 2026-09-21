@@ -1,3 +1,4 @@
+using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System.Collections.Generic;
@@ -59,6 +60,82 @@ namespace BasicTests.Meshes
             AddLine(a, b); AddLine(b, c); AddLine(c, d); AddLine(d, a);   // base
             AddLine(e, f); AddLine(f, g); AddLine(g, h); AddLine(h, e);   // top rim
             AddLine(a, e); AddLine(b, f); AddLine(c, g); AddLine(d, h);   // verticals
+        }
+
+        // An upright tapered prism (bottomRadius may differ from topRadius) with `sides` sides, standing
+        // on bottomCentre. The side faces use sideSlot; a bottom or top cap is added only if its slot is >= 0.
+        // Edges are the top and bottom rings; add verticalEdges for the lines joining them.
+        public void AddFrustum(Vector3 bottomCentre, float bottomRadius, float topRadius, float height, int sides,
+            int sideSlot, int bottomSlot = -1, int topSlot = -1, bool verticalEdges = false)
+        {
+            Vector3[] Ring(float y, float radius)
+            {
+                var ring = new Vector3[sides];
+                for (var k = 0; k < sides; k++)
+                {
+                    var angle = k * MathHelper.TwoPi / sides;
+                    ring[k] = new Vector3(bottomCentre.X + radius * MathF.Cos(angle), y, bottomCentre.Z + radius * MathF.Sin(angle));
+                }
+                return ring;
+            }
+            var bottom = Ring(bottomCentre.Y, bottomRadius);
+            var top = Ring(bottomCentre.Y + height, topRadius);
+
+            AddSolidRange(sides * 2, sideSlot);
+            for (var k = 0; k < sides; k++)
+                AddQuad(bottom[k], bottom[(k + 1) % sides], top[(k + 1) % sides], top[k]);
+            if (bottomSlot >= 0)
+            {
+                AddSolidRange(sides - 2, bottomSlot);
+                AddPolygon(bottom);
+            }
+            if (topSlot >= 0)
+            {
+                AddSolidRange(sides - 2, topSlot);
+                AddPolygon(top);
+            }
+
+            AddLineLoop(bottom);
+            AddLineLoop(top);
+            if (verticalEdges)
+                for (var k = 0; k < sides; k++)
+                    AddLine(bottom[k], top[k]);
+        }
+
+        // A prism running from start to end in any direction (a branch, a pole), with `sides` sides and a
+        // radius that can differ at each end. No end caps. Edges are the lines along its length only,
+        // which is what outlines a thin branch in wireframe; add ringEdges for the ends as well.
+        public void AddTube(Vector3 start, Vector3 end, float startRadius, float endRadius, int sides, int sideSlot, bool ringEdges = false)
+        {
+            var axis = Vector3.Normalize(end - start);
+            var reference = MathF.Abs(axis.Y) < 0.9f ? Vector3.Up : Vector3.UnitX;
+            var u = Vector3.Normalize(Vector3.Cross(axis, reference));
+            var v = Vector3.Cross(axis, u);
+
+            Vector3[] Ring(Vector3 centre, float radius)
+            {
+                var ring = new Vector3[sides];
+                for (var k = 0; k < sides; k++)
+                {
+                    var angle = (k + 0.5f) * MathHelper.TwoPi / sides;
+                    ring[k] = centre + radius * (MathF.Cos(angle) * u + MathF.Sin(angle) * v);
+                }
+                return ring;
+            }
+            var a = Ring(start, startRadius);
+            var b = Ring(end, endRadius);
+
+            AddSolidRange(sides * 2, sideSlot);
+            for (var k = 0; k < sides; k++)
+                AddQuad(a[k], a[(k + 1) % sides], b[(k + 1) % sides], b[k]);
+
+            for (var k = 0; k < sides; k++)
+                AddLine(a[k], b[k]);
+            if (ringEdges)
+            {
+                AddLineLoop(a);
+                AddLineLoop(b);
+            }
         }
 
         // Starts a draw range at the current end of the solids; add exactly `primitives` triangles after it.

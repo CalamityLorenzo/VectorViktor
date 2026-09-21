@@ -23,9 +23,9 @@ namespace BasicTests
         private const int IngotCount = 0;
         private const int PyramidCount = 0;
         private const int HouseCount = 0;
-        private const int TrabantCount = 4;
-        private const int CarCount = 3;
-        private const int BarnCount = 2;
+        private const int TrabantCount = 0;
+        private const int CarCount = 0;
+        private const int BarnCount = 0;
         private static readonly Vector3 CameraPosition = new Vector3(0f, 0f, 3f);
 
         // (top, side, other) schemes for the coloured ingots.
@@ -123,6 +123,70 @@ namespace BasicTests
             BuildCars(car);
             var barn = _meshCache.GetOrAdd(GraphicsDevice, "barn", BarnMesh.Build);
             BuildBarns(barn);
+            BuildStillLife();
+        }
+
+        // A living room: a coffee table with a fern on it, a sofa behind it, a settee beside it and a sideboard
+        // with a 1950s television on it, with the garden (oaks and spiky bushes) behind. Everything stands
+        // upright on the floor and does not rotate. Placed by hand, at fixed positions, so nothing overlaps.
+        // Everything is at one scale, so how big each thing is next to the others is its true relative size.
+        private void BuildStillLife()
+        {
+            const float ground = -0.7f;   // y of the floor they stand on (the camera is at y = 0)
+            const float s = 1.4f;
+
+            var table = _meshCache.GetOrAdd(GraphicsDevice, "coffeetable", CoffeeTableMesh.Build);
+            var fern = _meshCache.GetOrAdd(GraphicsDevice, "fern", FernMesh.Build);
+            var sofa = _meshCache.GetOrAdd(GraphicsDevice, "sofa", SofaMesh.Build);
+            var settee = _meshCache.GetOrAdd(GraphicsDevice, "settee", SetteeMesh.Build);
+            var sideboard = _meshCache.GetOrAdd(GraphicsDevice, "sideboard", SideboardMesh.Build);
+            var television = _meshCache.GetOrAdd(GraphicsDevice, "television", TelevisionMesh.Build);
+            var oak = _meshCache.GetOrAdd(GraphicsDevice, "oak", OakMesh.Build);
+            var spikyBush = _meshCache.GetOrAdd(GraphicsDevice, "spikybush", SpikyBushMesh.Build);
+
+            var tablePalette = CoffeeTableMesh.Palette(new Color(205, 155, 95), new Color(120, 80, 50));
+            var fernPalette = FernMesh.Palette(new Color(190, 95, 60), new Color(50, 150, 60));
+            var sofaPalette = SofaMesh.Palette(new Color(60, 125, 125), new Color(100, 170, 160), new Color(150, 100, 60));
+            var setteePalette = SetteeMesh.Palette(new Color(195, 145, 45), new Color(225, 180, 85), new Color(150, 100, 60));
+            var sideboardPalette = SideboardMesh.Palette(new Color(130, 80, 45), new Color(170, 115, 65), new Color(90, 55, 30), new Color(205, 175, 90));
+            var televisionPalette = TelevisionMesh.Palette(new Color(110, 70, 40), new Color(120, 140, 130), new Color(235, 225, 200), new Color(60, 45, 35), new Color(90, 55, 30), new Color(190, 190, 195));
+            var oakPalette = OakMesh.Palette(new Color(100, 70, 45), new Color(70, 145, 55));
+            var spikyBushPalette = SpikyBushMesh.Palette(new Color(95, 65, 40), new Color(90, 130, 50));
+
+            // lift: how far above the floor the thing stands (for the fern on the table, the television on the sideboard)
+            void Place(MeshData mesh, Color[] palette, float x, float z, float scale, float yaw, float lift = 0f) =>
+                _instances.Add(new MeshInstance(mesh, palette)
+                {
+                    Position = new Vector3(x, ground + lift, z),
+                    Scale = scale,
+                    Pitch = 0f,   // upright
+                    Yaw = yaw,
+                    YawSpeed = 0f,
+                    PitchSpeed = 0f,
+                });
+
+            // Yaw turns a piece about the vertical; the seats and cabinets face +Z (towards the camera) at yaw 0,
+            // so +90 degrees makes one face +X (to the right) and -90 degrees makes one face -X (to the left).
+            const float faceRight = MathHelper.PiOver2, faceLeft = -MathHelper.PiOver2;
+
+            // The living group, around a coffee table at (0, -3): the sofa behind it, the settee on its left,
+            // and on its right the sideboard with the television, which the seats look across the table at.
+            Place(table, tablePalette, 0.0f, -3.0f, s, 0.0f);
+            Place(fern, fernPalette, 0.0f, -3.0f, 0.7f * s, 0.4f, lift: 0.28f * s);   // on the table top, a little smaller
+            Place(sofa, sofaPalette, 0.0f, -4.3f, s, 0.0f);
+            Place(settee, setteePalette, -1.7f, -2.75f, s, faceRight);
+            Place(sideboard, sideboardPalette, 2.5f, -3.3f, s, faceLeft);
+            Place(television, televisionPalette, 2.5f, -3.3f, s, faceLeft, lift: 0.64f * s);
+
+            // The second coffee table and the second fern (on the floor), in front
+            Place(table, tablePalette, -1.9f, -0.9f, s, 0.0f);
+            Place(fern, fernPalette, 2.0f, -0.9f, s, 0.8f);
+
+            // Garden behind: an oak on each side and two spiky bushes between them
+            Place(oak, oakPalette, -5.0f, -8.5f, s, 0.3f);
+            Place(oak, oakPalette, 5.0f, -8.5f, s, 1.1f);
+            Place(spikyBush, spikyBushPalette, -1.8f, -9.2f, s, 0.0f);
+            Place(spikyBush, spikyBushPalette, 1.9f, -9.6f, s, 0.5f);
         }
 
         private void BuildIngots(MeshData mesh)
