@@ -1,16 +1,16 @@
+using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace BasicTests.Meshes
+namespace MeshRawData
 {
     // Ported from VectorViktor's BuildHouseGeometry: walls, hipped roof, door, window (with a plus
     // cross) and chimney. The house is 2 wide (X) by 1 deep (Z); the front faces -Z.
     // Each box part (wall/door/window/chimney) has three shades (see MeshBuilder): 3 consecutive palette slots per part.
-    static class HouseMesh
+    public static class HouseMesh
     {
         public const int WallBase = 0, DoorBase = 3, WindowBase = 6, ChimneyBase = 9;   // + MeshBuilder.Side / Dim / Top
         public const int Roof = 12;
-
         // Builds the 13-slot palette from one base colour per part.
         public static Color[] Palette(Color wall, Color roof, Color door, Color window, Color chimney)
         {

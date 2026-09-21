@@ -1,12 +1,14 @@
+using MeshCore.Library;
+
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace BasicTests.Meshes
+namespace MeshRawData
 {
     // A 1950s sideboard: a long low teak cabinet with a thin overhanging top, three flat doors with
     // upright brass pulls, on four splayed legs. 1.46 wide, 0.46 deep, 0.64 to the top. The front faces +Z,
     // centred on X and Z, standing on y = 0.
-    static class SideboardMesh
+    public static class SideboardMesh
     {
         // Three-shade parts (see MeshBuilder): the carcass and top, the doors, the pulls; the legs are one slot.
         public const int CarcassBase = 0, DoorBase = 3, Leg = 6, PullBase = 7;

@@ -1,14 +1,15 @@
+using MeshCore.Library;
+
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using System;
 
-namespace BasicTests.Meshes
+namespace MeshRawData
 {
     // A sleek wedge sports coupé in the flat-shaded polygon style of Hard Drivin' / Race Drivin':
     // a low pointed nose, a body that widens towards the rear haunches, a raked windscreen into a
     // short roof and a long fastback, side strakes behind the door, and round (octagonal) wheels
     // with hubs. Several steps up from the boxy TrabantMesh. The car faces +Z.
-    static class CarMesh
+    public static class CarMesh
     {
         // Slots: body has 3 shades (MeshBuilder.Side / Dim / Top), glass 2, then trim, tyre, tyre cap, hub.
         public const int BodyBase = 0;

@@ -1,4 +1,4 @@
-using BasicTests.Meshes;
+using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
@@ -12,6 +12,7 @@ namespace BasicTests
         private static readonly RasterizerState _faceRasterizer;
         private readonly MeshData _meshData;
         private readonly Color[] _palette;
+        private OutlineView _outlineView;   // the outline for the current view; it changes as the mesh or camera moves
 
         // Off: faces take the background colour (wireframe). Edges are always drawn, always white.
         public bool ColorsOn { get; set; } = true;
@@ -74,6 +75,7 @@ namespace BasicTests
 
                 graphicsDevice.RasterizerState = previousRasterizer;
                 DrawEdges(graphicsDevice, basicEffect);
+                DrawOutline(graphicsDevice, basicEffect);
             }
             finally
             {
@@ -95,6 +97,29 @@ namespace BasicTests
         {
             gd.SetVertexBuffer(_meshData.Edges);
             DrawRange(gd, fx, Color.White, PrimitiveType.LineList, 0, _meshData.Edges.VertexCount / 2);
+        }
+
+        // For a rounded canopy: its outline as seen from the camera, in white like the edges. It depends on
+        // where the eye is, so it is worked out each draw (in the mesh's own space) and not kept in a buffer.
+        private void DrawOutline(GraphicsDevice gd, BasicEffect fx)
+        {
+            var outline = _meshData.Outline;
+            if (outline == null)
+                return;
+
+            // Only recalculated if the eye has moved relative to the mesh since last time.
+            var eye = Vector3.Transform(Matrix.Invert(fx.View).Translation, Matrix.Invert(fx.World));
+            _outlineView ??= outline.CreateView();
+            _outlineView.Update(eye);
+            if (_outlineView.VertexCount == 0)
+                return;
+
+            fx.DiffuseColor = Color.White.ToVector3();
+            foreach (var pass in fx.CurrentTechnique.Passes)
+            {
+                pass.Apply();
+                gd.DrawUserPrimitives(PrimitiveType.LineList, _outlineView.Vertices, 0, _outlineView.VertexCount / 2);
+            }
         }
 
         private static void DrawRange(GraphicsDevice gd, BasicEffect fx, Color c,

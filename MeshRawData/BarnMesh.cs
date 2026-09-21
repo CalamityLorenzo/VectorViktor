@@ -1,14 +1,17 @@
+using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace BasicTests.Meshes
+namespace MeshRawData
 {
     // A simple barn in the flat-shaded polygon style of Hard Drivin' / Race Drivin': a long
     // rectangular body, a two-pitch (gambrel) roof, and big double doors with X bracing plus a
     // small loft hatch on the front gable. The front faces -Z; the long sides run along Z.
-    static class BarnMesh
+    public static class BarnMesh
     {
         // Slots: walls have 3 shades (MeshBuilder.Side / Dim / Top), roof has 2, doors 3.
+        // The wall Top slot (2) is deliberately unused: the walls aren't a box and the roof covers where a
+        // top face would be. It is only there because SetBoxShades always fills three consecutive slots.
         public const int WallBase = 0;
         public const int RoofLow = 3, RoofHigh = 4;   // steep lower pitch / shallower upper pitch
         public const int DoorBase = 5;

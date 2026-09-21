@@ -1,5 +1,6 @@
-﻿using BasicTests.Meshes;
-using BasicTests.Meshes.Data;
+﻿using MeshCore.Library;
+using MeshLoader;
+using MeshRawData;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -357,7 +358,7 @@ namespace BasicTests
             if (keyboard.IsKeyDown(Keys.F11) && _previousKeyboard.IsKeyUp(Keys.F11))
                 _graphics.ToggleFullScreen();
 
-                if (keyboard.IsKeyDown(Keys.Space) && _previousKeyboard.IsKeyUp(Keys.Space))
+            if (keyboard.IsKeyDown(Keys.Space) && _previousKeyboard.IsKeyUp(Keys.Space))
                 _colorsOn = !_colorsOn;
 
             _previousKeyboard = keyboard;

@@ -1,15 +1,16 @@
+using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using System;
-using System.Collections.Generic;
 
-namespace BasicTests.Meshes
+namespace MeshRawData
 {
     // A bushy tree: a short tapered trunk carrying a canopy of six overlapping low-poly blobs (each a
     // slightly squashed icosahedron), turned by different amounts so the outline looks organic.
     // Faces are shaded by which way they point: up = light, down = dark, the rest in between.
+    // In wireframe the canopy has no edges of its own: it is drawn as the outline of the whole cluster
+    // (see OutlineData), so neither the facets nor the blobs it is made from show. The trunk keeps its edges.
     // Built with the trunk's base on y = 0 (not centred), so it sits on the ground rather than tumbles.
-    static class TreeMesh
+    public static class TreeMesh
     {
         // Slots: trunk, then the three leaf shades (see MeshBuilder) starting at LeafBase.
         public const int Trunk = 0, LeafBase = 1;
@@ -72,7 +73,6 @@ namespace BasicTests.Meshes
             var faceSets = new List<(Vector3 a, Vector3 b, Vector3 c)>[3];   // indexed by MeshBuilder.Side / Dim / Top
             for (var s = 0; s < 3; s++)
                 faceSets[s] = new List<(Vector3, Vector3, Vector3)>();
-            var edges = new List<(Vector3, Vector3)>();
 
             foreach (var (centre, radius, yaw) in Blobs)
             {
@@ -92,18 +92,8 @@ namespace BasicTests.Meshes
                     var facing = Vector3.Normalize((local[face[0]] + local[face[1]] + local[face[2]]) / 3f).Y;
                     var shade = facing > 0.4f ? MeshBuilder.Top : facing < -0.25f ? MeshBuilder.Dim : MeshBuilder.Side;
                     faceSets[shade].Add((world[face[0]], world[face[1]], world[face[2]]));
+                    mesh.AddOutlineTri(world[face[0]], world[face[1]], world[face[2]], centre);
                 }
-
-                // Each edge once (shared by two faces)
-                var seen = new HashSet<(int, int)>();
-                foreach (var face in IcoFaces)
-                    for (var k = 0; k < 3; k++)
-                    {
-                        var a = face[k];
-                        var b = face[(k + 1) % 3];
-                        if (seen.Add((Math.Min(a, b), Math.Max(a, b))))
-                            edges.Add((world[a], world[b]));
-                    }
             }
 
             for (var shade = 0; shade < 3; shade++)
@@ -114,8 +104,6 @@ namespace BasicTests.Meshes
                 foreach (var (a, b, c) in faceSets[shade])
                     mesh.AddTri(a, b, c);
             }
-            foreach (var (a, b) in edges)
-                mesh.AddLine(a, b);
 
             return mesh.Build(device);
         }

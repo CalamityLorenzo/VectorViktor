@@ -1,11 +1,12 @@
+using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace BasicTests.Meshes.Data
+namespace MeshRawData
 {
     // Square-based pyramid: a deliberately different shape from the ingot (5 corners,
     // 18/16 vertices, 2 palette slots, 2 solid ranges) to prove MeshData/MeshCache/MeshInstance are generic.
-    static class PyramidMesh
+    public static class PyramidMesh
     {
         public const int Base = 0, Side = 1;
 

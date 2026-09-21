@@ -1,12 +1,14 @@
+using MeshCore.Library;
+using MeshRawData.Helpers;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace BasicTests.Meshes
+namespace MeshRawData
 {
     // A two-seater settee (see SeatingBuilder): 1.30 wide, slimmer arms, taller legs and a taller back than
     // the sofa, more of a 1950s feel. Together with the sofa there are five seats, enough for a family of four.
     // It faces +Z.
-    static class SetteeMesh
+    public static class SetteeMesh
     {
         public static Color[] Palette(Color body, Color cushion, Color leg) => SeatingBuilder.Palette(body, cushion, leg);
 

@@ -1,12 +1,13 @@
+using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace BasicTests.Meshes
+namespace MeshRawData
 {
     // A low coffee table: a thick top, four square legs and a lower shelf between them. The long
     // side runs along X. Built with its feet on y = 0 (not centred), as it is meant to sit on the
     // ground rather than tumble.
-    static class CoffeeTableMesh
+    public static class CoffeeTableMesh
     {
         // Two wood parts, each with three shades (see MeshBuilder): the top and shelf, and the legs.
         public const int TopBase = 0, LegBase = 3;

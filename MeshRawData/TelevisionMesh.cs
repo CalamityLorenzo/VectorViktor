@@ -1,13 +1,14 @@
+using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace BasicTests.Meshes
+namespace MeshRawData
 {
     // A 1950s television set: a deep walnut cabinet with a small, bulging (convex) screen on the left,
     // three round knobs and a speaker grille on the right, short splayed legs, and rabbit-ear aerials on
     // top. 0.50 wide, 0.45 to the top of the cabinet (0.74 to the aerial tips), 0.42 deep.
     // The screen faces +Z, centred on X and Z, standing on y = 0.
-    static class TelevisionMesh
+    public static class TelevisionMesh
     {
         // The cabinet has three shades (see MeshBuilder); the grille slats also have three; the rest one each.
         public const int CabinetBase = 0, Glass = 3, Knob = 4, GrilleBase = 5, Leg = 8, Metal = 9;

@@ -1,17 +1,17 @@
+using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using System;
-using System.Collections.Generic;
 
-namespace BasicTests.Meshes
+namespace MeshRawData
 {
     // The "Spiky Bush": an umbrella-shaped tree about 1.5 times as tall as TreeMesh (1.72 against 1.15).
     // A slender trunk flares at the base and forks into branches that carry a broad, lumpy canopy, wider
     // than the tree is tall, with three lobes on top and an underside that dips at the edges so the
-    // branches show beneath it. In wireframe only the canopy blobs' outline rings and the trunk and
-    // branch length lines are drawn, so it reads as clean arcs like the design sketch.
+    // branches show beneath it. In wireframe the canopy has no edges of its own: it is drawn as the outline of
+    // the whole cluster (see OutlineData), so the blobs it is made from don't show and it reads as clean arcs
+    // like the design sketch. The trunk and branches keep their length lines.
     // Built with the trunk's base on y = 0 (not centred), so it sits on the ground rather than tumbles.
-    static class SpikyBushMesh
+    public static class SpikyBushMesh
     {
         // Slots: trunk/branches, then the three leaf shades (see MeshBuilder) starting at LeafBase.
         public const int Trunk = 0, LeafBase = 1;
@@ -95,6 +95,7 @@ namespace BasicTests.Meshes
                     var facing = Vector3.Normalize((a + b + c) / 3f).Y;
                     var shade = facing > 0.5f ? MeshBuilder.Top : facing < -0.5f ? MeshBuilder.Dim : MeshBuilder.Side;
                     faceSets[shade].Add((centre + a, centre + b, centre + c));
+                    mesh.AddOutlineTri(centre + a, centre + b, centre + c, centre);
                 }
                 for (var k = 0; k < Segments; k++)
                 {
@@ -105,21 +106,6 @@ namespace BasicTests.Meshes
                     Face(rings[1][k], rings[1][n], rings[2][n]);
                     Face(rings[1][k], rings[2][n], rings[2][k]);
                     Face(poleTop, rings[2][k], rings[2][n]);
-                }
-
-                // Outline only: the equator and two upright rings (front-on and side-on)
-                Vector3 W(Vector3 p) => centre + p;
-                var equator = new Vector3[Segments];
-                for (var k = 0; k < Segments; k++)
-                    equator[k] = W(rings[1][k]);
-                mesh.AddLineLoop(equator);
-
-                foreach (var k in new[] { 0, Segments / 4 })   // azimuth 0 / 180 degrees, then 90 / 270
-                {
-                    var opposite = k + Segments / 2;
-                    mesh.AddLineLoop(
-                        W(poleTop), W(rings[2][k]), W(rings[1][k]), W(rings[0][k]),
-                        W(poleBottom), W(rings[0][opposite]), W(rings[1][opposite]), W(rings[2][opposite]));
                 }
             }
 

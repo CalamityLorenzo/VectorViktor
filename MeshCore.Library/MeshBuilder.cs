@@ -1,9 +1,7 @@
-using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using System.Collections.Generic;
 
-namespace BasicTests.Meshes
+namespace MeshCore.Library
 {
     // Collects position-only solid triangles (with colour-slot draw ranges) and edge lines, then
     // turns them into a MeshData. Shared by meshes that are assembled from boxes and extra faces.
@@ -11,13 +9,14 @@ namespace BasicTests.Meshes
     // Boxes have three shades like the original VectorViktor box builder: Side (flanks),
     // Dim (nose + tail + optional bottom) and Top. A part's palette uses 3 consecutive slots
     // starting at its baseSlot, in that order.
-    sealed class MeshBuilder
+    public sealed class MeshBuilder
     {
         public const int Side = 0, Dim = 1, Top = 2;
 
         private readonly List<VertexPosition> _solids = new();
         private readonly List<DrawRange> _solidRanges = new();
         private readonly List<VertexPosition> _edges = new();
+        private readonly List<(Vector3 A, Vector3 B, Vector3 C, Vector3 Inside)> _outlineTriangles = new();
 
         // Fills the 3 shade slots of a box part from one base colour, with the same formulas as the original.
         public static void SetBoxShades(Color[] palette, int baseSlot, Color color)
@@ -175,8 +174,15 @@ namespace BasicTests.Meshes
             _edges.Add(new VertexPosition(b));
         }
 
+        // A triangle of a closed, rounded surface (a canopy) whose outer contour is drawn, worked out afresh for each
+        // view, instead of edges fixed on the mesh. This doesn't draw the triangle: add it with AddTri as well.
+        // `inside` is a point inside that surface (a blob's centre), used to tell which way the triangle faces.
+        public void AddOutlineTri(Vector3 a, Vector3 b, Vector3 c, Vector3 inside) =>
+            _outlineTriangles.Add((a, b, c, inside));
+
         public MeshData Build(GraphicsDevice device) =>
-            new MeshData(ToBuffer(device, _solids), _solidRanges.ToArray(), ToBuffer(device, _edges));
+            new MeshData(ToBuffer(device, _solids), _solidRanges.ToArray(), ToBuffer(device, _edges),
+                _outlineTriangles.Count > 0 ? new OutlineData(_outlineTriangles) : null);
 
         private static VertexBuffer ToBuffer(GraphicsDevice device, List<VertexPosition> vertices)
         {

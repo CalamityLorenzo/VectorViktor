@@ -1,12 +1,11 @@
+﻿using MeshCore.Library;
 using Microsoft.Xna.Framework.Graphics;
-using System;
-using System.Collections.Generic;
 
-namespace BasicTests.Meshes
+namespace MeshLoader
 {
     // Owns every MeshData (and so every GPU buffer) it builds.
     // Lifetime rule: MeshInstances borrow meshes from here and must not outlive the cache.
-    internal class MeshCache : IDisposable
+    public class MeshCache : IDisposable
     {
         private readonly Dictionary<string, MeshData> _meshDataCache = new();
 

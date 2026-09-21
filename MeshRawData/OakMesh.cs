@@ -1,17 +1,17 @@
+using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using System;
-using System.Collections.Generic;
 
-namespace BasicTests.Meshes
+namespace MeshRawData
 {
     // A broad oak: ONE large, thick, rounded canopy (a lumpy bulb, wider than it is tall, with a shallow
     // underside) held up by a thick trunk that splits into heavy limbs which show beneath it. Unlike
     // TreeMesh, the canopy is a single mass, not a cluster of separate blobs.
-    // In wireframe the canopy is edged with its five latitude rings and all sixteen meridian lines, plus the
-    // trunk and limb length lines, so the whole bulb reads as a lumpy dome over a forked trunk.
+    // In wireframe the canopy has no edges of its own: it is drawn as its outline (see OutlineData), so it
+    // reads as a clean lumpy dome over a forked trunk and none of the rings or facets it is made from show.
+    // The trunk and limbs keep their length lines.
     // Built with the trunk's base on y = 0 (not centred), so it sits on the ground rather than tumbles.
-    static class OakMesh
+    public static class OakMesh
     {
         // Slots: trunk/limbs, then five leaf shades from darkest (underside) to lightest (top).
         public const int Trunk = 0, LeafBase = 1, LeafShades = 5;
@@ -104,6 +104,7 @@ namespace BasicTests.Meshes
                 var facing = Vector3.Normalize((a + b + c) / 3f - CanopyCentre).Y;
                 var shade = facing > 0.72f ? 4 : facing > 0.35f ? 3 : facing > -0.15f ? 2 : facing > -0.55f ? 1 : 0;
                 faceSets[shade].Add((a, b, c));
+                mesh.AddOutlineTri(a, b, c, CanopyCentre);
             }
 
             var last = Latitudes.Length - 1;
@@ -126,17 +127,6 @@ namespace BasicTests.Meshes
                 mesh.AddSolidRange(faceSets[shade].Count, LeafBase + shade);
                 foreach (var (a, b, c) in faceSets[shade])
                     mesh.AddTri(a, b, c);
-            }
-
-            // ---- Canopy edges: every latitude ring and every meridian from pole to pole, so each face is outlined
-            foreach (var ring in rings)
-                mesh.AddLineLoop(ring);
-            for (var k = 0; k < Segments; k++)
-            {
-                mesh.AddLine(poleTop, rings[last][k]);
-                for (var r = last; r > 0; r--)
-                    mesh.AddLine(rings[r][k], rings[r - 1][k]);
-                mesh.AddLine(rings[0][k], poleBottom);
             }
 
             return mesh.Build(device);

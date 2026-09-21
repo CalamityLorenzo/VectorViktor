@@ -1,14 +1,13 @@
+using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using System;
-using System.Collections.Generic;
 
-namespace BasicTests.Meshes
+namespace MeshRawData
 {
     // A small potted fern: an eight-sided tapered pot with soil, and nine arching fronds that fan out
     // from the centre. Each frond is a flat ribbon that widens then tapers to a point. Built with the
     // pot's base on y = 0 (not centred), so it sits on the ground rather than tumbles.
-    static class FernMesh
+    public static class FernMesh
     {
         // Slots: pot side, pot underside, soil, and two greens that alternate between fronds.
         public const int PotSide = 0, PotBottom = 1, Soil = 2, FrondA = 3, FrondB = 4;

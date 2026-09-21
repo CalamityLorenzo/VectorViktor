@@ -1,14 +1,15 @@
+using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace BasicTests.Meshes
+namespace MeshRawData
 {
     // Named for the East German Trabant it resembles. Ported from VectorViktor's BuildCarGeometry: a low chassis box on four box wheels, with a
     // shorter, narrower cabin set toward the rear. The car faces +Z (heading 0); the per-heading
     // copies and grid movement of the original are handled by MeshInstance's transform instead.
     // Each part (body/cabin/wheels) has three shades (see MeshBuilder): 3 consecutive palette slots per part.
     // All four wheels share one colour.
-    static class TrabantMesh
+    public static class TrabantMesh
     {
         public const int BodyBase = 0, CabinBase = 3, WheelBase = 6;   // + MeshBuilder.Side / Dim / Top
 

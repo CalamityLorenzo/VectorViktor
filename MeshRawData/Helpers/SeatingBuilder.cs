@@ -1,7 +1,9 @@
+using MeshCore.Library;
+
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace BasicTests.Meshes
+namespace MeshRawData.Helpers
 {
     // Shared by SofaMesh and SetteeMesh: an upholstered mid-century seat with a low frame, slim arms, one
     // loose seat cushion and one back cushion per person, and four splayed wooden legs. The seat faces
@@ -9,7 +11,7 @@ namespace BasicTests.Meshes
     //
     // Slots: the frame (base, arms, back) has three shades (see MeshBuilder), the cushions three more,
     // and the legs one.
-    static class SeatingBuilder
+    public static class SeatingBuilder
     {
         public const int BodyBase = 0, CushionBase = 3, Leg = 6;
         public const int PaletteSize = 7;

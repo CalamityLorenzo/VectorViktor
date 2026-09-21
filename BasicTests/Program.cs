@@ -1,2 +1,2 @@
-﻿using var game = new BasicTests.Game1();
+﻿using var game = new BasicTests.Game3();
 game.Run();

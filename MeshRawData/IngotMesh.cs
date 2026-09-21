@@ -1,9 +1,10 @@
+using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace BasicTests.Meshes
+namespace MeshRawData
 {
-    static class IngotMesh
+    public static class IngotMesh
     {
         // Palette slots. Solid ranges below are grouped by colour so each is one contiguous draw.
         public const int Top = 0, Side = 1, Other = 2;
