@@ -1,6 +1,7 @@
 using MeshCore.Library;
 using MeshLoader;
 using MeshRawData;
+using MeshRawData.Helpers;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -9,8 +10,9 @@ using System.Collections.Generic;
 
 namespace BasicTests
 {
-    // Just the trees (tree, oak, spiky bush), each standing on the ground and turning slowly about the vertical,
-    // seen through an orbit camera. Same scale for all three, so their sizes compare truly.
+    // Three staircases (a straight run, and a quarter turn each way), each standing on the ground and
+    // turning slowly about the vertical, seen through an orbit camera. Same step count and rise for all
+    // three, so their sizes compare truly.
     // Left-drag or the arrow keys orbit, the mouse wheel or W / S zoom. Space toggles colours / wireframe,
     // F11 toggles full screen, Escape exits. Full screen at 1920 x 1080.
     public class Game3 : Game
@@ -18,12 +20,13 @@ namespace BasicTests
         private const int ScreenWidth = 1920;
         private const int ScreenHeight = 1080;
 
-        private const float Spacing = 2.8f;         // distance between neighbouring trees
+        private const float Spacing = 6.0f;         // distance between neighbouring staircases
         private const float SpinSpeed = 30f;        // degrees per second
 
-        // The orbit camera looks at this point, about the middle of the tallest tree (the oak is 2.35 high).
-        private static readonly Vector3 CameraTarget = new Vector3(0f, 1.0f, 0f);
-        private const float MinDistance = 1.5f, MaxDistance = 30f;
+        // The orbit camera looks at this point, about the middle of the tallest staircase (10 steps at
+        // a 0.18 rise climb 1.8 high).
+        private static readonly Vector3 CameraTarget = new Vector3(0f, 0.9f, 0f);
+        private const float MinDistance = 1.5f, MaxDistance = 40f;
         private const float MinPitch = -10f, MaxPitch = 85f;   // degrees; stops it flipping over the top
         private const float MouseOrbitSpeed = 0.005f;          // radians per pixel dragged
         private const float KeyOrbitSpeed = 1.5f;              // radians per second
@@ -34,11 +37,13 @@ namespace BasicTests
 
         private record struct Showcase(string Key, Func<GraphicsDevice, MeshData> Build, Color[] Palette);
 
+        private static readonly Color[] StaircasePalette = StaircaseMesh.Palette(new Color(160, 120, 75), new Color(150, 150, 155));
+
         private static readonly Showcase[] Showcases =
         {
-            new("spikybush", SpikyBushMesh.Build, SpikyBushMesh.Palette(new Color(95, 65, 40), new Color(90, 130, 50))),
-            new("oak",       OakMesh.Build,       OakMesh.Palette(new Color(100, 70, 45), new Color(70, 145, 55))),
-            new("tree",      TreeMesh.Build,      TreeMesh.Palette(new Color(110, 75, 45), new Color(60, 140, 60))),
+            new("stair-straight",   d => StaircaseMesh.BuildStraight(d, steps: 10),                     StaircasePalette),
+            new("stair-turn-right", d => StaircaseMesh.BuildQuarterTurn(d, 5, 5, StairTurn.Right),       StaircasePalette),
+            new("stair-turn-left",  d => StaircaseMesh.BuildQuarterTurn(d, 5, 5, StairTurn.Left),        StaircasePalette),
         };
 
         private readonly GraphicsDeviceManager _graphics;
@@ -90,7 +95,7 @@ namespace BasicTests
                 var mesh = _meshCache.GetOrAdd(GraphicsDevice, showcase.Key, showcase.Build);
                 _instances.Add(new MeshInstance(mesh, showcase.Palette)
                 {
-                    // Centred on the origin, in a row along X. Their origin is the foot of the trunk, so y = 0 is the ground.
+                    // In a row along X. Their origin is the foot of the first step, so y = 0 is the ground.
                     Position = new Vector3((i - (Showcases.Length - 1) * 0.5f) * Spacing, 0f, 0f),
                     Pitch = 0f,
                     Yaw = MathHelper.ToRadians(i * 40f),

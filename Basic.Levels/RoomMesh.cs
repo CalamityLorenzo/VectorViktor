@@ -37,6 +37,8 @@ namespace Basic.Levels
 
             if (room.Stairs != null)
                 AddSteps(mesh, room, hw, hd);
+            else if (room.Notch != null)
+                AddLFloor(mesh, room, hw, hd);
             else
             {
                 mesh.AddSolidRange(2, Floor);
@@ -44,17 +46,25 @@ namespace Basic.Levels
                 AddGrid(mesh, room, hw, hd);
             }
 
-            var north = room.CeilingHeightAt(-hd);
-            var south = room.CeilingHeightAt(hd);
-            mesh.AddSolidRange(2, Ceiling);
-            mesh.AddQuad(new Vector3(-hw, north, -hd), new Vector3(hw, north, -hd), new Vector3(hw, south, hd), new Vector3(-hw, south, hd));
-
             var northSouth = new List<Vector3[]>();
             var eastWest = new List<Vector3[]>();
-            AddWall(mesh, room, Wall.North, northSouth);
-            AddWall(mesh, room, Wall.South, northSouth);
-            AddWall(mesh, room, Wall.East, eastWest);
-            AddWall(mesh, room, Wall.West, eastWest);
+            if (room.Notch != null)
+            {
+                AddLCeiling(mesh, room, hw, hd);
+                AddNotchWalls(mesh, room, hw, hd, northSouth, eastWest);
+            }
+            else
+            {
+                var north = room.CeilingHeightAt(-hd);
+                var south = room.CeilingHeightAt(hd);
+                mesh.AddSolidRange(2, Ceiling);
+                mesh.AddQuad(new Vector3(-hw, north, -hd), new Vector3(hw, north, -hd), new Vector3(hw, south, hd), new Vector3(-hw, south, hd));
+
+                AddWall(mesh, room, Wall.North, northSouth);
+                AddWall(mesh, room, Wall.South, northSouth);
+                AddWall(mesh, room, Wall.East, eastWest);
+                AddWall(mesh, room, Wall.West, eastWest);
+            }
             AddQuads(mesh, northSouth, WallNorthSouth);
             AddQuads(mesh, eastWest, WallEastWest);
 
@@ -81,6 +91,47 @@ namespace Basic.Levels
                 mesh.AddLine(new Vector3(x, 0f, -hd), new Vector3(x, 0f, hd));
             for (var z = -hd + spacing; z < hd - 0.01f; z += spacing)
                 mesh.AddLine(new Vector3(-hw, 0f, z), new Vector3(hw, 0f, z));
+        }
+
+        // A notch corner splits the room's footprint into two rectangles: a full-width strip (the depth
+        // the notch doesn't touch) and a narrower strip alongside it (the notch's own depth, minus the
+        // notch's width). Together they tile the L exactly. Only valid when room.Notch != null.
+        private static ((float x0, float x1, float z0, float z1) big, (float x0, float x1, float z0, float z1) small) LRects(RoomSpec room, float hw, float hd)
+        {
+            var (x0, x1, z0, z1, ex, ez) = room.NotchBounds();
+            var big = ez < 0 ? (-hw, hw, z1, hd) : (-hw, hw, -hd, z0);
+            var small = ex < 0 ? (x1, hw, z0, z1) : (-hw, x0, z0, z1);
+            return (big, small);
+        }
+
+        private static void AddFlatQuad(MeshBuilder mesh, (float x0, float x1, float z0, float z1) r, float y) =>
+            mesh.AddQuad(new Vector3(r.x0, y, r.z0), new Vector3(r.x1, y, r.z0), new Vector3(r.x1, y, r.z1), new Vector3(r.x0, y, r.z1));
+
+        private static void AddLFloor(MeshBuilder mesh, RoomSpec room, float hw, float hd)
+        {
+            var (big, small) = LRects(room, hw, hd);
+            mesh.AddSolidRange(4, Floor);
+            AddFlatQuad(mesh, big, 0f);
+            AddFlatQuad(mesh, small, 0f);
+            AddGridRect(mesh, room.GridSpacing, big);
+            AddGridRect(mesh, room.GridSpacing, small);
+        }
+
+        private static void AddLCeiling(MeshBuilder mesh, RoomSpec room, float hw, float hd)
+        {
+            var (big, small) = LRects(room, hw, hd);
+            mesh.AddSolidRange(4, Ceiling);
+            AddFlatQuad(mesh, big, room.Height);
+            AddFlatQuad(mesh, small, room.Height);
+        }
+
+        // Grid lines within one rectangle, starting from its own low edge (see AddGrid).
+        private static void AddGridRect(MeshBuilder mesh, float spacing, (float x0, float x1, float z0, float z1) r)
+        {
+            for (var x = r.x0 + spacing; x < r.x1 - 0.01f; x += spacing)
+                mesh.AddLine(new Vector3(x, 0f, r.z0), new Vector3(x, 0f, r.z1));
+            for (var z = r.z0 + spacing; z < r.z1 - 0.01f; z += spacing)
+                mesh.AddLine(new Vector3(r.x0, 0f, z), new Vector3(r.x1, 0f, z));
         }
 
         // Steps rising to the north: each is a tread on top and a riser facing south, outlined all round
@@ -115,11 +166,19 @@ namespace Basic.Levels
             AddQuads(mesh, risers, Riser);
         }
 
-        // One wall as flat quads (up to three round its opening, if it has one) and its outline. The top of a
-        // wall follows the ceiling, so the side walls of a stairwell slope.
+        // A whole wall, its full extent.
         private static void AddWall(MeshBuilder mesh, RoomSpec room, Wall wall, List<Vector3[]> quads)
         {
             var half = (wall is Wall.North or Wall.South ? room.Width : room.Depth) / 2f;
+            AddWallSegment(mesh, room, wall, -half, half, quads);
+        }
+
+        // One wall as flat quads (up to three round its opening, if it has one) and its outline, running
+        // from `lo` to `hi` along the wall rather than necessarily its full extent - a notch corner shortens
+        // the wall it cuts into (see AddNotchWalls). The top of a wall follows the ceiling, so the side
+        // walls of a stairwell slope.
+        private static void AddWallSegment(MeshBuilder mesh, RoomSpec room, Wall wall, float lo, float hi, List<Vector3[]> quads)
+        {
             var opening = Array.Find(room.Openings, o => o.Wall == wall);
 
             // Height of the wall's top at a distance `along` from its centre
@@ -140,52 +199,91 @@ namespace Basic.Levels
 
             if (opening == null)
             {
-                Piece(-half, half, 0f);
-                Line(-half, 0f, half, 0f);
-                Line(-half, Top(-half), half, Top(half));
-                Line(-half, 0f, -half, Top(-half));
-                Line(half, 0f, half, Top(half));
+                Piece(lo, hi, 0f);
+                Line(lo, 0f, hi, 0f);
+                Line(lo, Top(lo), hi, Top(hi));
+                Line(lo, 0f, lo, Top(lo));
+                Line(hi, 0f, hi, Top(hi));
                 return;
             }
 
-            var left = MathHelper.Clamp(opening.Offset - opening.Width / 2f, -half, half);
-            var right = MathHelper.Clamp(opening.Offset + opening.Width / 2f, -half, half);
+            var left = MathHelper.Clamp(opening.Offset - opening.Width / 2f, lo, hi);
+            var right = MathHelper.Clamp(opening.Offset + opening.Width / 2f, lo, hi);
             var lintel = opening.Height < Math.Min(Top(left), Top(right)) - Tiny;   // wall left above the gap
 
-            Piece(-half, left, 0f);
-            Piece(right, half, 0f);
+            Piece(lo, left, 0f);
+            Piece(right, hi, 0f);
             if (lintel)
                 Piece(left, right, opening.Height);
 
             // Outline: the floor line and top line where there is wall, the gap's edges, and the corners
-            var hasLeft = left - -half > Tiny;
-            var hasRight = half - right > Tiny;
-            if (hasLeft) Line(-half, 0f, left, 0f);
-            if (hasRight) Line(right, 0f, half, 0f);
+            var hasLeft = left - lo > Tiny;
+            var hasRight = hi - right > Tiny;
+            if (hasLeft) Line(lo, 0f, left, 0f);
+            if (hasRight) Line(right, 0f, hi, 0f);
             if (lintel)
             {
-                Line(-half, Top(-half), half, Top(half));
+                Line(lo, Top(lo), hi, Top(hi));
                 Line(left, opening.Height, right, opening.Height);
             }
             else
             {
-                if (hasLeft) Line(-half, Top(-half), left, Top(left));
-                if (hasRight) Line(right, Top(right), half, Top(half));
+                if (hasLeft) Line(lo, Top(lo), left, Top(left));
+                if (hasRight) Line(right, Top(right), hi, Top(hi));
             }
             if (hasLeft)
             {
-                Line(-half, 0f, -half, Top(-half));
+                Line(lo, 0f, lo, Top(lo));
                 Line(left, 0f, left, Math.Min(opening.Height, Top(left)));
             }
             else if (lintel)
-                Line(-half, opening.Height, -half, Top(-half));
+                Line(lo, opening.Height, lo, Top(lo));
             if (hasRight)
             {
-                Line(half, 0f, half, Top(half));
+                Line(hi, 0f, hi, Top(hi));
                 Line(right, 0f, right, Math.Min(opening.Height, Top(right)));
             }
             else if (lintel)
-                Line(half, opening.Height, half, Top(half));
+                Line(hi, opening.Height, hi, Top(hi));
+        }
+
+        // The room's six walls when it has a notch corner: North and West (say, for a north-west notch)
+        // run only along the part of the room's edge the notch leaves standing, and two extra flat faces
+        // close off the inner corner. Never cut by a door or opening - see RoomSpec.NotchSpec.
+        private static void AddNotchWalls(MeshBuilder mesh, RoomSpec room, float hw, float hd, List<Vector3[]> northSouth, List<Vector3[]> eastWest)
+        {
+            var (x0, x1, z0, z1, ex, ez) = room.NotchBounds();
+
+            // The remaining span of the north/south wall pair (whichever the notch shortens) is on
+            // whichever side of x the notch isn't; likewise the east/west pair along z.
+            var nx0 = ex < 0 ? x1 : -hw;
+            var nx1 = ex < 0 ? hw : x0;
+            var wz0 = ez < 0 ? z1 : -hd;
+            var wz1 = ez < 0 ? hd : z0;
+
+            AddWallSegment(mesh, room, Wall.North, ez < 0 ? nx0 : -hw, ez < 0 ? nx1 : hw, northSouth);
+            AddWallSegment(mesh, room, Wall.South, ez > 0 ? nx0 : -hw, ez > 0 ? nx1 : hw, northSouth);
+            AddWallSegment(mesh, room, Wall.West, ex < 0 ? wz0 : -hd, ex < 0 ? wz1 : hd, eastWest);
+            AddWallSegment(mesh, room, Wall.East, ex > 0 ? wz0 : -hd, ex > 0 ? wz1 : hd, eastWest);
+
+            // The notch's own two inner faces, closing off the bite taken out of the corner.
+            var innerZ = ez < 0 ? z1 : z0;
+            var innerX = ex < 0 ? x1 : x0;
+            AddFlatWall(mesh, new Vector3(x0, 0f, innerZ), new Vector3(x1, 0f, innerZ), room.Height, northSouth);
+            AddFlatWall(mesh, new Vector3(innerX, 0f, z0), new Vector3(innerX, 0f, z1), room.Height, eastWest);
+        }
+
+        // A plain wall face between two floor points, `height` tall, with its outline - used for the two
+        // inner faces of a notch corner, which are never cut by a door.
+        private static void AddFlatWall(MeshBuilder mesh, Vector3 a, Vector3 b, float height, List<Vector3[]> quads)
+        {
+            var top = a + Vector3.Up * height;
+            var topB = b + Vector3.Up * height;
+            quads.Add(new[] { a, b, topB, top });
+            mesh.AddLine(a, b);
+            mesh.AddLine(top, topB);
+            mesh.AddLine(a, top);
+            mesh.AddLine(b, topB);
         }
 
         // A frame, the door inside it, and a handle, all flat on the wall.

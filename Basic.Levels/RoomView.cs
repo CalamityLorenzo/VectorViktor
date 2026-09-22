@@ -55,29 +55,9 @@ namespace Basic.Levels
             {
                 if (!prop.Blocks)
                     continue;
-                p = PushOutOfBox(p, new Vector2(prop.Position.X, prop.Position.Z), prop.Half, radius);
+                p = RoomSpec.PushOutOfBox(p, new Vector2(prop.Position.X, prop.Position.Z), prop.Half, radius);
             }
             return new Vector3(p.X, position.Y, p.Y);
-        }
-
-        private static Vector2 PushOutOfBox(Vector2 p, Vector2 centre, Vector2 half, float radius)
-        {
-            var d = p - centre;
-            var nearest = Vector2.Clamp(d, -half, half);
-            var gap = d - nearest;
-            var distance = gap.Length();
-            if (distance >= radius)
-                return p;
-
-            if (distance > 1e-6f)
-                return centre + nearest + gap / distance * radius;
-
-            // The walker's centre is inside the box: leave by whichever side is nearest
-            var toX = half.X - System.MathF.Abs(d.X);
-            var toZ = half.Y - System.MathF.Abs(d.Y);
-            if (toX < toZ)
-                return new Vector2(centre.X + (d.X < 0f ? -1f : 1f) * (half.X + radius), p.Y);
-            return new Vector2(p.X, centre.Y + (d.Y < 0f ? -1f : 1f) * (half.Y + radius));
         }
     }
 }

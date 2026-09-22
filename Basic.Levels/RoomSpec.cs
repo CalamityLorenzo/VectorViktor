@@ -8,6 +8,15 @@ namespace Basic.Levels
     // Which wall of a room. North is -Z, South +Z, East +X, West -X.
     public enum Wall { North, South, East, West }
 
+    // Which corner a room's notch is cut from.
+    public enum Corner { NorthWest, NorthEast, SouthWest, SouthEast }
+
+    // A rectangular bite taken out of one corner of the room, turning its square footprint into an L.
+    // Width and Depth are the size of the missing rectangle, measured in from the room's outer edges at
+    // that corner. The room's floor/ceiling are then two rectangles rather than one, and two extra wall
+    // faces close off the inner corner - see RoomSpec.NotchBounds and RoomMesh.AddNotchWalls.
+    public record NotchSpec(Corner Corner, float Width, float Depth);
+
     // A door in a wall. Offset is how far along the wall its centre is, measured from the room's centre
     // (X for the north and south walls, Z for the east and west ones). Walking into it puts you at
     // TargetDoor in TargetRoom.
@@ -21,6 +30,48 @@ namespace Basic.Levels
     // Steps climbing to the north over the room's whole depth. The ceiling climbs with them, so the
     // headroom stays the room's Height all the way up.
     public record StairSpec(float Rise, int Steps);
+
+    // A climbable strip in the room's own coordinates, separate from the room's own whole-depth Stairs:
+    // a corridor Width wide down the line from Start to End, whose floor rises (or stays flat, if
+    // Start.Y == End.Y) linearly between them. Matches a staircase flight, a landing, a ladder, or a
+    // platform's own deck, so a walker's height can follow it. Every RoomSpec.WalkHeightAt call checks
+    // every ramp in the room, so keep a room's Ramps to the handful that are actually walked on.
+    //
+    // MaxStepUp is how far above a walker's current height this ramp may still lift them in one go
+    // (see RoomSpec.WalkHeightAt) — it exists to stop wandering under a platform from snapping you
+    // straight up onto it, not to model real footing, so a steep ramp (a near-vertical ladder rising
+    // several metres over a run of one) needs a much larger value than a shallow staircase does:
+    // at running speed, a couple of frames' horizontal movement up a slope that steep already outruns
+    // the default, and the walker would be dropped back to the floor instead of climbing.
+    public readonly record struct RampSpec(Vector3 Start, Vector3 End, float Width, float MaxStepUp = RoomSpec.DefaultMaxStepUp)
+    {
+        public bool Contains(Vector3 local)
+        {
+            var along = new Vector3(End.X - Start.X, 0f, End.Z - Start.Z);
+            var lengthSq = along.LengthSquared();
+            if (lengthSq < 1e-6f)
+                return false;
+
+            var offset = new Vector3(local.X - Start.X, 0f, local.Z - Start.Z);
+            var t = Vector3.Dot(offset, along) / lengthSq;
+            if (t < 0f || t > 1f)
+                return false;
+
+            return Vector3.Distance(offset, along * t) <= Width / 2f;
+        }
+
+        public float HeightAt(Vector3 local)
+        {
+            var along = new Vector3(End.X - Start.X, 0f, End.Z - Start.Z);
+            var lengthSq = along.LengthSquared();
+            if (lengthSq < 1e-6f)
+                return Start.Y;
+
+            var offset = new Vector3(local.X - Start.X, 0f, local.Z - Start.Z);
+            var t = MathHelper.Clamp(Vector3.Dot(offset, along) / lengthSq, 0f, 1f);
+            return MathHelper.Lerp(Start.Y, End.Y, t);
+        }
+    }
 
     // A piece of furniture standing in a room. Position is where the mesh's origin goes, YawDegrees turns
     // its front (+Z) round the vertical. Half is the half-extent (X, Z) of the floor area it blocks,
@@ -53,6 +104,8 @@ namespace Basic.Levels
         public Vector3 WorldOffset { get; init; }
         public float GridSpacing { get; init; } = 1f;
         public StairSpec Stairs { get; init; }
+        public RampSpec[] Ramps { get; init; } = Array.Empty<RampSpec>();
+        public NotchSpec Notch { get; init; }
 
         public DoorSpec[] Doors { get; init; } = Array.Empty<DoorSpec>();
         public PropSpec[] Props { get; init; } = Array.Empty<PropSpec>();
@@ -66,13 +119,37 @@ namespace Basic.Levels
 
         public float CeilingHeightAt(float z) => Height + FloorHeightAt(z);
 
+        // Default RampSpec.MaxStepUp: generous enough for a shallow staircase's per-frame rise, but see
+        // RampSpec for why a steep ramp (a ladder) needs to override it with something much larger.
+        public const float DefaultMaxStepUp = 0.3f;
+
+        // How high the floor is under a walker already standing `currentHeight` above this room's own
+        // floor level, at this local (x, z): the room's own slope, or the highest ramp whose footprint
+        // contains the point and whose height clears that ramp's own MaxStepUp.
+        public float WalkHeightAt(Vector3 local, float currentHeight)
+        {
+            var height = FloorHeightAt(local.Z);
+            foreach (var ramp in Ramps)
+            {
+                if (!ramp.Contains(local))
+                    continue;
+                var rampHeight = ramp.HeightAt(local);
+                if (rampHeight <= currentHeight + ramp.MaxStepUp && rampHeight > height)
+                    height = rampHeight;
+            }
+            return height;
+        }
+
         // Whether a point (in the room's own coordinates) is over the room's floor. A whisker of tolerance
         // so a point on the seam between two rooms is always in one of them.
         public bool Contains(Vector3 local) =>
             MathF.Abs(local.X) <= Width / 2f + 0.01f && MathF.Abs(local.Z) <= Depth / 2f + 0.01f;
 
         // Pushes a walker (a circle of `radius` on the floor) back in from the walls, except where it is
-        // squarely in line with an opening.
+        // squarely in line with an opening. A notch corner (if any) is pushed out of last, as a solid
+        // obstacle - see PushOutOfBox. Applying the plain 4-wall pushes first is harmless even where a
+        // notch has removed part of a wall: the notch push is always the stricter of the two there, so it
+        // is what actually decides the final position.
         public Vector3 KeepInside(Vector3 p, float radius)
         {
             foreach (var wall in AllWalls)
@@ -85,7 +162,52 @@ namespace Basic.Levels
                     continue;
                 p += Inward(wall) * (radius - gap);
             }
+            if (Notch != null)
+            {
+                var (x0, x1, z0, z1, _, _) = NotchBounds();
+                var pushed = PushOutOfBox(new Vector2(p.X, p.Z), new Vector2((x0 + x1) / 2f, (z0 + z1) / 2f),
+                    new Vector2((x1 - x0) / 2f, (z1 - z0) / 2f), radius);
+                p = new Vector3(pushed.X, p.Y, pushed.Y);
+            }
             return p;
+        }
+
+        // A circle of `radius` pushed clear of an axis-aligned box (centre, half-extent), by the shortest
+        // route; if its centre is already inside the box, out through whichever side is nearest. Shared by
+        // a room's own notch (a box-shaped bite out of its footprint) and RoomView's furniture collision.
+        public static Vector2 PushOutOfBox(Vector2 p, Vector2 centre, Vector2 half, float radius)
+        {
+            var d = p - centre;
+            var nearest = Vector2.Clamp(d, -half, half);
+            var gap = d - nearest;
+            var distance = gap.Length();
+            if (distance >= radius)
+                return p;
+
+            if (distance > 1e-6f)
+                return centre + nearest + gap / distance * radius;
+
+            // The circle's centre is inside the box: leave by whichever side is nearest
+            var toX = half.X - MathF.Abs(d.X);
+            var toZ = half.Y - MathF.Abs(d.Y);
+            if (toX < toZ)
+                return new Vector2(centre.X + (d.X < 0f ? -1f : 1f) * (half.X + radius), p.Y);
+            return new Vector2(p.X, centre.Y + (d.Y < 0f ? -1f : 1f) * (half.Y + radius));
+        }
+
+        // The corner notch's removed rectangle in the room's own coordinates (x0 < x1, z0 < z1), and which
+        // way it faces along each axis (-1/+1, matching the corner it's cut from). Only valid when Notch != null.
+        public (float x0, float x1, float z0, float z1, int ex, int ez) NotchBounds()
+        {
+            var hw = Width / 2f;
+            var hd = Depth / 2f;
+            var ex = Notch.Corner is Corner.NorthWest or Corner.SouthWest ? -1 : 1;
+            var ez = Notch.Corner is Corner.NorthWest or Corner.NorthEast ? -1 : 1;
+            var x0 = ex < 0 ? -hw : hw - Notch.Width;
+            var x1 = ex < 0 ? -hw + Notch.Width : hw;
+            var z0 = ez < 0 ? -hd : hd - Notch.Depth;
+            var z1 = ez < 0 ? -hd + Notch.Depth : hd;
+            return (x0, x1, z0, z1, ex, ez);
         }
 
         public DoorSpec FindDoor(string id) =>

@@ -100,11 +100,12 @@ namespace Basic.Levels
             Window.Title = "Basic.Levels - " + room.Spec.Name;
         }
 
-        // Stands you on the floor: the room's, or the step under your feet.
+        // Stands you on the floor: the room's, the step under your feet, or a ramp you've climbed onto.
         private void SnapToFloor()
         {
             var spec = _room.Spec;
-            _position.Y = spec.WorldOffset.Y + spec.FloorHeightAt(_position.Z - spec.WorldOffset.Z);
+            var local = _position - spec.WorldOffset;
+            _position.Y = spec.WorldOffset.Y + spec.WalkHeightAt(local, local.Y);
         }
 
         // Walking through an opening takes you into the room beyond it

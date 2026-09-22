@@ -1,4 +1,5 @@
 using MeshRawData;
+using MeshRawData.Helpers;
 using Microsoft.Xna.Framework;
 using System.Collections.Generic;
 
@@ -6,11 +7,15 @@ namespace Basic.Levels
 {
     // The level. On the ground floor, a long corridor with a door halfway along each side: the west door
     // leads to the lounge (a coffee table), the east door to the TV room (a television on a sideboard).
-    // At the north end of the corridor a staircase climbs to an upper corridor that runs east-west, a
+    // A third door, at the corridor's south (back) end, leads to an L-shaped back room. At the north
+    // end of the corridor a staircase climbs to an upper corridor that runs east-west, a
     // little longer than the first. Its west door leads to a long, empty room, its east door to the entrance
     // of a very large hangar with a crate stencilled COLA standing in it, and a sign beside it that reads
     // 12939 from the front and PEPSI from behind. Off to one side, clear of the crate, a 1960s
-    // retro-futurist space plane stands parked on its undercarriage.
+    // retro-futurist space plane stands parked on its undercarriage. Against the hangar's west wall, a
+    // break room deck sits 4.5 m up, climbable via a quarter-turn staircase at its south end (flush
+    // against the deck's open edge, then turning to face into the hangar for the rest of the descent)
+    // and a fixed ladder at its north end.
     //
     // The corridor, stairs and upper corridor are joined by openings, so they sit edge to edge in the
     // world and you walk straight from one to the next. Every other room is reached by a door, and sits
@@ -47,6 +52,7 @@ namespace Basic.Levels
                 {
                     new DoorSpec("west", Wall.West, 0f, "lounge", "corridor"),
                     new DoorSpec("east", Wall.East, 0f, "tvroom", "corridor"),
+                    new DoorSpec("south", Wall.South, 0f, "backroom", "corridor"),
                 },
                 Openings = new[] { new OpeningSpec(Wall.North, 0f, corridorWidth, corridorHeight, "stairs") },
             };
@@ -152,11 +158,67 @@ namespace Basic.Levels
                     new PropSpec("spaceplane", SpacePlaneMesh.Build,
                         SpacePlaneMesh.Palette(new Color(200, 205, 210), new Color(220, 60, 40), new Color(120, 220, 220), new Color(40, 40, 45)),
                         new Vector3(-30f, 0f, 10f), 90f, new Vector2(3.5f, 2.7f)),
+
+                    // A break room mezzanine bolted to the west wall, well clear of the crate and the
+                    // plane: a 10 x 6 deck 4.5 m up, with a sofa and coffee table (a fern on top) looking
+                    // out over the hangar floor. Both the staircase (south end) and the ladder (north
+                    // end) stay entirely outside the deck's own footprint, meeting it flush at its open
+                    // (east) edge - a walker never has to pass underneath it to reach either one.
+                    new PropSpec("balconydeck", d => PlatformMesh.Build(d, length: 10f, width: 6f, thickness: 0.2f),
+                        PlatformMesh.Palette(new Color(130, 130, 140)),
+                        new Vector3(-47f, 4.3f, -40f), 0f),
+                    new PropSpec("balconysofa", SofaMesh.Build,
+                        SofaMesh.Palette(new Color(120, 80, 50), new Color(160, 120, 80), new Color(60, 40, 25)),
+                        new Vector3(-48.8f, 4.5f, -40f), 90f),
+                    new PropSpec("balconytable", CoffeeTableMesh.Build,
+                        CoffeeTableMesh.Palette(new Color(200, 150, 80), new Color(120, 80, 40)),
+                        new Vector3(-47.6f, 4.5f, -40f), 90f),
+                    new PropSpec("balconyfern", FernMesh.Build,
+                        FernMesh.Palette(new Color(150, 90, 40), new Color(70, 150, 60)),
+                        new Vector3(-47.6f, 4.78f, -40f), 0f),
+                    // Rises flush against the open (east) edge of the deck from its south (door-side)
+                    // corner - never passing under the deck itself - then halfway down turns 90 degrees
+                    // onto a landing and faces into the hangar for the rest of the descent to the floor.
+                    new PropSpec("balconystairs",
+                        d => StaircaseMesh.BuildQuarterTurn(d, stepsBeforeTurn: 12, stepsAfterTurn: 13, turn: StairTurn.Right, carpet: false),
+                        StaircaseMesh.Palette(new Color(120, 120, 125), new Color(90, 90, 95)),
+                        new Vector3(-39.98f, 0f, -38.83f), -90f),
+                    // Non-blocking (see RampSpec below): a Half here would push a walker back off the
+                    // ladder's own footprint before they could ever climb it.
+                    new PropSpec("balconyladder", d => LadderMesh.Build(d, height: 4.5f, lean: 1.0f),
+                        LadderMesh.Palette(new Color(180, 180, 185), new Color(60, 60, 65)),
+                        new Vector3(-43f, 0f, -43f), -90f),
+                },
+                // Lets a walker actually climb the balcony: the deck itself (flat), the staircase's two
+                // flights and landing (see PropSpec("balconystairs") above for how these points were
+                // worked out - foot, pre-landing, landing and top), and the ladder. Each is a bit wider
+                // than its mesh so walking it doesn't feel like balancing on a rail.
+                Ramps = new[]
+                {
+                    new RampSpec(new Vector3(-47f, 4.5f, -45f), new Vector3(-47f, 4.5f, -35f), 6f),
+                    new RampSpec(new Vector3(-39.98f, 0f, -38.83f), new Vector3(-43.10f, 2.16f, -38.83f), 0.9f),
+                    new RampSpec(new Vector3(-43.55f, 2.16f, -39.28f), new Vector3(-43.55f, 2.16f, -38.38f), 0.9f),
+                    new RampSpec(new Vector3(-43.55f, 2.16f, -38.38f), new Vector3(-43.55f, 4.5f, -35f), 0.9f),
+                    // 4.5 m of rise over 1 m of horizontal run: at running speed a single frame's
+                    // approach can outrun the default MaxStepUp, so this one gets its own, generous
+                    // override rather than being dropped back to the floor partway up.
+                    new RampSpec(new Vector3(-43f, 0f, -43f), new Vector3(-44f, 4.5f, -43f), 1.0f, MaxStepUp: 5f),
                 },
             };
 
+            // L-shaped, off the back (south end) of the corridor: a bite taken out of its north-west
+            // corner. The door back to the corridor sits on its west wall, just south of the notch.
+            var backRoom = new RoomSpec
+            {
+                Id = "backroom", Name = "Back Room",
+                Width = 6f, Depth = 8f, Height = corridorHeight,
+                Notch = new NotchSpec(Corner.NorthWest, 3f, 3f),
+                Floor = new Color(90, 100, 70), WallNorthSouth = new Color(80, 140, 90), WallEastWest = new Color(55, 100, 65), Ceiling = new Color(50, 50, 50),
+                Doors = new[] { new DoorSpec("corridor", Wall.West, -0.3f, "corridor", "south") },
+            };
+
             var rooms = new Dictionary<string, RoomSpec>();
-            foreach (var room in new[] { corridor, stairs, upper, lounge, tvRoom, cola, hangar })
+            foreach (var room in new[] { corridor, stairs, upper, lounge, tvRoom, cola, hangar, backRoom })
                 rooms[room.Id] = room;
 
             // Start at the south end of the corridor, looking up it.
