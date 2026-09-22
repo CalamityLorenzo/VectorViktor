@@ -6,12 +6,13 @@ using System.Collections.Generic;
 
 namespace Basic.Levels
 {
-    // The inside of a room as one mesh: floor (or steps), ceiling, four walls (with any openings cut in
-    // them), the doors painted on the walls, and a grid on the floor so there is something to see moving
-    // past in wireframe. Faces are seen from inside, so the mesh is drawn with culling off.
+    // The inside of a room as one mesh: floor (or steps), ceiling, one wall per edge of its Outline (with
+    // any openings cut in them), the doors painted on the walls, and a grid on the floor so there is
+    // something to see moving past in wireframe. Faces are seen from inside, so the mesh is drawn with
+    // culling off.
     public static class RoomMesh
     {
-        public const int Floor = 0, WallNorthSouth = 1, WallEastWest = 2, Ceiling = 3, Door = 4, Frame = 5, Handle = 6, Riser = 7;
+        public const int Floor = 0, WallA = 1, WallB = 2, Ceiling = 3, Door = 4, Frame = 5, Handle = 6, Riser = 7;
         public const int PaletteSize = 8;
 
         private static readonly Color DoorColor = new Color(200, 140, 40);
@@ -25,53 +26,53 @@ namespace Basic.Levels
 
         public static Color[] Palette(RoomSpec room) => new[]
         {
-            room.Floor, room.WallNorthSouth, room.WallEastWest, room.Ceiling, DoorColor, FrameColor, HandleColor,
+            room.Floor, room.WallA, room.WallB, room.Ceiling, DoorColor, FrameColor, HandleColor,
             Color.Lerp(room.Floor, Color.Black, 0.3f),   // the upright faces of steps
         };
 
         public static MeshData Build(GraphicsDevice device, RoomSpec room)
         {
-            var hw = room.Width / 2f;
-            var hd = room.Depth / 2f;
             var mesh = new MeshBuilder();
 
-            if (room.Stairs != null)
-                AddSteps(mesh, room, hw, hd);
-            else if (room.Notch != null)
-                AddLFloor(mesh, room, hw, hd);
-            else
-            {
-                mesh.AddSolidRange(2, Floor);
-                mesh.AddQuad(new Vector3(-hw, 0f, -hd), new Vector3(hw, 0f, -hd), new Vector3(hw, 0f, hd), new Vector3(-hw, 0f, hd));
-                AddGrid(mesh, room, hw, hd);
-            }
+            // A stepped ramp (RampSpec.Steps > 0) cuts its own tread/riser strip out of the floor; what's
+            // left is fitted round it as one or two ordinary flat pieces, whatever shape they come out as.
+            var steppedRamps = Array.FindAll(room.Ramps, r => r.Steps > 0);
+            var floorPieces = new List<Vector2[]> { room.Outline };
+            foreach (var ramp in steppedRamps)
+                floorPieces = SplitAroundRamp(floorPieces, ramp);
 
-            var northSouth = new List<Vector3[]>();
-            var eastWest = new List<Vector3[]>();
-            if (room.Notch != null)
-            {
-                AddLCeiling(mesh, room, hw, hd);
-                AddNotchWalls(mesh, room, hw, hd, northSouth, eastWest);
-            }
-            else
-            {
-                var north = room.CeilingHeightAt(-hd);
-                var south = room.CeilingHeightAt(hd);
-                mesh.AddSolidRange(2, Ceiling);
-                mesh.AddQuad(new Vector3(-hw, north, -hd), new Vector3(hw, north, -hd), new Vector3(hw, south, hd), new Vector3(-hw, south, hd));
+            AddFlatFloor(mesh, floorPieces);
+            if (steppedRamps.Length == 0)
+                AddGrid(mesh, room);   // a grid over/under a staircase's treads would just be visual clutter
+            foreach (var ramp in steppedRamps)
+                AddSteps(mesh, ramp);
 
-                AddWall(mesh, room, Wall.North, northSouth);
-                AddWall(mesh, room, Wall.South, northSouth);
-                AddWall(mesh, room, Wall.East, eastWest);
-                AddWall(mesh, room, Wall.West, eastWest);
-            }
-            AddQuads(mesh, northSouth, WallNorthSouth);
-            AddQuads(mesh, eastWest, WallEastWest);
+            AddCeiling(mesh, room, Triangulate(room.Outline));
+
+            var wallA = new List<Vector3[]>();
+            var wallB = new List<Vector3[]>();
+            for (var i = 0; i < room.Outline.Length; i++)
+                AddWall(mesh, room, i, i % 2 == 0 ? wallA : wallB);
+            AddQuads(mesh, wallA, WallA);
+            AddQuads(mesh, wallB, WallB);
 
             foreach (var door in room.Doors)
                 AddDoor(mesh, room, door);
 
             return mesh.Build(device);
+        }
+
+        private static (float minX, float maxX, float minZ, float maxZ) Bounds(Vector2[] outline)
+        {
+            float minX = float.MaxValue, maxX = float.MinValue, minZ = float.MaxValue, maxZ = float.MinValue;
+            foreach (var v in outline)
+            {
+                if (v.X < minX) minX = v.X;
+                if (v.X > maxX) maxX = v.X;
+                if (v.Y < minZ) minZ = v.Y;
+                if (v.Y > maxZ) maxZ = v.Y;
+            }
+            return (minX, maxX, minZ, maxZ);
         }
 
         private static void AddQuads(MeshBuilder mesh, List<Vector3[]> quads, int slot)
@@ -83,112 +84,267 @@ namespace Basic.Levels
                 mesh.AddQuad(q[0], q[1], q[2], q[3]);
         }
 
-        // Grid lines every GridSpacing, starting from a wall so the far edge is the only odd-sized cell
-        private static void AddGrid(MeshBuilder mesh, RoomSpec room, float hw, float hd)
+        // Flat, at y = 0: one or more separately-triangulated pieces, since a stepped ramp can split the
+        // room's floor into a piece before it and a piece after (see SplitAroundRamp).
+        private static void AddFlatFloor(MeshBuilder mesh, List<Vector2[]> pieces)
         {
+            var triangles = new List<(Vector2 a, Vector2 b, Vector2 c)>();
+            foreach (var piece in pieces)
+                foreach (var (ia, ib, ic) in Triangulate(piece))
+                    triangles.Add((piece[ia], piece[ib], piece[ic]));
+
+            if (triangles.Count == 0)
+                return;
+            mesh.AddSolidRange(triangles.Count, Floor);
+            foreach (var (a, b, c) in triangles)
+                mesh.AddTri(new Vector3(a.X, 0f, a.Y), new Vector3(b.X, 0f, b.Y), new Vector3(c.X, 0f, c.Y));
+        }
+
+        // One continuous surface over the room's whole Outline - unlike the floor, never split, since a
+        // stepped ramp's headroom still needs a ceiling above it. Height varies per vertex (flat, except
+        // where RoomSpec.CeilingHeightAt says a stepped ramp runs under it), so a triangle that straddles
+        // the edge of one blends smoothly between the two rather than stepping - a fair approximation,
+        // since that seam falls where a real room would have a landing or a change of pitch anyway.
+        private static void AddCeiling(MeshBuilder mesh, RoomSpec room, List<(int a, int b, int c)> triangles)
+        {
+            mesh.AddSolidRange(triangles.Count, Ceiling);
+            foreach (var (ia, ib, ic) in triangles)
+            {
+                var a = room.Outline[ia]; var b = room.Outline[ib]; var c = room.Outline[ic];
+                var ya = room.CeilingHeightAt(new Vector3(a.X, 0f, a.Y));
+                var yb = room.CeilingHeightAt(new Vector3(b.X, 0f, b.Y));
+                var yc = room.CeilingHeightAt(new Vector3(c.X, 0f, c.Y));
+                mesh.AddTri(new Vector3(a.X, ya, a.Y), new Vector3(b.X, yb, b.Y), new Vector3(c.X, yc, c.Y));
+            }
+        }
+
+        // Cuts the strip a stepped ramp runs through out of each floor piece, by slicing it at two lines
+        // perpendicular to the ramp - one through Start, one through End - and keeping whatever's outside
+        // that band. Works for any simple polygon, convex or concave, so the room doesn't have to be a
+        // rectangle just because a ramp runs through it.
+        private static List<Vector2[]> SplitAroundRamp(List<Vector2[]> pieces, RampSpec ramp)
+        {
+            var start = new Vector2(ramp.Start.X, ramp.Start.Z);
+            var end = new Vector2(ramp.End.X, ramp.End.Z);
+            var dir = end - start;
+            if (dir.LengthSquared() < 1e-6f)
+                return pieces;
+            dir.Normalize();
+
+            var result = new List<Vector2[]>();
+            foreach (var piece in pieces)
+            {
+                var before = ClipToHalfPlane(piece, start, -dir);
+                if (before.Count >= 3)
+                    result.Add(before.ToArray());
+                var after = ClipToHalfPlane(piece, end, dir);
+                if (after.Count >= 3)
+                    result.Add(after.ToArray());
+            }
+            return result;
+        }
+
+        // Sutherland-Hodgman: the part of a polygon (convex or concave) on the side of the line through
+        // planePoint that planeNormal points into.
+        private static List<Vector2> ClipToHalfPlane(Vector2[] polygon, Vector2 planePoint, Vector2 planeNormal)
+        {
+            var output = new List<Vector2>();
+            for (var i = 0; i < polygon.Length; i++)
+            {
+                var curr = polygon[i];
+                var prev = polygon[(i - 1 + polygon.Length) % polygon.Length];
+                var currIn = Vector2.Dot(curr - planePoint, planeNormal) >= 0f;
+                var prevIn = Vector2.Dot(prev - planePoint, planeNormal) >= 0f;
+                if (currIn != prevIn)
+                {
+                    var denom = Vector2.Dot(curr - prev, planeNormal);
+                    var t = MathF.Abs(denom) > 1e-9f ? Vector2.Dot(planePoint - prev, planeNormal) / denom : 0f;
+                    output.Add(prev + (curr - prev) * t);
+                }
+                if (currIn)
+                    output.Add(curr);
+            }
+            return output;
+        }
+
+        // Splits a simple polygon (convex or concave, wound either way) into triangles by ear clipping:
+        // repeatedly cut off a "convex and empty" corner until three vertices are left. O(n^2) worst case,
+        // which is fine for room footprints (a handful of vertices, built once and cached by MeshCache).
+        private static List<(int a, int b, int c)> Triangulate(Vector2[] polygon)
+        {
+            var n = polygon.Length;
+            var indices = new List<int>(n);
+            for (var i = 0; i < n; i++)
+                indices.Add(i);
+
+            var area = 0f;
+            for (var i = 0; i < n; i++)
+            {
+                var a = polygon[i];
+                var b = polygon[(i + 1) % n];
+                area += a.X * b.Y - b.X * a.Y;
+            }
+            var sign = area >= 0f ? 1f : -1f;
+
+            var triangles = new List<(int, int, int)>();
+            var guard = 0;
+            while (indices.Count > 3 && guard++ < n * n + 8)
+            {
+                var earFound = false;
+                for (var k = 0; k < indices.Count; k++)
+                {
+                    var iPrev = indices[(k - 1 + indices.Count) % indices.Count];
+                    var iCurr = indices[k];
+                    var iNext = indices[(k + 1) % indices.Count];
+                    var prev = polygon[iPrev]; var curr = polygon[iCurr]; var next = polygon[iNext];
+
+                    var cross = (curr.X - prev.X) * (next.Y - prev.Y) - (curr.Y - prev.Y) * (next.X - prev.X);
+                    if (cross * sign <= 0f)
+                        continue;   // reflex at this vertex, not an ear
+
+                    var isEar = true;
+                    foreach (var iOther in indices)
+                    {
+                        if (iOther == iPrev || iOther == iCurr || iOther == iNext)
+                            continue;
+                        if (PointInTriangle(polygon[iOther], prev, curr, next))
+                        {
+                            isEar = false;
+                            break;
+                        }
+                    }
+                    if (!isEar)
+                        continue;
+
+                    triangles.Add((iPrev, iCurr, iNext));
+                    indices.RemoveAt(k);
+                    earFound = true;
+                    break;
+                }
+                if (!earFound)
+                    break;   // degenerate input; use what's clipped so far rather than loop forever
+            }
+            if (indices.Count == 3)
+                triangles.Add((indices[0], indices[1], indices[2]));
+            return triangles;
+        }
+
+        private static bool PointInTriangle(Vector2 p, Vector2 a, Vector2 b, Vector2 c)
+        {
+            float Sign(Vector2 p1, Vector2 p2, Vector2 p3) => (p1.X - p3.X) * (p2.Y - p3.Y) - (p2.X - p3.X) * (p1.Y - p3.Y);
+            var d1 = Sign(p, a, b);
+            var d2 = Sign(p, b, c);
+            var d3 = Sign(p, c, a);
+            var hasNeg = d1 < 0f || d2 < 0f || d3 < 0f;
+            var hasPos = d1 > 0f || d2 > 0f || d3 > 0f;
+            return !(hasNeg && hasPos);
+        }
+
+        // Where a vertical line (fixed X) or horizontal line (fixed Z) crosses the Outline's edges,
+        // sorted - consecutive pairs bound the spans of the line that lie inside the room.
+        private static List<float> Crossings(RoomSpec room, bool vertical, float fixedCoord)
+        {
+            var hits = new List<float>();
+            var n = room.Outline.Length;
+            for (var i = 0; i < n; i++)
+            {
+                var a = room.Outline[i];
+                var b = room.Outline[(i + 1) % n];
+                var aFixed = vertical ? a.X : a.Y;
+                var bFixed = vertical ? b.X : b.Y;
+                if ((aFixed > fixedCoord) == (bFixed > fixedCoord))
+                    continue;
+                var aFree = vertical ? a.Y : a.X;
+                var bFree = vertical ? b.Y : b.X;
+                var t = (fixedCoord - aFixed) / (bFixed - aFixed);
+                hits.Add(aFree + t * (bFree - aFree));
+            }
+            hits.Sort();
+            return hits;
+        }
+
+        // Grid lines every GridSpacing, clipped to the room's Outline - convex or concave, so a span of
+        // wall or a notch just breaks a line into its separate visible pieces.
+        private static void AddGrid(MeshBuilder mesh, RoomSpec room)
+        {
+            var (minX, maxX, minZ, maxZ) = Bounds(room.Outline);
             var spacing = room.GridSpacing;
-            for (var x = -hw + spacing; x < hw - 0.01f; x += spacing)
-                mesh.AddLine(new Vector3(x, 0f, -hd), new Vector3(x, 0f, hd));
-            for (var z = -hd + spacing; z < hd - 0.01f; z += spacing)
-                mesh.AddLine(new Vector3(-hw, 0f, z), new Vector3(hw, 0f, z));
+
+            for (var x = MathF.Ceiling(minX / spacing) * spacing; x < maxX - 0.01f; x += spacing)
+            {
+                var hits = Crossings(room, vertical: true, x);
+                for (var i = 0; i + 1 < hits.Count; i += 2)
+                    mesh.AddLine(new Vector3(x, 0f, hits[i]), new Vector3(x, 0f, hits[i + 1]));
+            }
+            for (var z = MathF.Ceiling(minZ / spacing) * spacing; z < maxZ - 0.01f; z += spacing)
+            {
+                var hits = Crossings(room, vertical: false, z);
+                for (var i = 0; i + 1 < hits.Count; i += 2)
+                    mesh.AddLine(new Vector3(hits[i], 0f, z), new Vector3(hits[i + 1], 0f, z));
+            }
         }
 
-        // A notch corner splits the room's footprint into two rectangles: a full-width strip (the depth
-        // the notch doesn't touch) and a narrower strip alongside it (the notch's own depth, minus the
-        // notch's width). Together they tile the L exactly. Only valid when room.Notch != null.
-        private static ((float x0, float x1, float z0, float z1) big, (float x0, float x1, float z0, float z1) small) LRects(RoomSpec room, float hw, float hd)
+        // Steps rising from a ramp's Start to its End, Width wide, however that line happens to run -
+        // north-south as the stairwell's always been, or any other direction. Each is a tread on top and
+        // a riser facing back toward Start, outlined all round (including the sides, which shows the
+        // staircase's profile).
+        private static void AddSteps(MeshBuilder mesh, RampSpec ramp)
         {
-            var (x0, x1, z0, z1, ex, ez) = room.NotchBounds();
-            var big = ez < 0 ? (-hw, hw, z1, hd) : (-hw, hw, -hd, z0);
-            var small = ex < 0 ? (x1, hw, z0, z1) : (-hw, x0, z0, z1);
-            return (big, small);
-        }
+            var start = new Vector2(ramp.Start.X, ramp.Start.Z);
+            var end = new Vector2(ramp.End.X, ramp.End.Z);
+            var full = end - start;
+            var length = full.Length();
+            if (length < 1e-4f)
+                return;
+            var along = full / length;
+            var side = new Vector2(-along.Y, along.X);   // perpendicular, across the ramp's width
+            var hw = ramp.Width / 2f;
 
-        private static void AddFlatQuad(MeshBuilder mesh, (float x0, float x1, float z0, float z1) r, float y) =>
-            mesh.AddQuad(new Vector3(r.x0, y, r.z0), new Vector3(r.x1, y, r.z0), new Vector3(r.x1, y, r.z1), new Vector3(r.x0, y, r.z1));
+            Vector3 P(float alongLen, float lateral, float y)
+            {
+                var p = start + along * alongLen + side * lateral;
+                return new Vector3(p.X, y, p.Y);
+            }
 
-        private static void AddLFloor(MeshBuilder mesh, RoomSpec room, float hw, float hd)
-        {
-            var (big, small) = LRects(room, hw, hd);
-            mesh.AddSolidRange(4, Floor);
-            AddFlatQuad(mesh, big, 0f);
-            AddFlatQuad(mesh, small, 0f);
-            AddGridRect(mesh, room.GridSpacing, big);
-            AddGridRect(mesh, room.GridSpacing, small);
-        }
-
-        private static void AddLCeiling(MeshBuilder mesh, RoomSpec room, float hw, float hd)
-        {
-            var (big, small) = LRects(room, hw, hd);
-            mesh.AddSolidRange(4, Ceiling);
-            AddFlatQuad(mesh, big, room.Height);
-            AddFlatQuad(mesh, small, room.Height);
-        }
-
-        // Grid lines within one rectangle, starting from its own low edge (see AddGrid).
-        private static void AddGridRect(MeshBuilder mesh, float spacing, (float x0, float x1, float z0, float z1) r)
-        {
-            for (var x = r.x0 + spacing; x < r.x1 - 0.01f; x += spacing)
-                mesh.AddLine(new Vector3(x, 0f, r.z0), new Vector3(x, 0f, r.z1));
-            for (var z = r.z0 + spacing; z < r.z1 - 0.01f; z += spacing)
-                mesh.AddLine(new Vector3(r.x0, 0f, z), new Vector3(r.x1, 0f, z));
-        }
-
-        // Steps rising to the north: each is a tread on top and a riser facing south, outlined all round
-        // (including where it meets the side walls, which shows the staircase's profile).
-        private static void AddSteps(MeshBuilder mesh, RoomSpec room, float hw, float hd)
-        {
-            var count = room.Stairs.Steps;
-            var tread = room.Depth / count;
-            var rise = room.Stairs.Rise / count;
+            var count = ramp.Steps;
+            var tread = length / count;
+            var rise = (ramp.End.Y - ramp.Start.Y) / count;
             var treads = new List<Vector3[]>();
             var risers = new List<Vector3[]>();
 
             for (var i = 0; i < count; i++)
             {
-                var z0 = hd - i * tread;     // front (south) of this step
-                var z1 = z0 - tread;
-                var low = i * rise;
-                var high = (i + 1) * rise;
+                var a0 = i * tread;         // near (Start) edge of this step
+                var a1 = (i + 1) * tread;   // far (End) edge
+                var low = ramp.Start.Y + i * rise;
+                var high = ramp.Start.Y + (i + 1) * rise;
 
-                treads.Add(new[] { new Vector3(-hw, high, z0), new Vector3(hw, high, z0), new Vector3(hw, high, z1), new Vector3(-hw, high, z1) });
-                risers.Add(new[] { new Vector3(-hw, low, z0), new Vector3(hw, low, z0), new Vector3(hw, high, z0), new Vector3(-hw, high, z0) });
+                treads.Add(new[] { P(a0, -hw, high), P(a0, hw, high), P(a1, hw, high), P(a1, -hw, high) });
+                risers.Add(new[] { P(a0, -hw, low), P(a0, hw, low), P(a0, hw, high), P(a0, -hw, high) });
 
-                mesh.AddLine(new Vector3(-hw, low, z0), new Vector3(hw, low, z0));
-                mesh.AddLine(new Vector3(-hw, high, z0), new Vector3(hw, high, z0));
-                foreach (var x in new[] { -hw, hw })
+                mesh.AddLine(P(a0, -hw, low), P(a0, hw, low));
+                mesh.AddLine(P(a0, -hw, high), P(a0, hw, high));
+                foreach (var lateral in new[] { -hw, hw })
                 {
-                    mesh.AddLine(new Vector3(x, low, z0), new Vector3(x, high, z0));
-                    mesh.AddLine(new Vector3(x, high, z0), new Vector3(x, high, z1));
+                    mesh.AddLine(P(a0, lateral, low), P(a0, lateral, high));
+                    mesh.AddLine(P(a0, lateral, high), P(a1, lateral, high));
                 }
             }
             AddQuads(mesh, treads, Floor);
             AddQuads(mesh, risers, Riser);
         }
 
-        // A whole wall, its full extent.
-        private static void AddWall(MeshBuilder mesh, RoomSpec room, Wall wall, List<Vector3[]> quads)
+        // One wall (one edge of the room's Outline) as flat quads (up to three round its opening, if it
+        // has one) and its outline. The top of a wall follows the ceiling, so the side walls of a
+        // stairwell slope.
+        private static void AddWall(MeshBuilder mesh, RoomSpec room, int wallIndex, List<Vector3[]> quads)
         {
-            var half = (wall is Wall.North or Wall.South ? room.Width : room.Depth) / 2f;
-            AddWallSegment(mesh, room, wall, -half, half, quads);
-        }
-
-        // One wall as flat quads (up to three round its opening, if it has one) and its outline, running
-        // from `lo` to `hi` along the wall rather than necessarily its full extent - a notch corner shortens
-        // the wall it cuts into (see AddNotchWalls). The top of a wall follows the ceiling, so the side
-        // walls of a stairwell slope.
-        private static void AddWallSegment(MeshBuilder mesh, RoomSpec room, Wall wall, float lo, float hi, List<Vector3[]> quads)
-        {
-            var opening = Array.Find(room.Openings, o => o.Wall == wall);
+            var half = room.WallLength(wallIndex) / 2f;
+            var opening = Array.Find(room.Openings, o => o.WallIndex == wallIndex);
 
             // Height of the wall's top at a distance `along` from its centre
-            float Top(float along) => room.CeilingHeightAt(wall switch
-            {
-                Wall.North => -room.Depth / 2f,
-                Wall.South => room.Depth / 2f,
-                _ => along,
-            });
-            Vector3 P(float along, float y) => room.WallPoint(wall, along) + Vector3.Up * y;
+            float Top(float along) => room.CeilingHeightAt(room.WallPoint(wallIndex, along));
+            Vector3 P(float along, float y) => room.WallPoint(wallIndex, along) + Vector3.Up * y;
             void Line(float a0, float y0, float a1, float y1) => mesh.AddLine(P(a0, y0), P(a1, y1));
             void Piece(float a0, float a1, float bottom)
             {
@@ -199,99 +355,60 @@ namespace Basic.Levels
 
             if (opening == null)
             {
-                Piece(lo, hi, 0f);
-                Line(lo, 0f, hi, 0f);
-                Line(lo, Top(lo), hi, Top(hi));
-                Line(lo, 0f, lo, Top(lo));
-                Line(hi, 0f, hi, Top(hi));
+                Piece(-half, half, 0f);
+                Line(-half, 0f, half, 0f);
+                Line(-half, Top(-half), half, Top(half));
+                Line(-half, 0f, -half, Top(-half));
+                Line(half, 0f, half, Top(half));
                 return;
             }
 
-            var left = MathHelper.Clamp(opening.Offset - opening.Width / 2f, lo, hi);
-            var right = MathHelper.Clamp(opening.Offset + opening.Width / 2f, lo, hi);
+            var left = MathHelper.Clamp(opening.Offset - opening.Width / 2f, -half, half);
+            var right = MathHelper.Clamp(opening.Offset + opening.Width / 2f, -half, half);
             var lintel = opening.Height < Math.Min(Top(left), Top(right)) - Tiny;   // wall left above the gap
 
-            Piece(lo, left, 0f);
-            Piece(right, hi, 0f);
+            Piece(-half, left, 0f);
+            Piece(right, half, 0f);
             if (lintel)
                 Piece(left, right, opening.Height);
 
             // Outline: the floor line and top line where there is wall, the gap's edges, and the corners
-            var hasLeft = left - lo > Tiny;
-            var hasRight = hi - right > Tiny;
-            if (hasLeft) Line(lo, 0f, left, 0f);
-            if (hasRight) Line(right, 0f, hi, 0f);
+            var hasLeft = left - -half > Tiny;
+            var hasRight = half - right > Tiny;
+            if (hasLeft) Line(-half, 0f, left, 0f);
+            if (hasRight) Line(right, 0f, half, 0f);
             if (lintel)
             {
-                Line(lo, Top(lo), hi, Top(hi));
+                Line(-half, Top(-half), half, Top(half));
                 Line(left, opening.Height, right, opening.Height);
             }
             else
             {
-                if (hasLeft) Line(lo, Top(lo), left, Top(left));
-                if (hasRight) Line(right, Top(right), hi, Top(hi));
+                if (hasLeft) Line(-half, Top(-half), left, Top(left));
+                if (hasRight) Line(right, Top(right), half, Top(half));
             }
             if (hasLeft)
             {
-                Line(lo, 0f, lo, Top(lo));
+                Line(-half, 0f, -half, Top(-half));
                 Line(left, 0f, left, Math.Min(opening.Height, Top(left)));
             }
             else if (lintel)
-                Line(lo, opening.Height, lo, Top(lo));
+                Line(-half, opening.Height, -half, Top(-half));
             if (hasRight)
             {
-                Line(hi, 0f, hi, Top(hi));
+                Line(half, 0f, half, Top(half));
                 Line(right, 0f, right, Math.Min(opening.Height, Top(right)));
             }
             else if (lintel)
-                Line(hi, opening.Height, hi, Top(hi));
-        }
-
-        // The room's six walls when it has a notch corner: North and West (say, for a north-west notch)
-        // run only along the part of the room's edge the notch leaves standing, and two extra flat faces
-        // close off the inner corner. Never cut by a door or opening - see RoomSpec.NotchSpec.
-        private static void AddNotchWalls(MeshBuilder mesh, RoomSpec room, float hw, float hd, List<Vector3[]> northSouth, List<Vector3[]> eastWest)
-        {
-            var (x0, x1, z0, z1, ex, ez) = room.NotchBounds();
-
-            // The remaining span of the north/south wall pair (whichever the notch shortens) is on
-            // whichever side of x the notch isn't; likewise the east/west pair along z.
-            var nx0 = ex < 0 ? x1 : -hw;
-            var nx1 = ex < 0 ? hw : x0;
-            var wz0 = ez < 0 ? z1 : -hd;
-            var wz1 = ez < 0 ? hd : z0;
-
-            AddWallSegment(mesh, room, Wall.North, ez < 0 ? nx0 : -hw, ez < 0 ? nx1 : hw, northSouth);
-            AddWallSegment(mesh, room, Wall.South, ez > 0 ? nx0 : -hw, ez > 0 ? nx1 : hw, northSouth);
-            AddWallSegment(mesh, room, Wall.West, ex < 0 ? wz0 : -hd, ex < 0 ? wz1 : hd, eastWest);
-            AddWallSegment(mesh, room, Wall.East, ex > 0 ? wz0 : -hd, ex > 0 ? wz1 : hd, eastWest);
-
-            // The notch's own two inner faces, closing off the bite taken out of the corner.
-            var innerZ = ez < 0 ? z1 : z0;
-            var innerX = ex < 0 ? x1 : x0;
-            AddFlatWall(mesh, new Vector3(x0, 0f, innerZ), new Vector3(x1, 0f, innerZ), room.Height, northSouth);
-            AddFlatWall(mesh, new Vector3(innerX, 0f, z0), new Vector3(innerX, 0f, z1), room.Height, eastWest);
-        }
-
-        // A plain wall face between two floor points, `height` tall, with its outline - used for the two
-        // inner faces of a notch corner, which are never cut by a door.
-        private static void AddFlatWall(MeshBuilder mesh, Vector3 a, Vector3 b, float height, List<Vector3[]> quads)
-        {
-            var top = a + Vector3.Up * height;
-            var topB = b + Vector3.Up * height;
-            quads.Add(new[] { a, b, topB, top });
-            mesh.AddLine(a, b);
-            mesh.AddLine(top, topB);
-            mesh.AddLine(a, top);
-            mesh.AddLine(b, topB);
+                Line(half, opening.Height, half, Top(half));
         }
 
         // A frame, the door inside it, and a handle, all flat on the wall.
         private static void AddDoor(MeshBuilder mesh, RoomSpec room, DoorSpec door)
         {
-            var inward = RoomSpec.Inward(door.Wall);
-            var along = RoomSpec.Tangent(door.Wall);
-            var origin = room.WallPoint(door.Wall, door.Offset);
+            var inward = room.Inward(door.WallIndex);
+            var along = room.Tangent(door.WallIndex);
+            var origin = room.WallPoint(door.WallIndex, door.Offset);
 
             // The four corners of a rectangle on the wall: centred on the door, from the floor up to `top`.
             Vector3[] Rect(float halfWidth, float bottom, float top, float lift) =>

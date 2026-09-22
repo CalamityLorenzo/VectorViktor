@@ -2,20 +2,22 @@ using MeshRawData;
 using MeshRawData.Helpers;
 using Microsoft.Xna.Framework;
 using System.Collections.Generic;
+using static Basic.Levels.Walls;
 
 namespace Basic.Levels
 {
     // The level. On the ground floor, a long corridor with a door halfway along each side: the west door
     // leads to the lounge (a coffee table), the east door to the TV room (a television on a sideboard).
-    // A third door, at the corridor's south (back) end, leads to an L-shaped back room. At the north
-    // end of the corridor a staircase climbs to an upper corridor that runs east-west, a
-    // little longer than the first. Its west door leads to a long, empty room, its east door to the entrance
-    // of a very large hangar with a crate stencilled COLA standing in it, and a sign beside it that reads
-    // 12939 from the front and PEPSI from behind. Off to one side, clear of the crate, a 1960s
-    // retro-futurist space plane stands parked on its undercarriage. Against the hangar's west wall, a
-    // break room deck sits 4.5 m up, climbable via a quarter-turn staircase at its south end (flush
-    // against the deck's open edge, then turning to face into the hangar for the rest of the descent)
-    // and a fixed ladder at its north end.
+    // A third door, at the corridor's south (back) end, leads to an L-shaped back room, whose notch
+    // corner has a door of its own through to a yellow octagonal room. At the north end of the corridor
+    // a staircase climbs to an upper corridor that runs east-west, a little longer than the first. Its
+    // west door leads to a long, empty room, its east door to the entrance of a very large
+    // hangar with a crate stencilled COLA standing in it, and a sign beside it that reads 12939 from the
+    // front and PEPSI from behind. Off to one side, clear of the crate, a 1960s retro-futurist space
+    // plane stands parked on its undercarriage. Against the hangar's west wall, a break room deck sits
+    // 4.5 m up, climbable via a quarter-turn staircase at its south end (flush against the deck's open
+    // edge, then turning to face into the hangar for the rest of the descent) and a fixed ladder at its
+    // north end.
     //
     // The corridor, stairs and upper corridor are joined by openings, so they sit edge to edge in the
     // world and you walk straight from one to the next. Every other room is reached by a door, and sits
@@ -46,29 +48,29 @@ namespace Basic.Levels
             var corridor = new RoomSpec
             {
                 Id = "corridor", Name = "Corridor",
-                Width = corridorWidth, Depth = corridorDepth, Height = corridorHeight,
-                Floor = new Color(70, 70, 70), WallNorthSouth = new Color(0, 150, 150), WallEastWest = new Color(0, 105, 105), Ceiling = new Color(210, 140, 80),
+                Outline = RoomSpec.Rectangle(corridorWidth, corridorDepth), Height = corridorHeight,
+                Floor = new Color(70, 70, 70), WallA = new Color(0, 150, 150), WallB = new Color(0, 105, 105), Ceiling = new Color(210, 140, 80),
                 Doors = new[]
                 {
-                    new DoorSpec("west", Wall.West, 0f, "lounge", "corridor"),
-                    new DoorSpec("east", Wall.East, 0f, "tvroom", "corridor"),
-                    new DoorSpec("south", Wall.South, 0f, "backroom", "corridor"),
+                    new DoorSpec("west", West, 0f, "lounge", "corridor"),
+                    new DoorSpec("east", East, 0f, "tvroom", "corridor"),
+                    new DoorSpec("south", South, 0f, "backroom", "corridor"),
                 },
-                Openings = new[] { new OpeningSpec(Wall.North, 0f, corridorWidth, corridorHeight, "stairs") },
+                Openings = new[] { new OpeningSpec(North, 0f, corridorWidth, corridorHeight, "stairs") },
             };
 
             // Fifteen steps of 20 cm; the stairwell's south end butts onto the corridor's north end
             var stairs = new RoomSpec
             {
                 Id = "stairs", Name = "Stairs",
-                Width = corridorWidth, Depth = stairDepth, Height = corridorHeight,
-                Floor = new Color(110, 110, 110), WallNorthSouth = new Color(0, 150, 150), WallEastWest = new Color(0, 105, 105), Ceiling = new Color(40, 40, 40),
+                Outline = RoomSpec.Rectangle(corridorWidth, stairDepth), Height = corridorHeight,
+                Floor = new Color(110, 110, 110), WallA = new Color(0, 150, 150), WallB = new Color(0, 105, 105), Ceiling = new Color(40, 40, 40),
                 WorldOffset = new Vector3(0f, 0f, -(corridorDepth + stairDepth) / 2f),
-                Stairs = new StairSpec(stairRise, 15),
+                Ramps = new[] { new RampSpec(new Vector3(0f, 0f, stairDepth / 2f), new Vector3(0f, stairRise, -stairDepth / 2f), corridorWidth, Steps: 15) },
                 Openings = new[]
                 {
-                    new OpeningSpec(Wall.South, 0f, corridorWidth, corridorHeight, "corridor"),
-                    new OpeningSpec(Wall.North, 0f, corridorWidth, corridorHeight + stairRise, "upper"),
+                    new OpeningSpec(South, 0f, corridorWidth, corridorHeight, "corridor"),
+                    new OpeningSpec(North, 0f, corridorWidth, corridorHeight + stairRise, "upper"),
                 },
             };
 
@@ -76,24 +78,24 @@ namespace Basic.Levels
             var upper = new RoomSpec
             {
                 Id = "upper", Name = "Upper corridor",
-                Width = upperLength, Depth = corridorWidth, Height = corridorHeight,
-                Floor = new Color(70, 70, 70), WallNorthSouth = new Color(150, 0, 150), WallEastWest = new Color(105, 0, 105), Ceiling = new Color(40, 40, 40),
+                Outline = RoomSpec.Rectangle(upperLength, corridorWidth), Height = corridorHeight,
+                Floor = new Color(70, 70, 70), WallA = new Color(150, 0, 150), WallB = new Color(105, 0, 105), Ceiling = new Color(40, 40, 40),
                 WorldOffset = new Vector3(0f, stairRise, -(corridorDepth / 2f + stairDepth + corridorWidth / 2f)),
                 Doors = new[]
                 {
-                    new DoorSpec("west", Wall.West, 0f, "cola", "upper"),
-                    new DoorSpec("east", Wall.East, 0f, "hangar", "upper"),
+                    new DoorSpec("west", West, 0f, "cola", "upper"),
+                    new DoorSpec("east", East, 0f, "hangar", "upper"),
                 },
-                Openings = new[] { new OpeningSpec(Wall.South, 0f, corridorWidth, corridorHeight, "stairs") },
+                Openings = new[] { new OpeningSpec(South, 0f, corridorWidth, corridorHeight, "stairs") },
             };
 
             // Bigger than the TV room; the door is off-centre in its east wall.
             var lounge = new RoomSpec
             {
                 Id = "lounge", Name = "Lounge",
-                Width = 5f, Depth = 4f, Height = 2.6f,
-                Floor = new Color(150, 90, 40), WallNorthSouth = new Color(170, 50, 50), WallEastWest = new Color(120, 35, 35), Ceiling = new Color(60, 60, 60),
-                Doors = new[] { new DoorSpec("corridor", Wall.East, 1f, "corridor", "west") },
+                Outline = RoomSpec.Rectangle(5f, 4f), Height = 2.6f,
+                Floor = new Color(150, 90, 40), WallA = new Color(170, 50, 50), WallB = new Color(120, 35, 35), Ceiling = new Color(60, 60, 60),
+                Doors = new[] { new DoorSpec("corridor", East, 1f, "corridor", "west") },
                 Props = new[]
                 {
                     // 1.0 along X, 0.5 along Z
@@ -107,9 +109,9 @@ namespace Basic.Levels
             var tvRoom = new RoomSpec
             {
                 Id = "tvroom", Name = "TV room",
-                Width = 3.5f, Depth = 3.5f, Height = 2.4f,
-                Floor = new Color(50, 50, 50), WallNorthSouth = new Color(60, 60, 200), WallEastWest = new Color(40, 40, 150), Ceiling = new Color(30, 30, 30),
-                Doors = new[] { new DoorSpec("corridor", Wall.West, 0f, "corridor", "east") },
+                Outline = RoomSpec.Rectangle(3.5f, 3.5f), Height = 2.4f,
+                Floor = new Color(50, 50, 50), WallA = new Color(60, 60, 200), WallB = new Color(40, 40, 150), Ceiling = new Color(30, 30, 30),
+                Doors = new[] { new DoorSpec("corridor", West, 0f, "corridor", "east") },
                 Props = new[]
                 {
                     // 1.46 wide, 0.46 deep, 0.64 tall; turned to face west, so it is 0.46 along X and 1.46 along Z
@@ -127,9 +129,9 @@ namespace Basic.Levels
             var cola = new RoomSpec
             {
                 Id = "cola", Name = "Long room",
-                Width = 5f, Depth = 16f, Height = 3f,
-                Floor = new Color(90, 70, 50), WallNorthSouth = new Color(130, 130, 130), WallEastWest = new Color(95, 95, 95), Ceiling = new Color(50, 50, 50),
-                Doors = new[] { new DoorSpec("upper", Wall.South, 0f, "upper", "west") },
+                Outline = RoomSpec.Rectangle(5f, 16f), Height = 3f,
+                Floor = new Color(90, 70, 50), WallA = new Color(130, 130, 130), WallB = new Color(95, 95, 95), Ceiling = new Color(50, 50, 50),
+                Doors = new[] { new DoorSpec("upper", South, 0f, "upper", "west") },
             };
 
             // The entrance to a hangar: floor, walls and a lot of air, with the crate standing well out from the
@@ -138,10 +140,10 @@ namespace Basic.Levels
             var hangar = new RoomSpec
             {
                 Id = "hangar", Name = "Hangar",
-                Width = 100f, Depth = 140f, Height = 25f,
+                Outline = RoomSpec.Rectangle(100f, 140f), Height = 25f,
                 GridSpacing = 5f,
-                Floor = new Color(110, 110, 110), WallNorthSouth = new Color(100, 120, 100), WallEastWest = new Color(75, 90, 75), Ceiling = new Color(60, 60, 70),
-                Doors = new[] { new DoorSpec("upper", Wall.South, 0f, "upper", "east") },
+                Floor = new Color(110, 110, 110), WallA = new Color(100, 120, 100), WallB = new Color(75, 90, 75), Ceiling = new Color(60, 60, 70),
+                Doors = new[] { new DoorSpec("upper", South, 0f, "upper", "east") },
                 Props = new[]
                 {
                     // 3.6 wide, 2.0 deep
@@ -206,19 +208,49 @@ namespace Basic.Levels
                 },
             };
 
-            // L-shaped, off the back (south end) of the corridor: a bite taken out of its north-west
-            // corner. The door back to the corridor sits on its west wall, just south of the notch.
+            // L-shaped, off the back (south end) of the corridor: a 6 x 8 room with a 3 x 3 bite taken out
+            // of its north-west corner. Six edges instead of a rectangle's four - 0: shortened north wall,
+            // 1: east, 2: south, 3: shortened west wall (the door back to the corridor sits on this one,
+            // just clear of the notch), 4 and 5: the notch's own two inner faces. See RoomSpec.Outline.
+            var backRoomHalfWidth = 3f; var backRoomHalfDepth = 4f;
+            var notchWidth = 3f; var notchDepth = 3f;
             var backRoom = new RoomSpec
             {
                 Id = "backroom", Name = "Back Room",
-                Width = 6f, Depth = 8f, Height = corridorHeight,
-                Notch = new NotchSpec(Corner.NorthWest, 3f, 3f),
-                Floor = new Color(90, 100, 70), WallNorthSouth = new Color(80, 140, 90), WallEastWest = new Color(55, 100, 65), Ceiling = new Color(50, 50, 50),
-                Doors = new[] { new DoorSpec("corridor", Wall.West, -0.3f, "corridor", "south") },
+                Outline = new[]
+                {
+                    new Vector2(-backRoomHalfWidth + notchWidth, -backRoomHalfDepth),   // 0->1: north (shortened)
+                    new Vector2(backRoomHalfWidth, -backRoomHalfDepth),
+                    new Vector2(backRoomHalfWidth, backRoomHalfDepth),                  // 1->2: east
+                    new Vector2(-backRoomHalfWidth, backRoomHalfDepth),                 // 2->3: south
+                    new Vector2(-backRoomHalfWidth, -backRoomHalfDepth + notchDepth),   // 3->4: west (shortened)
+                    new Vector2(-backRoomHalfWidth + notchWidth, -backRoomHalfDepth + notchDepth), // 4->5: notch inner faces
+                },
+                Height = corridorHeight,
+                Floor = new Color(90, 100, 70), WallA = new Color(80, 140, 90), WallB = new Color(55, 100, 65), Ceiling = new Color(50, 50, 50),
+                Doors = new[]
+                {
+                    new DoorSpec("corridor", 3, 1.8f, "corridor", "south"),
+                    new DoorSpec("octagon", 4, 0f, "octagon", "backroom"),
+                },
+            };
+
+            // A yellow octagonal room, reached through the notch in the back room's corner, twice the size
+            // of a "small" one.
+            const float octagonRadius = 5.6f;
+            var octagonHeight = corridorHeight * 2f;
+            var octagonOutline = RoomSpec.RegularPolygon(8, octagonRadius);
+
+            var octagon = new RoomSpec
+            {
+                Id = "octagon", Name = "Octagon Room",
+                Outline = octagonOutline, Height = octagonHeight,
+                Floor = new Color(200, 170, 30), WallA = new Color(230, 200, 50), WallB = new Color(190, 160, 20), Ceiling = new Color(140, 120, 30),
+                Doors = new[] { new DoorSpec("backroom", 0, 0f, "backroom", "octagon") },
             };
 
             var rooms = new Dictionary<string, RoomSpec>();
-            foreach (var room in new[] { corridor, stairs, upper, lounge, tvRoom, cola, hangar, backRoom })
+            foreach (var room in new[] { corridor, stairs, upper, lounge, tvRoom, cola, hangar, backRoom, octagon })
                 rooms[room.Id] = room;
 
             // Start at the south end of the corridor, looking up it.

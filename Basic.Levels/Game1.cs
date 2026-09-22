@@ -126,8 +126,8 @@ namespace Basic.Levels
         {
             EnterRoom(_rooms[roomId]);
             var door = _room.Spec.FindDoor(doorId);
-            var inward = RoomSpec.Inward(door.Wall);
-            _position = _room.Spec.WorldOffset + _room.Spec.WallPoint(door.Wall, door.Offset) + inward * ArrivalDistance;
+            var inward = _room.Spec.Inward(door.WallIndex);
+            _position = _room.Spec.WorldOffset + _room.Spec.WallPoint(door.WallIndex, door.Offset) + inward * ArrivalDistance;
             _yaw = MathF.Atan2(inward.X, -inward.Z);
             SnapToFloor();
         }
@@ -181,8 +181,8 @@ namespace Basic.Levels
             // Pressed against a wall within a door's width: go through
             foreach (var door in spec.Doors)
             {
-                if (spec.DistanceToWall(door.Wall, p) <= PlayerRadius + DoorReach &&
-                    MathF.Abs(RoomSpec.AlongWall(door.Wall, p) - door.Offset) < RoomSpec.DoorWidth / 2f)
+                if (spec.DistanceToWall(door.WallIndex, p) <= PlayerRadius + DoorReach &&
+                    MathF.Abs(spec.AlongWall(door.WallIndex, p) - door.Offset) < RoomSpec.DoorWidth / 2f)
                 {
                     Arrive(door.TargetRoom, door.TargetDoor);
                     return;
