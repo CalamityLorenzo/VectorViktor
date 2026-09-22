@@ -9,7 +9,8 @@ namespace Basic.Levels
     // At the north end of the corridor a staircase climbs to an upper corridor that runs east-west, a
     // little longer than the first. Its west door leads to a long, empty room, its east door to the entrance
     // of a very large hangar with a crate stencilled COLA standing in it, and a sign beside it that reads
-    // 12939 from the front and PEPSI from behind.
+    // 12939 from the front and PEPSI from behind. Off to one side, clear of the crate, a 1960s
+    // retro-futurist space plane stands parked on its undercarriage.
     //
     // The corridor, stairs and upper corridor are joined by openings, so they sit edge to edge in the
     // world and you walk straight from one to the next. Every other room is reached by a door, and sits
@@ -41,7 +42,7 @@ namespace Basic.Levels
             {
                 Id = "corridor", Name = "Corridor",
                 Width = corridorWidth, Depth = corridorDepth, Height = corridorHeight,
-                Floor = new Color(70, 70, 70), WallNorthSouth = new Color(0, 150, 150), WallEastWest = new Color(0, 105, 105), Ceiling = new Color(40, 40, 40),
+                Floor = new Color(70, 70, 70), WallNorthSouth = new Color(0, 150, 150), WallEastWest = new Color(0, 105, 105), Ceiling = new Color(210, 140, 80),
                 Doors = new[]
                 {
                     new DoorSpec("west", Wall.West, 0f, "lounge", "corridor"),
@@ -146,6 +147,11 @@ namespace Basic.Levels
                     new PropSpec("numbersign", NumberSignMesh.Build,
                         NumberSignMesh.Palette(new Color(150, 150, 150), new Color(240, 240, 240)),
                         new Vector3(11f, 0f, 50f), 0f, new Vector2(2.25f, 0.1f)),
+                    // Parked broadside off to the west, well clear of the crate: 6.9 long, 5 across the
+                    // wingtips. A 1960s retro-futurist space plane, wireframe-built like everything else here.
+                    new PropSpec("spaceplane", SpacePlaneMesh.Build,
+                        SpacePlaneMesh.Palette(new Color(200, 205, 210), new Color(220, 60, 40), new Color(120, 220, 220), new Color(40, 40, 45)),
+                        new Vector3(-30f, 0f, 10f), 90f, new Vector2(3.5f, 2.7f)),
                 },
             };
 
