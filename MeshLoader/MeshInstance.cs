@@ -1,18 +1,17 @@
 using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using System;
 
-namespace BasicTests
+namespace MeshLoader
 {
     // Borrows a MeshData from the MeshCache (must not outlive it); carries only transform + palette.
-    internal class MeshInstance
+    public class MeshInstance
     {
 
         private static readonly RasterizerState _faceRasterizer;
         private readonly MeshData _meshData;
         private readonly Color[] _palette;
-        private OutlineView _outlineView;   // the outline for the current view; it changes as the mesh or camera moves
+        private OutlineView? _outlineView;   // the outline for the current view; it changes as the mesh or camera moves
 
         // Off: faces take the background colour (wireframe). Edges are always drawn, always white.
         public bool ColorsOn { get; set; } = true;
