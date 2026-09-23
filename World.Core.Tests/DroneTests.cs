@@ -41,6 +41,25 @@ namespace World.Core.Tests
         }
 
         [Fact]
+        public void ComesDownOverTheEdgeToKeepYouInSightWhenYouFallOffACliff()
+        {
+            var cliff = Grounds.PlateauEdge(8f);
+            var player = new Player(new Vector3(-3f, 0f, 0f), Grounds.East, cliff);
+            for (var t = 0; t < 6 * 60; t++)
+                player.Step(t < 2 * 60 ? Grounds.Forward() : MoveInput.None, Grounds.Tick, cliff);
+            Assert.True(player.Body.Position.Y < 0.1f, "didn't go over the edge");
+
+            // Nothing between the drone and your head
+            var eye = player.Eye;
+            var drone = player.Drone.Position;
+            for (var k = 0; k <= 20; k++)
+            {
+                var p = Vector3.Lerp(eye, drone, k / 20f);
+                Assert.True(p.Y > cliff.HeightAt(p.X, p.Z), $"the cliff's in the way at {p}");
+            }
+        }
+
+        [Fact]
         public void LagsBehindWhenItsOwnerRuns()
         {
             var flat = Grounds.Flat();

@@ -30,10 +30,27 @@ namespace World.Core.Movement
         public const float Radius = 0.3f;             // how far ahead a blocking slope is felt, so the eye stays clear of it
         public const float MaxSubStep = 0.1f;         // metres
 
+        // Against bodies (see PhysicsWorld.PushWalker): how heavy you are when one hits you, and how hard
+        // and how powerfully you can push one. The force is the most you can shove with at all, so
+        // anything with more grip than that (a body of about 90 kg, at PhysicsWorld.Friction) won't move;
+        // the power is what caps how fast you can keep one going - about 1 m/s for 60 kg.
+        public const float Mass = 75f;                // kg
+        public const float PushForce = 450f;          // newtons
+        public const float PushPower = 300f;          // watts
+
         public Vector3 Position { get; set; }
         public Vector3 Velocity { get; set; }
         public float Yaw { get; set; }
         public bool Grounded { get; private set; }
+
+        // The velocity asked for on the last tick: where you're trying to go, whether or not you can.
+        public Vector3 Wish { get; private set; }
+
+        // Knocked off balance: for this long you can't brake or steer on your feet any better than in the
+        // air, so a hard shove slides you along instead of stopping dead.
+        public float Staggered { get; private set; }
+
+        public void Stagger(float seconds) => Staggered = MathF.Max(Staggered, seconds);
 
         public Vector3 Heading => new Vector3(MathF.Sin(Yaw), 0f, -MathF.Cos(Yaw));
         public Vector3 Right => new Vector3(MathF.Cos(Yaw), 0f, MathF.Sin(Yaw));
@@ -63,6 +80,7 @@ namespace World.Core.Movement
             if (wish.LengthSquared() > 1f)
                 wish.Normalize();   // so going diagonally isn't faster
             wish *= input.Run ? WalkSpeed * RunMultiplier : WalkSpeed;
+            Wish = wish;
 
             var velocity = Velocity;
             var horizontal = new Vector3(velocity.X, 0f, velocity.Z);
@@ -72,7 +90,9 @@ namespace World.Core.Movement
             if (sliding)
                 Grounded = false;
 
-            horizontal = Approach(horizontal, wish, (Grounded ? GroundAcceleration : AirAcceleration) * dt);
+            var footing = Grounded && Staggered <= 0f;
+            horizontal = Approach(horizontal, wish, (footing ? GroundAcceleration : AirAcceleration) * dt);
+            Staggered = MathF.Max(0f, Staggered - dt);
             if (sliding)
                 horizontal += Downhill(ground.NormalAt(Position)) * SlideAcceleration * dt;
 
@@ -112,8 +132,10 @@ namespace World.Core.Movement
             // Up and down
             if (!Grounded)
             {
+                // Looking for ground as far above the feet as they've just fallen past, so a fast fall
+                // can't drop straight through the top of a box in one tick
                 position.Y += velocity.Y * dt;
-                var below = ground.GroundBelow(position, MaxStepUp);
+                var below = ground.GroundBelow(position, MaxStepUp + MathF.Max(0f, -velocity.Y * dt));
                 if (below.HasValue && position.Y <= below.Value)
                 {
                     position.Y = below.Value;

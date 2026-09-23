@@ -7,15 +7,21 @@ using System.Collections.Generic;
 using World.Core;
 using World.Core.Characters;
 using World.Core.Movement;
+using World.Core.Physics;
 
 namespace Basic.World
 {
     // Out of doors: walk over rolling hills, climb the causeway onto the plateau, jump off its cliffs, or
-    // go down into the basin. See the world through your own eyes, or from your camera drone as it flies
-    // after you. Drawn to a small render target and scaled up with hard pixels, like Basic.Levels.
+    // go down into the basin. Boxes and crates lie about: push them (the heavier, the slower - some won't
+    // budge), knock them into each other, step or jump up onto them, shove them off the plateau. See the
+    // world through your own eyes, or from your camera drone as it flies after you. Drawn to a small render target and scaled up with hard pixels, like Basic.Levels.
     // Up / W and Down / S walk (hold Shift to run), Left / Right turn, A / D sidestep, Space jumps.
-    // V switches between your own view and the drone's. Tab toggles colours / wireframe, L the
-    // low-resolution look, F11 full screen, Escape exits.
+    // V switches between your own view and the drone's. C toggles colours / wireframe (not Tab, which
+    // Alt+Tab would press on the way out), L the low-resolution look, F11 full screen, Escape exits.
+    //
+    // For development, BASIC_WORLD_SHOT="file.png;seconds;keys" saves one low-resolution frame to the
+    // file after that many seconds (default 3), and where every body is to file.txt, then exits, with no need of the screen. keys, all optional:
+    // v starts in the drone view, w holds walk forward, r runs.
     public class Game1 : Game
     {
         private const int WindowWidth = 1440;
@@ -51,10 +57,25 @@ namespace Basic.World
         private bool _lowResOn = true;
 
         private Terrain _terrain;
+        private PhysicsWorld _world;
         private Player _player;
         private MeshInstance _terrainView, _playerView, _droneView;
+        private readonly List<(Body body, MeshInstance view)> _things = new List<(Body, MeshInstance)>();
         private float _pending;          // time not yet stepped through
         private bool _jumpPressed;       // since the last tick
+
+        private readonly (string file, float after, string keys)? _shot = ReadShot();
+        private float _clock;
+
+        private static (string, float, string)? ReadShot()
+        {
+            var setting = Environment.GetEnvironmentVariable("BASIC_WORLD_SHOT");
+            if (string.IsNullOrEmpty(setting))
+                return null;
+            var parts = setting.Split(';');
+            var after = parts.Length > 1 && float.TryParse(parts[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var s) ? s : 3f;
+            return (parts[0], after, parts.Length > 2 ? parts[2] : "");
+        }
 
         public Game1(string start = null)
         {
@@ -84,8 +105,14 @@ namespace Basic.World
             _spriteBatch = new SpriteBatch(GraphicsDevice);
 
             _terrain = TerrainGenerator.Create();
+            _world = new PhysicsWorld(_terrain);
+            foreach (var (body, kind) in Scenery.Populate(_world, _terrain))
+            {
+                var mesh = _meshCache.GetOrAdd(GraphicsDevice, CrateMesh.Key(kind, body.Size), d => CrateMesh.Build(d, kind, body.Size));
+                _things.Add((body, Placed(new MeshInstance(mesh, CrateMesh.Palette(kind)))));
+            }
             var (at, yaw) = Starts[_start];
-            _player = new Player(new Vector3(at.X, 0f, at.Y), yaw, _terrain);
+            _player = new Player(new Vector3(at.X, 0f, at.Y), yaw, _world);
 
             var terrainMesh = _meshCache.GetOrAdd(GraphicsDevice, "terrain", d => TerrainMesh.Build(d, _terrain, TerrainGenerator.WaterLevel + 0.5f));
             _terrainView = Placed(new MeshInstance(terrainMesh, TerrainMesh.Palette()));
@@ -94,6 +121,8 @@ namespace Basic.World
             _droneView = Placed(new MeshInstance(_meshCache.GetOrAdd(GraphicsDevice, "drone", DroneMesh.Build),
                 DroneMesh.Palette(new Color(90, 90, 100), new Color(60, 60, 65), new Color(40, 40, 45), new Color(120, 220, 230))));
             _droneView.Scale = 1.5f;   // so it reads at low resolution, even a few metres off
+            if (_shot?.keys.Contains('v') == true)
+                _player.ToggleView();
             UpdateTitle();
         }
 
@@ -120,7 +149,7 @@ namespace Basic.World
 
             if (Pressed(keyboard, Keys.F11))
                 _graphics.ToggleFullScreen();
-            if (Pressed(keyboard, Keys.Tab))
+            if (Pressed(keyboard, Keys.C))
                 _colorsOn = !_colorsOn;
             if (Pressed(keyboard, Keys.L))
                 _lowResOn = !_lowResOn;
@@ -132,10 +161,13 @@ namespace Basic.World
             _jumpPressed |= Pressed(keyboard, Keys.Space);
 
             var input = IsActive ? ReadInput(keyboard) : MoveInput.None;
+            if (_shot is { } shot && shot.keys.Contains('w'))
+                input = new MoveInput(new Vector2(0f, 1f), Run: shot.keys.Contains('r'));
             _pending += MathF.Min((float)gameTime.ElapsedGameTime.TotalSeconds, MaxFrame);
             while (_pending >= StepTime)
             {
-                _player.Step(input with { Jump = _jumpPressed }, StepTime, _terrain);
+                _player.Step(input with { Jump = _jumpPressed }, StepTime, _world);
+                _world.Step(StepTime);
                 _jumpPressed = false;   // a jump happens on one tick, not every tick this frame
                 _pending -= StepTime;
             }
@@ -194,10 +226,30 @@ namespace Basic.World
             // Neither camera sees the thing it's in: from inside your own head (or the drone), you'd only
             // see the inside of it. Turn round in your own view, though, and the drone's there, following.
             Draw(_terrainView, gameTime);
+            foreach (var (thing, view) in _things)
+            {
+                view.Position = thing.Position;
+                Draw(view, gameTime);
+            }
             if (_player.View == ViewMode.Drone)
                 Draw(_playerView, gameTime);
             else
                 Draw(_droneView, gameTime);
+
+            _clock += (float)gameTime.ElapsedGameTime.TotalSeconds;
+            if (_shot is { } saving && _clock >= saving.after)
+            {
+                GraphicsDevice.SetRenderTarget(null);
+                using (var file = System.IO.File.Create(saving.file))
+                    _lowRes.SaveAsPng(file, LowResWidth, LowResHeight);
+                // and where everything ended up, beside it
+                var report = new System.Text.StringBuilder().AppendLine($"player {_player.Body.Position}");
+                foreach (var (thing, _) in _things)
+                    report.AppendLine($"{thing.Name} {thing.Position} resting {thing.Resting} on {thing.Support?.Name ?? "ground"}");
+                System.IO.File.WriteAllText(System.IO.Path.ChangeExtension(saving.file, ".txt"), report.ToString());
+                Exit();
+                return;
+            }
 
             if (_lowResOn)
             {

@@ -1,5 +1,6 @@
 using Microsoft.Xna.Framework;
 using World.Core.Movement;
+using World.Core.Physics;
 
 namespace World.Core.Characters
 {
@@ -10,6 +11,7 @@ namespace World.Core.Characters
     public sealed class Player
     {
         public const float EyeHeight = 1.6f;
+        public const float Height = 1.8f;
 
         public CharacterController Body { get; }
         public Drone Drone { get; }
@@ -31,6 +33,19 @@ namespace World.Core.Characters
         {
             Body.Step(input, dt, ground);
             Drone.Step(Body.Position, Body.Yaw, Eye, dt, ground);
+        }
+
+        // Among bodies: stood on one, it carries you along with it; walk into one and you push it. Step
+        // the world itself after this, so it moves them on with this tick's pushes.
+        public void Step(in MoveInput input, float dt, PhysicsWorld world)
+        {
+            var under = Body.Grounded ? world.BodyUnder(Body.Position) : null;
+            if (under != null)
+                Body.Position += new Vector3(under.Velocity.X, 0f, under.Velocity.Z) * dt;
+
+            Body.Step(input, dt, world);
+            world.PushWalker(Body, Height);
+            Drone.Step(Body.Position, Body.Yaw, Eye, dt, world);
         }
     }
 }
