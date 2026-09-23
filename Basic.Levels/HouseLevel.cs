@@ -10,7 +10,8 @@ namespace Basic.Levels
     // leads to the lounge (a coffee table), the east door to the TV room (a television on a sideboard).
     // A third door, at the corridor's south (back) end, leads to an L-shaped back room, whose notch
     // corner has a door of its own through to a yellow octagonal room, from which a staircase round its
-    // walls climbs through the ceiling to a green octagonal room above. At the north end of the corridor
+    // walls climbs through the ceiling to a green octagonal room above, and a ladder in the middle of that
+    // climbs on up to a purple one. At the north end of the corridor
     // a staircase climbs to an upper corridor that runs east-west, a little longer than the first. Its
     // west door leads to a long, empty room, its east door to the entrance of a very large
     // hangar with a crate stencilled COLA standing in it, and a sign beside it that reads 12939 from the
@@ -269,6 +270,21 @@ namespace Basic.Levels
                 Ramps = stair.Ramps(),
             };
 
+            // In the middle of the green room, a fixed ladder climbs south through a small hatch to a purple
+            // octagon above that. The ladder's head is 0.6 m south of its foot. Past the head, a short
+            // invisible strip at the purple floor's height sticks out under the hatch's south edge: the
+            // ladder is so steep that a running climber could pass the last step's worth of it in one
+            // frame, and without the strip would drop back to the green floor instead of stepping off.
+            const float ladderLean = 0.6f;
+            var ladderRise = corridorHeight + slab;
+            var ladderFoot = new Vector3(0f, 0f, -ladderLean / 2f);
+            var ladderHead = new Vector3(0f, ladderRise, ladderLean / 2f);
+            var ladderHatch = new[]
+            {
+                new Vector2(-0.5f, ladderFoot.Z - 0.05f), new Vector2(0.5f, ladderFoot.Z - 0.05f),
+                new Vector2(0.5f, ladderHead.Z + 0.15f), new Vector2(-0.5f, ladderHead.Z + 0.15f),
+            };
+
             var octagonUpper = new RoomSpec
             {
                 Id = "octagonupper", Name = "Green Octagon Room",
@@ -276,10 +292,32 @@ namespace Basic.Levels
                 Floor = new Color(40, 130, 60), WallA = new Color(70, 190, 90), WallB = new Color(50, 150, 70), Ceiling = new Color(30, 80, 40),
                 WorldOffset = octagon.WorldOffset + Vector3.Up * (octagonHeight + slab),
                 FloorHatches = new[] { new HatchSpec(hatch, "octagon") },
+                CeilingHatches = new[] { new HatchSpec(ladderHatch, "octagontop", slab) },
+                // Non-blocking, like the hangar's: a Half would push you off the ladder before you could climb it
+                Props = new[]
+                {
+                    new PropSpec("octagonladder", d => LadderMesh.Build(d, height: ladderRise, lean: ladderLean),
+                        LadderMesh.Palette(new Color(180, 180, 185), new Color(60, 60, 65)),
+                        ladderFoot, 0f),
+                },
+                Ramps = new[]
+                {
+                    new RampSpec(ladderFoot, ladderHead, 1.0f, MaxStepUp: 5f),   // steep: see the hangar's ladder
+                    new RampSpec(ladderHead, ladderHead + Vector3.UnitZ * 0.3f, 1.0f),
+                },
+            };
+
+            var octagonTop = new RoomSpec
+            {
+                Id = "octagontop", Name = "Purple Octagon Room",
+                Outline = octagonOutline, Height = corridorHeight,
+                Floor = new Color(110, 40, 150), WallA = new Color(160, 80, 200), WallB = new Color(130, 60, 170), Ceiling = new Color(70, 30, 90),
+                WorldOffset = octagonUpper.WorldOffset + Vector3.Up * (corridorHeight + slab),
+                FloorHatches = new[] { new HatchSpec(ladderHatch, "octagonupper") },
             };
 
             var rooms = new Dictionary<string, RoomSpec>();
-            foreach (var room in new[] { corridor, stairs, upper, lounge, tvRoom, cola, hangar, backRoom, octagon, octagonUpper })
+            foreach (var room in new[] { corridor, stairs, upper, lounge, tvRoom, cola, hangar, backRoom, octagon, octagonUpper, octagonTop })
                 rooms[room.Id] = room;
 
             // Start at the south end of the corridor, looking up it.

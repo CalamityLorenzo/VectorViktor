@@ -32,7 +32,10 @@ namespace Basic.Levels
     // SlabThickness (ceiling hatches only) is how thick the floor between the two rooms is: the room above
     // must sit that far above this one's ceiling (its WorldOffset.Y == WorldOffset.Y + Height + SlabThickness),
     // and the hatch is lined with the slab's cut edge. See RoomSpec.CeilingHatches for why it can't be zero.
-    public record HatchSpec(Vector2[] Outline, string TargetRoom, float SlabThickness = 0f);
+    public record HatchSpec(Vector2[] Outline, string TargetRoom, float SlabThickness = 0f)
+    {
+        public bool Contains(Vector3 local) => RoomSpec.InPolygon(Outline, local);
+    }
 
     // A climbable strip in the room's own coordinates: a corridor Width wide down the line from Start to
     // End, whose floor rises (or stays flat, if Start.Y == End.Y) linearly between them. Matches a
@@ -216,16 +219,20 @@ namespace Basic.Levels
             return height;
         }
 
-        // Whether a point (in the room's own coordinates) is over the room's floor: the standard
-        // even-odd, ray-casting test for a point in a polygon, convex or concave.
-        public bool Contains(Vector3 local)
+        // Whether a point (in the room's own coordinates) is over the room's floor. Only (X, Z) counts,
+        // so rooms stacked on the same footprint both contain it - see Game1.ClimbThroughHatches.
+        public bool Contains(Vector3 local) => InPolygon(Outline, local);
+
+        // Whether (local.X, local.Z) is inside a polygon, convex or concave: the standard even-odd,
+        // ray-casting test.
+        public static bool InPolygon(Vector2[] polygon, Vector3 local)
         {
             var p = new Vector2(local.X, local.Z);
             var inside = false;
-            for (int i = 0, j = Outline.Length - 1; i < Outline.Length; j = i++)
+            for (int i = 0, j = polygon.Length - 1; i < polygon.Length; j = i++)
             {
-                var a = Outline[i];
-                var b = Outline[j];
+                var a = polygon[i];
+                var b = polygon[j];
                 if ((a.Y > p.Y) != (b.Y > p.Y) && p.X < (b.X - a.X) * (p.Y - a.Y) / (b.Y - a.Y) + a.X)
                     inside = !inside;
             }

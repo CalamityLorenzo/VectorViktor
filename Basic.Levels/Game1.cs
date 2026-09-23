@@ -78,10 +78,11 @@ namespace Basic.Levels
                     Arrive(start.Id, start.Doors[0].Id);
                 else
                 {
-                    // No door to arrive by (a room only reached by stairs): stand in the middle, facing north
+                    // No door to arrive by (a room only reached by stairs or a ladder): stand a little north
+                    // of the middle, facing south - the middle itself is where the octagons' ladder and hatch are
                     EnterRoom(_rooms[start.Id]);
-                    _position = start.WorldOffset;
-                    _yaw = 0f;
+                    _position = start.WorldOffset + new Vector3(0f, 0f, -2f);
+                    _yaw = MathHelper.Pi;
                     SnapToFloor();
                 }
             }
@@ -128,6 +129,40 @@ namespace Basic.Levels
                     EnterRoom(room);
                     return;
                 }
+        }
+
+        // Up or down through a hatch. Rooms stacked on one footprint both Contain you, so UpdateCurrentRoom
+        // can't tell them apart; instead, inside a hatch's outline you belong to whichever room's floor
+        // you're standing on. You go up once the stair has brought you within a step of the floor above,
+        // and down once the floor below you (the stair, or the floor far beneath) is more than a step
+        // lower. Both tests compare the lower room's walk height against the upper floor, so they can't
+        // flip back and forth.
+        private void ClimbThroughHatches()
+        {
+            var spec = _room.Spec;
+            var local = _position - spec.WorldOffset;
+
+            foreach (var hatch in spec.CeilingHatches)
+                if (hatch.Contains(local) && local.Y >= spec.Height + hatch.SlabThickness - RoomSpec.DefaultMaxStepUp)
+                {
+                    EnterRoom(_rooms[hatch.TargetRoom]);
+                    SnapToFloor();
+                    return;
+                }
+
+            foreach (var hatch in spec.FloorHatches)
+            {
+                if (!hatch.Contains(local))
+                    continue;
+                var below = _rooms[hatch.TargetRoom];
+                var belowLocal = _position - below.Spec.WorldOffset;
+                if (below.Spec.WalkHeightAt(belowLocal, belowLocal.Y) < belowLocal.Y - RoomSpec.DefaultMaxStepUp)
+                {
+                    EnterRoom(below);
+                    SnapToFloor();
+                    return;
+                }
+            }
         }
 
         // Puts you just inside a room's door, facing into the room.
@@ -201,6 +236,7 @@ namespace Basic.Levels
             _position = p + spec.WorldOffset;
             UpdateCurrentRoom();
             SnapToFloor();
+            ClimbThroughHatches();
         }
 
         private static float Axis(KeyboardState keyboard, Keys positive, Keys negative) =>
