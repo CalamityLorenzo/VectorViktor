@@ -72,9 +72,18 @@ namespace Basic.Levels
             foreach (var spec in _level.Rooms.Values)
                 _rooms[spec.Id] = new RoomView(spec, GraphicsDevice, _meshCache);
 
-            if (_startRoomOverride != null && _level.Rooms.TryGetValue(_startRoomOverride, out var start) && start.Doors.Length > 0)
+            if (_startRoomOverride != null && _level.Rooms.TryGetValue(_startRoomOverride, out var start))
             {
-                Arrive(start.Id, start.Doors[0].Id);
+                if (start.Doors.Length > 0)
+                    Arrive(start.Id, start.Doors[0].Id);
+                else
+                {
+                    // No door to arrive by (a room only reached by stairs): stand in the middle, facing north
+                    EnterRoom(_rooms[start.Id]);
+                    _position = start.WorldOffset;
+                    _yaw = 0f;
+                    SnapToFloor();
+                }
             }
             else
             {
@@ -91,9 +100,9 @@ namespace Basic.Levels
             _room = room;
             _visibleRooms = new List<RoomView> { room };
             for (var i = 0; i < _visibleRooms.Count; i++)
-                foreach (var opening in _visibleRooms[i].Spec.Openings)
+                foreach (var neighbour in _visibleRooms[i].Spec.Neighbours())
                 {
-                    var next = _rooms[opening.TargetRoom];
+                    var next = _rooms[neighbour];
                     if (!_visibleRooms.Contains(next))
                         _visibleRooms.Add(next);
                 }

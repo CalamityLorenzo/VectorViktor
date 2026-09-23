@@ -36,8 +36,11 @@ namespace Basic.Levels
 
             // A stepped ramp (RampSpec.Steps > 0) cuts its own tread/riser strip out of the floor; what's
             // left is fitted round it as one or two ordinary flat pieces, whatever shape they come out as.
+            // Hatches (see HatchSpec) are cut out of the floor and ceiling the same way.
             var steppedRamps = Array.FindAll(room.Ramps, r => r.Steps > 0);
             var floorPieces = new List<Vector2[]> { room.Outline };
+            foreach (var hatch in room.FloorHatches)
+                floorPieces = CutOut(floorPieces, hatch.Outline);
             foreach (var ramp in steppedRamps)
                 floorPieces = SplitAroundRamp(floorPieces, ramp);
 
@@ -46,8 +49,15 @@ namespace Basic.Levels
                 AddGrid(mesh, room);   // a grid over/under a staircase's treads would just be visual clutter
             foreach (var ramp in steppedRamps)
                 AddSteps(mesh, ramp);
+            foreach (var hatch in room.FloorHatches)
+                mesh.AddLineLoop(Array.ConvertAll(hatch.Outline, p => new Vector3(p.X, 0f, p.Y)));
 
-            AddCeiling(mesh, room, Triangulate(room.Outline));
+            var ceilingPieces = new List<Vector2[]> { room.Outline };
+            foreach (var hatch in room.CeilingHatches)
+                ceilingPieces = CutOut(ceilingPieces, hatch.Outline);
+            AddCeiling(mesh, room, ceilingPieces);
+            foreach (var hatch in room.CeilingHatches)
+                AddSlabEdge(mesh, room, hatch);
 
             var wallA = new List<Vector3[]>();
             var wallB = new List<Vector3[]>();
@@ -88,11 +98,7 @@ namespace Basic.Levels
         // room's floor into a piece before it and a piece after (see SplitAroundRamp).
         private static void AddFlatFloor(MeshBuilder mesh, List<Vector2[]> pieces)
         {
-            var triangles = new List<(Vector2 a, Vector2 b, Vector2 c)>();
-            foreach (var piece in pieces)
-                foreach (var (ia, ib, ic) in Triangulate(piece))
-                    triangles.Add((piece[ia], piece[ib], piece[ic]));
-
+            var triangles = TrianglesOf(pieces);
             if (triangles.Count == 0)
                 return;
             mesh.AddSolidRange(triangles.Count, Floor);
@@ -100,22 +106,96 @@ namespace Basic.Levels
                 mesh.AddTri(new Vector3(a.X, 0f, a.Y), new Vector3(b.X, 0f, b.Y), new Vector3(c.X, 0f, c.Y));
         }
 
-        // One continuous surface over the room's whole Outline - unlike the floor, never split, since a
-        // stepped ramp's headroom still needs a ceiling above it. Height varies per vertex (flat, except
+        private static List<(Vector2 a, Vector2 b, Vector2 c)> TrianglesOf(List<Vector2[]> pieces)
+        {
+            var triangles = new List<(Vector2 a, Vector2 b, Vector2 c)>();
+            foreach (var piece in pieces)
+                foreach (var (ia, ib, ic) in Triangulate(piece))
+                    triangles.Add((piece[ia], piece[ib], piece[ic]));
+            return triangles;
+        }
+
+        // The room's whole Outline, less any ceiling hatches - unlike the floor, never split by a stepped
+        // ramp, since its headroom still needs a ceiling above it. Height varies per vertex (flat, except
         // where RoomSpec.CeilingHeightAt says a stepped ramp runs under it), so a triangle that straddles
         // the edge of one blends smoothly between the two rather than stepping - a fair approximation,
         // since that seam falls where a real room would have a landing or a change of pitch anyway.
-        private static void AddCeiling(MeshBuilder mesh, RoomSpec room, List<(int a, int b, int c)> triangles)
+        private static void AddCeiling(MeshBuilder mesh, RoomSpec room, List<Vector2[]> pieces)
         {
+            var triangles = TrianglesOf(pieces);
+            if (triangles.Count == 0)
+                return;
+            Vector3 Up(Vector2 p) => new Vector3(p.X, room.CeilingHeightAt(new Vector3(p.X, 0f, p.Y)), p.Y);
             mesh.AddSolidRange(triangles.Count, Ceiling);
-            foreach (var (ia, ib, ic) in triangles)
+            foreach (var (a, b, c) in triangles)
+                mesh.AddTri(Up(a), Up(b), Up(c));
+        }
+
+        // The cut edge of the slab a ceiling hatch goes up through, from this room's (flat) ceiling to the
+        // floor of the room above. Its top rim is that room's own hatch outline, so it isn't drawn twice.
+        private static void AddSlabEdge(MeshBuilder mesh, RoomSpec room, HatchSpec hatch)
+        {
+            var bottom = room.Height;
+            var top = room.Height + hatch.SlabThickness;
+            var sides = new List<Vector3[]>();
+            for (var i = 0; i < hatch.Outline.Length; i++)
             {
-                var a = room.Outline[ia]; var b = room.Outline[ib]; var c = room.Outline[ic];
-                var ya = room.CeilingHeightAt(new Vector3(a.X, 0f, a.Y));
-                var yb = room.CeilingHeightAt(new Vector3(b.X, 0f, b.Y));
-                var yc = room.CeilingHeightAt(new Vector3(c.X, 0f, c.Y));
-                mesh.AddTri(new Vector3(a.X, ya, a.Y), new Vector3(b.X, yb, b.Y), new Vector3(c.X, yc, c.Y));
+                var a = hatch.Outline[i];
+                var b = hatch.Outline[(i + 1) % hatch.Outline.Length];
+                sides.Add(new[] { new Vector3(a.X, bottom, a.Y), new Vector3(b.X, bottom, b.Y), new Vector3(b.X, top, b.Y), new Vector3(a.X, top, a.Y) });
+                mesh.AddLine(new Vector3(a.X, bottom, a.Y), new Vector3(b.X, bottom, b.Y));
+                mesh.AddLine(new Vector3(a.X, bottom, a.Y), new Vector3(a.X, top, a.Y));
             }
+            AddQuads(mesh, sides, Ceiling);
+        }
+
+        // What's left of each piece outside a convex hole: for each of the hole's edges, the part beyond
+        // that edge but not beyond any earlier one, so no two parts overlap. Like SplitAroundRamp, the
+        // pieces themselves can be any shape.
+        private static List<Vector2[]> CutOut(List<Vector2[]> pieces, Vector2[] hole)
+        {
+            var centre = Vector2.Zero;
+            foreach (var p in hole)
+                centre += p;
+            centre /= hole.Length;
+
+            // A point on edge i, and its normal pointing out of the hole whichever way the hole is wound
+            (Vector2 point, Vector2 outward) Edge(int i)
+            {
+                var a = hole[i];
+                var d = hole[(i + 1) % hole.Length] - a;
+                var normal = new Vector2(-d.Y, d.X);
+                return (a, Vector2.Dot(normal, a - centre) < 0f ? -normal : normal);
+            }
+
+            var result = new List<Vector2[]>();
+            foreach (var piece in pieces)
+                for (var i = 0; i < hole.Length; i++)
+                {
+                    var (point, outward) = Edge(i);
+                    var part = ClipToHalfPlane(piece, point, outward);
+                    for (var j = 0; j < i && part.Count >= 3; j++)
+                    {
+                        var (earlier, earlierOutward) = Edge(j);
+                        part = ClipToHalfPlane(part.ToArray(), earlier, -earlierOutward);
+                    }
+                    // A hole flush against a wall leaves a zero-width sliver along it
+                    if (part.Count >= 3 && MathF.Abs(SignedArea(part)) > 1e-6f)
+                        result.Add(part.ToArray());
+                }
+            return result;
+        }
+
+        private static float SignedArea(IReadOnlyList<Vector2> polygon)
+        {
+            var area = 0f;
+            for (var i = 0; i < polygon.Count; i++)
+            {
+                var a = polygon[i];
+                var b = polygon[(i + 1) % polygon.Count];
+                area += a.X * b.Y - b.X * a.Y;
+            }
+            return area / 2f;
         }
 
         // Cuts the strip a stepped ramp runs through out of each floor piece, by slicing it at two lines
@@ -177,14 +257,7 @@ namespace Basic.Levels
             for (var i = 0; i < n; i++)
                 indices.Add(i);
 
-            var area = 0f;
-            for (var i = 0; i < n; i++)
-            {
-                var a = polygon[i];
-                var b = polygon[(i + 1) % n];
-                area += a.X * b.Y - b.X * a.Y;
-            }
-            var sign = area >= 0f ? 1f : -1f;
+            var sign = SignedArea(polygon) >= 0f ? 1f : -1f;
 
             var triangles = new List<(int, int, int)>();
             var guard = 0;
@@ -240,16 +313,25 @@ namespace Basic.Levels
             return !(hasNeg && hasPos);
         }
 
-        // Where a vertical line (fixed X) or horizontal line (fixed Z) crosses the Outline's edges,
-        // sorted - consecutive pairs bound the spans of the line that lie inside the room.
+        // Where a vertical line (fixed X) or horizontal line (fixed Z) crosses the edges of the Outline and
+        // of any floor hatches, sorted - consecutive pairs bound the spans of the line that lie on the floor.
         private static List<float> Crossings(RoomSpec room, bool vertical, float fixedCoord)
         {
             var hits = new List<float>();
-            var n = room.Outline.Length;
+            AddCrossings(hits, room.Outline, vertical, fixedCoord);
+            foreach (var hatch in room.FloorHatches)
+                AddCrossings(hits, hatch.Outline, vertical, fixedCoord);
+            hits.Sort();
+            return hits;
+        }
+
+        private static void AddCrossings(List<float> hits, Vector2[] polygon, bool vertical, float fixedCoord)
+        {
+            var n = polygon.Length;
             for (var i = 0; i < n; i++)
             {
-                var a = room.Outline[i];
-                var b = room.Outline[(i + 1) % n];
+                var a = polygon[i];
+                var b = polygon[(i + 1) % n];
                 var aFixed = vertical ? a.X : a.Y;
                 var bFixed = vertical ? b.X : b.Y;
                 if ((aFixed > fixedCoord) == (bFixed > fixedCoord))
@@ -259,8 +341,6 @@ namespace Basic.Levels
                 var t = (fixedCoord - aFixed) / (bFixed - aFixed);
                 hits.Add(aFree + t * (bFree - aFree));
             }
-            hits.Sort();
-            return hits;
         }
 
         // Grid lines every GridSpacing, clipped to the room's Outline - convex or concave, so a span of

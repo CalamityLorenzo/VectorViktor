@@ -241,20 +241,47 @@ namespace Basic.Levels
             var octagonHeight = corridorHeight * 2f;
             var octagonOutline = RoomSpec.RegularPolygon(8, octagonRadius);
 
+            // Directly above it, a green octagon of the same shape, on a 30 cm slab (see RoomSpec.CeilingHatches
+            // for why it can't just sit on the yellow room's ceiling). A stairwell hatch against the wall
+            // opposite the door (edge 4) opens from one into the other. No stairs up to it yet.
+            const float slab = 0.3f;
+            var hatch = WallHatch(octagonOutline, 4, length: 3f, depth: 1.2f);
+
             var octagon = new RoomSpec
             {
                 Id = "octagon", Name = "Octagon Room",
                 Outline = octagonOutline, Height = octagonHeight,
                 Floor = new Color(200, 170, 30), WallA = new Color(230, 200, 50), WallB = new Color(190, 160, 20), Ceiling = new Color(140, 120, 30),
                 Doors = new[] { new DoorSpec("backroom", 0, 0f, "backroom", "octagon") },
+                CeilingHatches = new[] { new HatchSpec(hatch, "octagonupper", slab) },
+            };
+
+            var octagonUpper = new RoomSpec
+            {
+                Id = "octagonupper", Name = "Green Octagon Room",
+                Outline = octagonOutline, Height = corridorHeight,
+                Floor = new Color(40, 130, 60), WallA = new Color(70, 190, 90), WallB = new Color(50, 150, 70), Ceiling = new Color(30, 80, 40),
+                WorldOffset = octagon.WorldOffset + Vector3.Up * (octagonHeight + slab),
+                FloorHatches = new[] { new HatchSpec(hatch, "octagon") },
             };
 
             var rooms = new Dictionary<string, RoomSpec>();
-            foreach (var room in new[] { corridor, stairs, upper, lounge, tvRoom, cola, hangar, backRoom, octagon })
+            foreach (var room in new[] { corridor, stairs, upper, lounge, tvRoom, cola, hangar, backRoom, octagon, octagonUpper })
                 rooms[room.Id] = room;
 
             // Start at the south end of the corridor, looking up it.
             return new HouseLevel(rooms, corridor.Id, new Vector3(0f, 0f, 6.5f), 0f);
+        }
+
+        // A hatch outline flush against one wall of an outline: `length` along it, centred, and `depth` in from it.
+        private static Vector2[] WallHatch(Vector2[] outline, int wallIndex, float length, float depth)
+        {
+            var a = outline[wallIndex];
+            var b = outline[(wallIndex + 1) % outline.Length];
+            var mid = (a + b) / 2f;
+            var along = Vector2.Normalize(b - a) * (length / 2f);
+            var inward = new Vector2(-along.Y, along.X) / (length / 2f) * depth;   // matches RoomSpec.Inward
+            return new[] { mid - along, mid + along, mid + along + inward, mid - along + inward };
         }
     }
 }

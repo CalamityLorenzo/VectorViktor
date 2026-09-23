@@ -2,6 +2,7 @@ using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
+using System.Collections.Generic;
 
 namespace Basic.Levels
 {
@@ -23,6 +24,15 @@ namespace Basic.Levels
     // The two rooms must sit edge to edge in the world (see RoomSpec.WorldOffset), and the neighbour has
     // an opening of its own in the matching wall. At most one per edge.
     public record OpeningSpec(int WallIndex, float Offset, float Width, float Height, string TargetRoom);
+
+    // A hole in a room's ceiling or floor, leading into TargetRoom directly above or below it. Outline is a
+    // convex polygon in the room's own (X, Z). The room below lists it in its CeilingHatches, the room above
+    // in its FloorHatches, both at the same place in the world.
+    //
+    // SlabThickness (ceiling hatches only) is how thick the floor between the two rooms is: the room above
+    // must sit that far above this one's ceiling (its WorldOffset.Y == WorldOffset.Y + Height + SlabThickness),
+    // and the hatch is lined with the slab's cut edge. See RoomSpec.CeilingHatches for why it can't be zero.
+    public record HatchSpec(Vector2[] Outline, string TargetRoom, float SlabThickness = 0f);
 
     // A climbable strip in the room's own coordinates: a corridor Width wide down the line from Start to
     // End, whose floor rises (or stays flat, if Start.Y == End.Y) linearly between them. Matches a
@@ -131,6 +141,25 @@ namespace Basic.Levels
         public DoorSpec[] Doors { get; init; } = Array.Empty<DoorSpec>();
         public PropSpec[] Props { get; init; } = Array.Empty<PropSpec>();
         public OpeningSpec[] Openings { get; init; } = Array.Empty<OpeningSpec>();
+
+        // Holes through to rooms stacked directly above or below (see HatchSpec). Stacked rooms need a real
+        // slab between them, not the upper floor lying on this ceiling: two faces in one plane z-fight, and
+        // every face is drawn pushed back in depth (MeshInstance's DepthBias, which grows with distance) so
+        // that its own edges win - enough to let the upper room's floor grid show through a ceiling it is
+        // flush with, or only a few centimetres above.
+        public HatchSpec[] CeilingHatches { get; init; } = Array.Empty<HatchSpec>();
+        public HatchSpec[] FloorHatches { get; init; } = Array.Empty<HatchSpec>();
+
+        // Every room that can be seen from this one: through an opening, or up or down through a hatch.
+        public IEnumerable<string> Neighbours()
+        {
+            foreach (var opening in Openings)
+                yield return opening.TargetRoom;
+            foreach (var hatch in CeilingHatches)
+                yield return hatch.TargetRoom;
+            foreach (var hatch in FloorHatches)
+                yield return hatch.TargetRoom;
+        }
 
         // An axis-aligned rectangle, width x depth, centred on the origin - its four edges come out as
         // Walls.North, .East, .South, .West in that order.
