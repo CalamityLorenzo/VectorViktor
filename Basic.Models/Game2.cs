@@ -7,7 +7,7 @@ using Microsoft.Xna.Framework.Input;
 using System;
 using System.Collections.Generic;
 
-namespace BasicTests
+namespace Basic.Models
 {
     // A showcase of every mesh: all 15 laid out in a 5 x 3 grid, each one turning slowly about the vertical.
     // Everything is at one scale, so how big each thing is next to the others is its true relative size.

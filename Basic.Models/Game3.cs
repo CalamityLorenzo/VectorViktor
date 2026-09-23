@@ -8,7 +8,7 @@ using Microsoft.Xna.Framework.Input;
 using System;
 using System.Collections.Generic;
 
-namespace BasicTests
+namespace Basic.Models
 {
     // Three staircases (a straight run, and a quarter turn each way), each standing on the ground and
     // turning slowly about the vertical, seen through an orbit camera. Same step count and rise for all

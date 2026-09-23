@@ -5,10 +5,10 @@
     "version": "0.2.0",
     "configurations": [
       {
-        "name": "C#: BasicTests Debug",
+        "name": "C#: Basic.Models Debug",
         "type": "dotnet",
         "request": "launch",
-        "projectPath": "${workspaceFolder}/BasicTests.csproj"
+        "projectPath": "${workspaceFolder}/Basic.Models.csproj"
       }
     ],
   }
