@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The world's simulation: terrain, movement, characters. Uses MonoGame only for its maths types
+       (Vector3, MathHelper), never a GraphicsDevice, so all of it can be tested without a window. -->
+  <PropertyGroup>
+    <TargetFramework>net9.0-windows</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MonoGame.Framework.WindowsDX" Version="3.8.*" />
+  </ItemGroup>
+</Project>
