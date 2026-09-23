@@ -9,7 +9,8 @@ namespace Basic.Levels
     // The level. On the ground floor, a long corridor with a door halfway along each side: the west door
     // leads to the lounge (a coffee table), the east door to the TV room (a television on a sideboard).
     // A third door, at the corridor's south (back) end, leads to an L-shaped back room, whose notch
-    // corner has a door of its own through to a yellow octagonal room. At the north end of the corridor
+    // corner has a door of its own through to a yellow octagonal room, from which a staircase round its
+    // walls climbs through the ceiling to a green octagonal room above. At the north end of the corridor
     // a staircase climbs to an upper corridor that runs east-west, a little longer than the first. Its
     // west door leads to a long, empty room, its east door to the entrance of a very large
     // hangar with a crate stencilled COLA standing in it, and a sign beside it that reads 12939 from the
@@ -242,10 +243,15 @@ namespace Basic.Levels
             var octagonOutline = RoomSpec.RegularPolygon(8, octagonRadius);
 
             // Directly above it, a green octagon of the same shape, on a 30 cm slab (see RoomSpec.CeilingHatches
-            // for why it can't just sit on the yellow room's ceiling). A stairwell hatch against the wall
-            // opposite the door (edge 4) opens from one into the other. No stairs up to it yet.
+            // for why it can't just sit on the yellow room's ceiling). A staircase hugs the yellow room's walls
+            // round its south side: three steps up the east-south-east wall (2) to a corner landing, a full
+            // flight along the next wall, another landing, then a last flight along the wall opposite the door
+            // (4) up through a hatch in the ceiling. Only that last flight is under the hatch, so the landing
+            // before it has to leave headroom: at 3.0 m, the eye (1.6 m above it) is still under the 5.2 m ceiling.
             const float slab = 0.3f;
-            var hatch = WallHatch(octagonOutline, 4, length: 3f, depth: 1.2f);
+            var stair = new WallStair(octagonOutline, firstWall: 2, steps: new[] { 3, 14, 14 }, stepsPerWall: 14,
+                                      height: octagonHeight + slab, width: 1.0f);
+            var hatch = stair.Hatch(margin: 0.2f);
 
             var octagon = new RoomSpec
             {
@@ -254,6 +260,13 @@ namespace Basic.Levels
                 Floor = new Color(200, 170, 30), WallA = new Color(230, 200, 50), WallB = new Color(190, 160, 20), Ceiling = new Color(140, 120, 30),
                 Doors = new[] { new DoorSpec("backroom", 0, 0f, "backroom", "octagon") },
                 CeilingHatches = new[] { new HatchSpec(hatch, "octagonupper", slab) },
+                Props = new[]
+                {
+                    new PropSpec("octagonstair", stair.Build,
+                        WallStair.Palette(new Color(150, 105, 60), new Color(110, 75, 40), new Color(130, 90, 50), new Color(90, 60, 35)),
+                        Vector3.Zero, 0f),
+                },
+                Ramps = stair.Ramps(),
             };
 
             var octagonUpper = new RoomSpec
@@ -271,17 +284,6 @@ namespace Basic.Levels
 
             // Start at the south end of the corridor, looking up it.
             return new HouseLevel(rooms, corridor.Id, new Vector3(0f, 0f, 6.5f), 0f);
-        }
-
-        // A hatch outline flush against one wall of an outline: `length` along it, centred, and `depth` in from it.
-        private static Vector2[] WallHatch(Vector2[] outline, int wallIndex, float length, float depth)
-        {
-            var a = outline[wallIndex];
-            var b = outline[(wallIndex + 1) % outline.Length];
-            var mid = (a + b) / 2f;
-            var along = Vector2.Normalize(b - a) * (length / 2f);
-            var inward = new Vector2(-along.Y, along.X) / (length / 2f) * depth;   // matches RoomSpec.Inward
-            return new[] { mid - along, mid + along, mid + along + inward, mid - along + inward };
         }
     }
 }
