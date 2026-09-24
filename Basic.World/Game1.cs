@@ -13,7 +13,8 @@ namespace Basic.World
 {
     // Out of doors: walk over rolling hills, climb the causeway onto the plateau, jump off its cliffs, or
     // go down into the basin. Boxes and crates lie about: push them (the heavier, the slower - some won't
-    // budge), knock them into each other, step or jump up onto them, shove them off the plateau. See the
+    // budge), knock them into each other, step or jump up onto them, shove them off the plateau. Tall
+    // ones topple when you push them; push into a stack and it comes down. See the
     // world through your own eyes, or from your camera drone as it flies after you. Drawn to a small render target and scaled up with hard pixels, like Basic.Levels.
     // Up / W and Down / S walk (hold Shift to run), Left / Right turn, A / D sidestep, Space jumps.
     // V switches between your own view and the drone's. C toggles colours / wireframe (not Tab, which
@@ -26,8 +27,8 @@ namespace Basic.World
     {
         private const int WindowWidth = 1440;
         private const int WindowHeight = 810;
-        private const int LowResWidth = 480;      // 16:9, so 3 x fits the window and 4 x fills 1920 x 1080
-        private const int LowResHeight = 270;
+        private const int LowResWidth = 640;      // 16:9, so 3 x fits the window and 4 x fills 1920 x 1080
+        private const int LowResHeight = 256;
 
         private const float StepTime = 1f / 60f;      // the world always moves on in steps of this
         private const float MaxFrame = 0.25f;     // after a stall, catch up no more than this, rather than fall through the world
@@ -43,6 +44,7 @@ namespace Basic.World
             ["causeway"] = (new Vector2(TerrainGenerator.PlateauCentre.X - TerrainGenerator.PlateauRadius - TerrainGenerator.RampLength,
                                         TerrainGenerator.PlateauCentre.Y), MathHelper.PiOver2),   // at its foot, facing up it
             ["basin"] = (TerrainGenerator.BasinCentre, MathHelper.PiOver4),
+            ["lockers"] = (new Vector2(-3f, -3f), MathHelper.PiOver2),                   // facing the first locker, to push it over
         };
 
         private readonly GraphicsDeviceManager _graphics;
@@ -60,7 +62,7 @@ namespace Basic.World
         private PhysicsWorld _world;
         private Player _player;
         private MeshInstance _terrainView, _playerView, _droneView;
-        private readonly List<(Body body, MeshInstance view)> _things = new List<(Body, MeshInstance)>();
+        private readonly List<(Body body, MeshInstance view, float turn)> _things = new List<(Body, MeshInstance, float)>();
         private float _pending;          // time not yet stepped through
         private bool _jumpPressed;       // since the last tick
 
@@ -106,10 +108,10 @@ namespace Basic.World
 
             _terrain = TerrainGenerator.Create();
             _world = new PhysicsWorld(_terrain);
-            foreach (var (body, kind) in Scenery.Populate(_world, _terrain))
+            foreach (var thing in Scenery.Populate(_world, _terrain))
             {
-                var mesh = _meshCache.GetOrAdd(GraphicsDevice, CrateMesh.Key(kind, body.Size), d => CrateMesh.Build(d, kind, body.Size));
-                _things.Add((body, Placed(new MeshInstance(mesh, CrateMesh.Palette(kind)))));
+                var mesh = _meshCache.GetOrAdd(GraphicsDevice, thing.Key, thing.Build);
+                _things.Add((thing.Body, Placed(new MeshInstance(mesh, thing.Palette)), thing.Turn));
             }
             var (at, yaw) = Starts[_start];
             _player = new Player(new Vector3(at.X, 0f, at.Y), yaw, _world);
@@ -226,9 +228,9 @@ namespace Basic.World
             // Neither camera sees the thing it's in: from inside your own head (or the drone), you'd only
             // see the inside of it. Turn round in your own view, though, and the drone's there, following.
             Draw(_terrainView, gameTime);
-            foreach (var (thing, view) in _things)
+            foreach (var (thing, view, turn) in _things)
             {
-                view.Position = thing.Position;
+                view.Transform = Matrix.CreateRotationY(turn) * thing.Pose;   // upright, on its side, or part way over
                 Draw(view, gameTime);
             }
             if (_player.View == ViewMode.Drone)
@@ -244,8 +246,8 @@ namespace Basic.World
                     _lowRes.SaveAsPng(file, LowResWidth, LowResHeight);
                 // and where everything ended up, beside it
                 var report = new System.Text.StringBuilder().AppendLine($"player {_player.Body.Position}");
-                foreach (var (thing, _) in _things)
-                    report.AppendLine($"{thing.Name} {thing.Position} resting {thing.Resting} on {thing.Support?.Name ?? "ground"}");
+                foreach (var (thing, _, _) in _things)
+                    report.AppendLine($"{thing.Name} {thing.Position} size {thing.Size} resting {thing.Resting} on {thing.Support?.Name ?? "ground"}");
                 System.IO.File.WriteAllText(System.IO.Path.ChangeExtension(saving.file, ".txt"), report.ToString());
                 Exit();
                 return;

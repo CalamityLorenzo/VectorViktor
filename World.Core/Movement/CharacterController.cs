@@ -37,6 +37,7 @@ namespace World.Core.Movement
         public const float Mass = 75f;                // kg
         public const float PushForce = 450f;          // newtons
         public const float PushPower = 300f;          // watts
+        public const float PushHeight = 1.2f;         // how far above your feet your pushes land: chest height
 
         public Vector3 Position { get; set; }
         public Vector3 Velocity { get; set; }

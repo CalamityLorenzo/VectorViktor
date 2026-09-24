@@ -25,7 +25,11 @@ namespace MeshLoader
 
         public float Scale { get; set; } = 1f;
 
-        public Matrix World => Matrix.CreateScale(Scale)
+        // Set, it's the whole world matrix, in place of the one built from Scale, Pitch, Yaw and Position:
+        // for something turned in ways those can't say (a box tipped over onto its side).
+        public Matrix? Transform { get; set; }
+
+        public Matrix World => Transform ?? Matrix.CreateScale(Scale)
             * Matrix.CreateRotationX(Pitch)
             * Matrix.CreateRotationY(Yaw)
             * Matrix.CreateTranslation(Position);

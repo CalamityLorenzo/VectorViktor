@@ -23,6 +23,18 @@ namespace World.Core.Physics
     //     body already resting follows the ground down by up to SnapDown, as a walker does, so it keeps
     //     its grip going downhill instead of skipping down the slope.
     //
+    // And bodies get knocked over - a quick quarter turn over an edge (see Body), for any of three reasons:
+    //  - pushed high enough up that the push's leverage beats its weight's (force x height against
+    //    weight x half its width), if that happens before it slides - so a tall, narrow box topples
+    //    when you push it, while a cube just slides
+    //  - hit by another body hard enough, and high enough, that the spin the knock gives it would lift
+    //    its centre up over its edge
+    //  - left overhanging, its centre out past the edge of what's holding it up: pushed off the top of
+    //    another box, or over a cliff's edge, it tips over that edge. That's how a stack collapses.
+    //    Ground too steep to stand on (a cliff face) doesn't hold a body up at all: it slides off it.
+    // It tips only if there's room to: not into a wall, another body, or a bank of ground. While it's
+    // going over it's fixed where it is, and anything stood on it stays put until it lands.
+    //
     // It's also the ground walkers walk on: the terrain, with the tops of the bodies on it (see IGround).
     public sealed class PhysicsWorld : IGround
     {
@@ -34,6 +46,11 @@ namespace World.Core.Physics
         private const float Bump = 0.02f;         // a rise this small it rides over whatever its slope
         public const float SnapDown = 0.1f;       // ground dropping away under a resting body by no more than this, it follows
         public const int Iterations = 4;          // passes at separating bodies, so a chain of them settles
+        public const float ToppleAcceleration = 14f;  // radians per second per second: over in about half a second
+        private const float SupportDepth = 0.3f;  // ground this far below where a body rests still holds it up (it's bedded into a slope)
+        private const float Overhang = 0.02f;     // how far past its support its centre must be before it tips
+        private const float TipMargin = 1.2f;     // how clearly a push must favour tipping over sliding: a cube pushed at its top only slides
+        private const float Reach = 0.5f;         // arm's length: a body within this of a walker's side, in their path, is one they can push
         private const float Touching = 0.01f;     // overlaps smaller than this, one on top of another, don't count
         private const float SampleSpacing = 0.5f; // how finely a body's footprint feels the ground under it
         private const float KnockedOver = 1f;     // a walker shoved this much faster (m/s) loses their footing...
@@ -55,10 +72,13 @@ namespace World.Core.Physics
         public void Step(float dt)
         {
             foreach (var body in _bodies)
-                if (!body.IsStatic)
+                if (body.Toppling)
+                    body.AdvanceTopple(dt, ToppleAcceleration);
+            foreach (var body in _bodies)
+                if (Moves(body))
                     ApplyForces(body, dt);
             foreach (var body in _bodies)
-                if (!body.IsStatic)
+                if (Moves(body))
                     MoveAcross(body, dt);
             for (var k = 0; k < Iterations; k++)
                 for (var i = 0; i < _bodies.Count; i++)
@@ -66,13 +86,37 @@ namespace World.Core.Physics
                         Separate(_bodies[i], _bodies[j]);
             Settle(dt);
             foreach (var body in _bodies)
-                body.Force = Vector3.Zero;
+                body.ClearForces();
         }
 
-        private static void ApplyForces(Body body, float dt)
+        private static bool Moves(Body body) => !body.IsStatic && !body.Toppling;
+
+        private void ApplyForces(Body body, float dt)
         {
             var v = new Vector2(body.Velocity.X, body.Velocity.Z);
             var force = new Vector2(body.Force.X, body.Force.Z);
+
+            if (OnSteepGround(body))
+            {
+                // Too steep to hold it (see CharacterController's slide): no grip, and down it goes
+                var normal = Terrain.NormalAt(body.Position);
+                var downhill = Vector2.Normalize(new Vector2(normal.X, normal.Z));
+                v += (downhill * Gravity + force / body.Mass) * dt;
+                body.Velocity = new Vector3(v.X, body.Velocity.Y - Gravity * dt, v.Y);
+                return;
+            }
+
+            // Pushed over rather than along: only if it would tip before friction gave way
+            if (body.Resting && force.LengthSquared() > 0f)
+            {
+                var toward = Dominant(body.Force);
+                var push = MathF.Abs(Vector3.Dot(body.Force, toward));
+                var height = body.ForceHeight;
+                var width = body.Extent(toward);
+                if (push * height > body.Mass * Gravity * width / 2f && 2f * Friction * height > width * TipMargin &&
+                    TryTopple(body, Edge(body, toward), toward, 0.5f, againstGround: true))
+                    return;
+            }
 
             if (body.Resting)
             {
@@ -125,7 +169,7 @@ namespace World.Core.Physics
 
         // Pushes two overlapping bodies apart (horizontally: one stood on another is Settle's business)
         // and, if they're closing on each other, exchanges their momentum.
-        private static void Separate(Body a, Body b)
+        private void Separate(Body a, Body b)
         {
             var inverse = a.InverseMass + b.InverseMass;
             if (inverse == 0f)
@@ -153,14 +197,69 @@ namespace World.Core.Physics
                 var impulse = -(1f + Restitution) * closing / inverse;
                 a.Velocity -= n * impulse * a.InverseMass;
                 b.Velocity += n * impulse * b.InverseMass;
+
+                // Where on each of them the knock landed: halfway up the part of them that's side by side
+                var contact = (MathF.Max(a.Bottom, b.Bottom) + MathF.Min(a.Top, b.Top)) / 2f;
+                Knock(a, -n, impulse, contact - a.Bottom);
+                Knock(b, n, impulse, contact - b.Bottom);
             }
         }
+
+        // Knocked over by a blow of `impulse` (newton seconds) `atHeight` above its bottom, towards
+        // `toward`: if the spin it gives it carries its centre up over its far bottom edge. A blow is too
+        // sudden for friction to hold that edge still, so it spins the body about its own middle, and only
+        // a blow above the middle spins it forwards at all - hit a box squarely and it's just shoved along.
+        private void Knock(Body body, Vector3 toward, float impulse, float atHeight)
+        {
+            var height = body.Size.Y;
+            if (!body.Resting || !Moves(body) || atHeight <= height / 2f)
+                return;
+            var width = body.Extent(toward);
+            var inertia = body.Mass * (width * width + height * height) / 12f;   // a box's, about its middle
+            var spin = impulse * (atHeight - height / 2f) / inertia;
+            var lift = MathF.Sqrt(width * width + height * height) / 2f - height / 2f;   // its centre's climb to the top of the swing
+            if (0.5f * inertia * spin * spin > body.Mass * Gravity * lift)
+                TryTopple(body, Edge(body, toward), toward, spin, againstGround: true);
+        }
+
+        // Starts it toppling, if it has room to land where it's going: nothing else in the box it'll
+        // become, and (tipping over its own edge) no bank of ground rising into it.
+        private bool TryTopple(Body body, Vector3 pivot, Vector3 toward, float spin, bool againstGround)
+        {
+            var (position, size) = body.AfterTopple(pivot, toward);
+            foreach (var other in _bodies)
+            {
+                if (other == body || other.Top - position.Y <= Touching || position.Y + size.Y - other.Bottom <= Touching)
+                    continue;
+                if (MathF.Abs(other.Position.X - position.X) < (other.Size.X + size.X) / 2f - Touching &&
+                    MathF.Abs(other.Position.Z - position.Z) < (other.Size.Z + size.Z) / 2f - Touching)
+                    return false;
+            }
+            if (againstGround)
+            {
+                // Leaving out the strip along the pivot, where it meets the ground it's tipping from
+                var across = new Vector3(MathF.Abs(toward.X), 0f, MathF.Abs(toward.Z));
+                var ground = GroundUnder(position + toward * 0.1f, size - across * 0.2f);
+                if (!ground.HasValue || ground.Value > position.Y + size.Y / 2f)
+                    return false;
+            }
+            body.BeginTopple(pivot, toward, spin);
+            return true;
+        }
+
+        // The middle of its bottom edge on the `toward` side.
+        private static Vector3 Edge(Body body, Vector3 toward) => body.Position + toward * (body.Extent(toward) / 2f);
+
+        // Whichever of the four level directions is nearest to v's.
+        private static Vector3 Dominant(Vector3 v) => MathF.Abs(v.X) >= MathF.Abs(v.Z)
+            ? new Vector3(MathF.Sign(v.X) == 0 ? 1f : MathF.Sign(v.X), 0f, 0f)
+            : new Vector3(0f, 0f, MathF.Sign(v.Z));
 
         // Falling and landing, lowest body first, so each lands on ones that have already settled.
         private void Settle(float dt)
         {
             var order = new List<Body>(_bodies);
-            order.RemoveAll(b => b.IsStatic);
+            order.RemoveAll(b => !Moves(b));
             order.Sort((p, q) => p.Bottom.CompareTo(q.Bottom));
 
             foreach (var body in order)
@@ -188,6 +287,8 @@ namespace World.Core.Physics
                     body.Velocity = new Vector3(body.Velocity.X, 0f, body.Velocity.Z);
                     body.Resting = true;
                     body.Support = on;
+                    if (!OnSteepGround(body))
+                        TipIfOverhanging(body);
                 }
                 else
                 {
@@ -196,6 +297,61 @@ namespace World.Core.Physics
                     body.Support = null;
                 }
             }
+        }
+
+        // Resting on the ground where, under its middle, the ground's too steep to stand on: a cliff face.
+        private bool OnSteepGround(Body body) => body.Resting && body.Support == null && !Terrain.IsWalkable(body.Position);
+
+        // Tips it over the edge of whatever's holding it up, if its centre is out past it.
+        private void TipIfOverhanging(Body body)
+        {
+            // What holds it up: the ground under its footprint at about the height it's resting at (and not
+            // too steep to stand on), and the tops of bodies it's stood on - all taken together, as the
+            // smallest box round all of it
+            var min = new Vector2(float.MaxValue);
+            var max = new Vector2(float.MinValue);
+            var nx = Math.Max(1, (int)MathF.Ceiling(body.Size.X / SampleSpacing));
+            var nz = Math.Max(1, (int)MathF.Ceiling(body.Size.Z / SampleSpacing));
+            for (var i = 0; i <= nx; i++)
+                for (var k = 0; k <= nz; k++)
+                {
+                    var point = new Vector3(body.Position.X - body.Size.X / 2f + body.Size.X * i / nx, body.Bottom, body.Position.Z - body.Size.Z / 2f + body.Size.Z * k / nz);
+                    var ground = Terrain.GroundBelow(point, float.MaxValue);
+                    if (ground.HasValue && ground.Value >= body.Bottom - SupportDepth && Terrain.IsWalkable(point))
+                    {
+                        min = Vector2.Min(min, new Vector2(point.X, point.Z));
+                        max = Vector2.Max(max, new Vector2(point.X, point.Z));
+                    }
+                }
+            foreach (var other in _bodies)
+            {
+                if (other == body || MathF.Abs(other.Top - body.Bottom) > 0.02f || !body.FootprintOverlaps(other, Touching))
+                    continue;
+                min = Vector2.Min(min, Vector2.Max(body.Footprint - body.Half, other.Footprint - other.Half));
+                max = Vector2.Max(max, Vector2.Min(body.Footprint + body.Half, other.Footprint + other.Half));
+            }
+            if (min.X > max.X)
+                return;   // nothing under it at all: it's falling, not tipping
+
+            // Over the side it's furthest out past
+            var centre = body.Footprint;
+            var (toward, past, pivot) = (Vector3.Zero, Overhang, 0f);
+            void Consider(Vector3 direction, float beyond, float edge)
+            {
+                if (beyond > past)
+                    (toward, past, pivot) = (direction, beyond, edge);
+            }
+            Consider(Vector3.UnitX, centre.X - max.X, max.X);
+            Consider(-Vector3.UnitX, min.X - centre.X, min.X);
+            Consider(Vector3.UnitZ, centre.Y - max.Y, max.Y);
+            Consider(-Vector3.UnitZ, min.Y - centre.Y, min.Y);
+            if (toward == Vector3.Zero)
+                return;
+
+            var at = toward.X != 0f
+                ? new Vector3(pivot, body.Bottom, body.Position.Z)
+                : new Vector3(body.Position.X, body.Bottom, pivot);
+            TryTopple(body, at, toward, 0f, againstGround: false);   // it's tipping out over nothing, not into the ground
         }
 
         // The highest ground anywhere under a footprint of this size here, or null if any of it is off the world.
@@ -228,21 +384,21 @@ namespace World.Core.Physics
 
         // Keeps a walker (a circle CharacterController.Radius across, `height` tall) out of the bodies, and
         // lets it push them. Anything low enough to step onto, the walker walks on instead (see GroundBelow).
-        // Pressing into a body pushes it with the walker's strength, which is limited both in force (too
+        // Pressing on a body (walking at it, within arm's length) pushes it with the walker's strength, which is limited both in force (too
         // heavy a body won't budge at all) and in power (the faster it's already going, the less a push
         // adds) - so the heavier the body, the slower you can shove it. A body running into the walker
         // instead shares its momentum with them: a crate sliding into you slows, and, if it hits hard
         // enough, knocks you off your feet so you slide back with it (CharacterController.Stagger).
         public void PushWalker(CharacterController walker, float height)
         {
+            // Out of anything it's walked into - or that's run into it
             foreach (var body in _bodies)
             {
-                var feet = walker.Position.Y;
-                if (body.Top <= feet + CharacterController.MaxStepUp || body.Bottom >= feet + height)
-                    continue;   // one you walk on, or pass under
+                if (!BesideWalker(body, walker, height))
+                    continue;
 
                 var p = new Vector2(walker.Position.X, walker.Position.Z);
-                var pushed = PushOutOfBox(p, body.Centre, body.Half, CharacterController.Radius);
+                var pushed = PushOutOfBox(p, body.Footprint, body.Half, CharacterController.Radius);
                 if (pushed == p)
                     continue;
 
@@ -252,7 +408,7 @@ namespace World.Core.Physics
 
                 var walkerSpeed = Vector3.Dot(walker.Velocity, into);
                 var bodySpeed = Vector3.Dot(body.Velocity, into);
-                if (bodySpeed < 0f && !body.IsStatic)
+                if (bodySpeed < 0f && Moves(body))
                 {
                     // It's coming at you: both carry on together, at the speed their momentum makes
                     var together = (CharacterController.Mass * walkerSpeed + body.Mass * bodySpeed) / (CharacterController.Mass + body.Mass);
@@ -260,23 +416,57 @@ namespace World.Core.Physics
                     walker.Velocity += into * (together - walkerSpeed);
                     if (walkerSpeed - together > KnockedOver)
                         walker.Stagger(StaggerTime);
-                    continue;
                 }
-                if (walkerSpeed > bodySpeed)
-                    walker.Velocity -= into * (walkerSpeed - bodySpeed);   // you can go no faster than it gives way
-
-                var wish = walker.Wish;
-                if (wish.LengthSquared() > 1e-6f)
+                else if (walkerSpeed > bodySpeed)
                 {
-                    var pressing = Vector3.Dot(Vector3.Normalize(wish), into);
-                    if (pressing > 0f)
-                    {
-                        var force = MathF.Min(CharacterController.PushForce, CharacterController.PushPower / MathF.Max(bodySpeed, 0.05f));
-                        body.ApplyForce(into * force * pressing);
-                    }
+                    walker.Velocity -= into * (walkerSpeed - bodySpeed);   // you can go no faster than it gives way
                 }
             }
+
+            // Then what it's pressing on: whatever it's up against that it's trying to walk into
+            var wish = walker.Wish;
+            if (wish.LengthSquared() < 1e-6f)
+                return;
+            wish.Normalize();
+            var chest = walker.Position.Y + CharacterController.PushHeight;
+            var pressed = new List<(Body body, Vector3 into, float pressing)>();
+            foreach (var body in _bodies)
+            {
+                if (!BesideWalker(body, walker, height))
+                    continue;
+                var p = new Vector2(walker.Position.X, walker.Position.Z);
+                var gap = Vector2.Clamp(p, body.Footprint - body.Half, body.Footprint + body.Half) - p;
+                var distance = gap.Length();
+                if (distance < 1e-6f || distance > CharacterController.Radius + Reach)
+                    continue;
+                // Only what's in your path - ahead, and no further to one side than you are wide - not
+                // whatever you pass within arm's reach of
+                var ahead = wish.X * gap.X + wish.Z * gap.Y;
+                var aside = MathF.Abs(wish.X * gap.Y - wish.Z * gap.X);
+                if (ahead <= 0f || aside > CharacterController.Radius)
+                    continue;
+                var into = new Vector3(gap.X, 0f, gap.Y) / distance;
+                pressed.Add((body, into, Vector3.Dot(wish, into)));
+            }
+
+            // Your push lands at chest height: on whichever of them is there if one is (the middle crate of
+            // a stack), otherwise shared between them, at the top of each
+            var atChest = pressed.FindAll(t => t.body.Bottom <= chest && chest <= t.body.Top);
+            if (atChest.Count > 0)
+                pressed = atChest;
+            foreach (var (body, into, pressing) in pressed)
+            {
+                var bodySpeed = MathF.Max(Vector3.Dot(body.Velocity, into), 0.05f);
+                var force = MathF.Min(CharacterController.PushForce, CharacterController.PushPower / bodySpeed) / pressed.Count;
+                var at = MathHelper.Clamp(chest, body.Bottom, body.Top) - body.Bottom;
+                body.ApplyForce(into * force * pressing, at);
+            }
         }
+
+        // Whether a body is at the height to be walked into: not one low enough to walk up onto (see
+        // GroundBelow), nor one overhead.
+        private static bool BesideWalker(Body body, CharacterController walker, float height) =>
+            body.Top > walker.Position.Y + CharacterController.MaxStepUp && body.Bottom < walker.Position.Y + height;
 
         // A circle of `radius` at p pushed clear of a box (centre, half-extent) by the shortest route; from
         // inside the box, out through whichever side is nearest. The same rule as RoomSpec.PushOutOfBox.
