@@ -9,7 +9,8 @@ namespace World.Core.Characters
     // swings round behind when they turn. It never flies lower than MinClearance over the ground, lifting
     // over a ridge rather than going through it, and it keeps them in sight: if the ground (or a box) lies
     // between its station and their head - they've gone over a cliff's edge, say - it comes in closer,
-    // to where it can see them. It turns lazily to keep facing them.
+    // to where it can see them. Walls and ceilings (see IGround.ClearLine) bring it in the same way, so
+    // indoors it stays in the room with them. It turns lazily to keep facing them.
     public sealed class Drone
     {
         public const float FollowDistance = 3f;
@@ -19,6 +20,9 @@ namespace World.Core.Characters
         public const float TurnRate = 3f;        // radians per second
         public const float SightClearance = 0.3f; // how far above the ground its line of sight to them must stay
         private const int SightSamples = 16;
+        // How far above itself it looks for the ground under it: only a little, so that indoors the floor
+        // of the room overhead doesn't count as the ground it's flying over.
+        private const float GroundReach = SightClearance;
 
         public Vector3 Position { get; private set; }
         public Vector3 Velocity { get; private set; }
@@ -37,7 +41,7 @@ namespace World.Core.Characters
         // Jumps straight to its station, at rest: for when the owner is first placed, or teleported.
         public void Reset(Vector3 feet, float ownerYaw, IGround ground)
         {
-            Position = KeepClear(Station(feet, ownerYaw), ground);
+            Position = ground.ClearLine(feet + Vector3.Up * Player.EyeHeight, KeepClear(Station(feet, ownerYaw), ground));
             Velocity = Vector3.Zero;
             Yaw = ownerYaw;
         }
@@ -46,12 +50,12 @@ namespace World.Core.Characters
         public void Step(Vector3 feet, float ownerYaw, Vector3 lookAt, float dt, IGround ground)
         {
             // Critically damped spring, integrated semi-implicitly (velocity first), which stays stable at 60 Hz
-            var station = InSight(lookAt, Station(feet, ownerYaw), ground);
+            var station = InSight(lookAt, ground.ClearLine(lookAt, Station(feet, ownerYaw)), ground);
             var acceleration = (station - Position) * (Stiffness * Stiffness) - Velocity * (2f * Stiffness);
             Velocity += acceleration * dt;
             var position = Position + Velocity * dt;
 
-            var cleared = KeepClear(position, ground);
+            var cleared = ground.ClearLine(lookAt, KeepClear(position, ground));
             if (cleared.Y > position.Y && Velocity.Y < 0f)
                 Velocity = new Vector3(Velocity.X, 0f, Velocity.Z);   // bumped up off the ground: stop sinking into it
             Position = cleared;
@@ -72,7 +76,7 @@ namespace World.Core.Characters
             for (var k = 1; k <= SightSamples; k++)
             {
                 var point = Vector3.Lerp(head, station, k / (float)SightSamples);
-                var below = ground.GroundBelow(point, float.MaxValue);
+                var below = ground.GroundBelow(point, GroundReach);
                 if (below.HasValue && point.Y < below.Value + SightClearance)
                     return Vector3.Lerp(head, station, (k - 1) / (float)SightSamples);
             }
@@ -81,7 +85,7 @@ namespace World.Core.Characters
 
         private static Vector3 KeepClear(Vector3 position, IGround ground)
         {
-            var below = ground.GroundBelow(position, float.MaxValue);
+            var below = ground.GroundBelow(position, GroundReach);
             if (below.HasValue && position.Y < below.Value + MinClearance)
                 position.Y = below.Value + MinClearance;
             return position;

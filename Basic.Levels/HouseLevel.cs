@@ -2,7 +2,8 @@ using MeshRawData;
 using MeshRawData.Helpers;
 using Microsoft.Xna.Framework;
 using System.Collections.Generic;
-using static Basic.Levels.Walls;
+using World.Buildings;
+using static World.Buildings.Walls;
 
 namespace Basic.Levels
 {
@@ -38,6 +39,9 @@ namespace Basic.Levels
             StartPosition = startPosition;
             StartYaw = startYaw;
         }
+
+        // How deep the hangar staircase is under its treads, as far as walking into it goes (its stringers)
+        private const float StairDepth = 0.4f;
 
         public static HouseLevel Create()
         {
@@ -196,13 +200,14 @@ namespace Basic.Levels
                 // Lets a walker actually climb the balcony: the deck itself (flat), the staircase's two
                 // flights and landing (see PropSpec("balconystairs") above for how these points were
                 // worked out - foot, pre-landing, landing and top), and the ladder. Each is a bit wider
-                // than its mesh so walking it doesn't feel like balancing on a rail.
+                // than its mesh so walking it doesn't feel like balancing on a rail. The staircase is solid
+                // to StairDepth under its treads, so you can't walk through its side, only under its top.
                 Ramps = new[]
                 {
                     new RampSpec(new Vector3(-47f, 4.5f, -45f), new Vector3(-47f, 4.5f, -35f), 6f),
-                    new RampSpec(new Vector3(-39.98f, 0f, -38.83f), new Vector3(-43.10f, 2.16f, -38.83f), 0.9f),
-                    new RampSpec(new Vector3(-43.55f, 2.16f, -39.28f), new Vector3(-43.55f, 2.16f, -38.38f), 0.9f),
-                    new RampSpec(new Vector3(-43.55f, 2.16f, -38.38f), new Vector3(-43.55f, 4.5f, -35f), 0.9f),
+                    new RampSpec(new Vector3(-39.98f, 0f, -38.83f), new Vector3(-43.10f, 2.16f, -38.83f), 0.9f, Thickness: StairDepth),
+                    new RampSpec(new Vector3(-43.55f, 2.16f, -39.28f), new Vector3(-43.55f, 2.16f, -38.38f), 0.9f, Thickness: StairDepth),
+                    new RampSpec(new Vector3(-43.55f, 2.16f, -38.38f), new Vector3(-43.55f, 4.5f, -35f), 0.9f, Thickness: StairDepth),
                     // 4.5 m of rise over 1 m of horizontal run: at running speed a single frame's
                     // approach can outrun the default MaxStepUp, so this one gets its own, generous
                     // override rather than being dropped back to the floor partway up.

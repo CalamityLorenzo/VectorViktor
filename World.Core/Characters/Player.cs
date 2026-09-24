@@ -11,7 +11,7 @@ namespace World.Core.Characters
     public sealed class Player
     {
         public const float EyeHeight = 1.6f;
-        public const float Height = 1.8f;
+        public const float Height = CharacterController.Height;
 
         public CharacterController Body { get; }
         public Drone Drone { get; }

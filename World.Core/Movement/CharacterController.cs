@@ -12,8 +12,11 @@ namespace World.Core.Movement
     //    move then slides along the slope's contour instead, so you're stopped by a cliff, not stuck to it
     //  - ground dropping away by no more than SnapDown, where it's walkable, keeps you on it; any more and
     //    you're airborne, which is how you walk off a cliff's edge
-    // Airborne, gravity pulls you down until your feet reach the ground again. Stood on ground too steep
-    // to stand on (landed on a cliff face), you slide off it downhill.
+    // Airborne, gravity pulls you down until your feet reach the ground again, and a ceiling stops you
+    // going up any further. Stood on ground too steep to stand on (landed on a cliff face), you slide
+    // off it downhill. Walls (see IGround.KeepOut) push you back out after every sub-step, so you slide
+    // along one you walk into at an angle. On a ladder (see IGround.StepUpAt), each stride may rise, or
+    // drop, further than a step.
     public sealed class CharacterController
     {
         public const float WalkSpeed = 2.5f;          // metres per second
@@ -29,6 +32,7 @@ namespace World.Core.Movement
         public const float SlideAcceleration = 12f;   // down a slope too steep to stand on
         public const float Radius = 0.3f;             // how far ahead a blocking slope is felt, so the eye stays clear of it
         public const float MaxSubStep = 0.1f;         // metres
+        public const float Height = 1.8f;             // feet to the top of the head, for walls and ceilings
 
         // Against bodies (see PhysicsWorld.PushWalker): how heavy you are when one hits you, and how hard
         // and how powerfully you can push one. The force is the most you can shove with at all, so
@@ -120,10 +124,21 @@ namespace World.Core.Movement
                     break;
                 }
 
+                // Out of any wall this has taken you into, losing the part of the velocity that went into it
+                var before = position;
+                position = ground.KeepOut(position, Radius, Height);
+                var pushed = new Vector3(position.X - before.X, 0f, position.Z - before.Z);
+                if (pushed.LengthSquared() > 1e-12f)
+                {
+                    var outward = Vector3.Normalize(pushed);
+                    horizontal -= outward * MathF.Min(0f, Vector3.Dot(horizontal, outward));
+                }
+
                 if (Grounded)
                 {
-                    var below = ground.GroundBelow(position, MaxStepUp);
-                    if (below.HasValue && position.Y - below.Value <= SnapDown && ground.IsWalkable(position))
+                    var step = ground.StepUpAt(position, MaxStepUp);
+                    var below = ground.GroundBelow(position, step);
+                    if (below.HasValue && position.Y - below.Value <= MathF.Max(SnapDown, step) && ground.IsWalkable(position))
                         position.Y = below.Value;
                     else
                         Grounded = false;   // the ground's dropped away: off the edge
@@ -143,6 +158,14 @@ namespace World.Core.Movement
                     velocity.Y = 0f;
                     Grounded = true;
                 }
+
+                // Head against a ceiling: no higher
+                var ceiling = ground.CeilingAbove(position);
+                if (ceiling.HasValue && position.Y + Height > ceiling.Value)
+                {
+                    position.Y = MathF.Max(ceiling.Value - Height, below ?? float.MinValue);
+                    velocity.Y = MathF.Min(velocity.Y, 0f);
+                }
             }
 
             Position = position;
@@ -155,19 +178,20 @@ namespace World.Core.Movement
             if (travel.LengthSquared() < 1e-12f)
                 return true;
 
-            // Where the feet go: no higher than a step, and not up a slope too steep to walk
+            // Where the feet go: no higher than a step (more, up a ladder), and not up a slope too steep to walk
             var target = position + travel;
-            var below = ground.GroundBelow(target, MaxStepUp);
+            var step = ground.StepUpAt(target, MaxStepUp);
+            var below = ground.GroundBelow(target, step);
             if (!below.HasValue)
                 return false;   // the edge of the world
             var rise = below.Value - position.Y;
-            if (rise > MaxStepUp || (rise > 1e-4f && !ground.IsWalkable(target)))
+            if (rise > step || (rise > 1e-4f && !ground.IsWalkable(target)))
                 return false;
 
             // A body's width further on, only whether it's a cliff rising in front of you - so you're stopped
             // with your face short of it, not in it. (It's further away, so it's allowed to be more than a step up.)
             var probe = target + Vector3.Normalize(travel) * Radius;
-            var ahead = ground.GroundBelow(probe, MaxStepUp + Radius);
+            var ahead = ground.GroundBelow(probe, step + Radius);
             if (!ahead.HasValue || (ahead.Value - position.Y > 1e-4f && !ground.IsWalkable(probe)))
                 return false;
 

@@ -17,6 +17,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\World.Core\World.Core.csproj" />
+    <ProjectReference Include="..\World.Buildings\World.Buildings.csproj" />
     <ProjectReference Include="..\MeshLoader\MeshLoader.csproj" />
     <ProjectReference Include="..\MeshRawData\MeshRawData.csproj" />
   </ItemGroup>

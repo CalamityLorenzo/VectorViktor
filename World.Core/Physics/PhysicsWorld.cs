@@ -53,6 +53,7 @@ namespace World.Core.Physics
         private const float Reach = 0.5f;         // arm's length: a body within this of a walker's side, in their path, is one they can push
         private const float Touching = 0.01f;     // overlaps smaller than this, one on top of another, don't count
         private const float SampleSpacing = 0.5f; // how finely a body's footprint feels the ground under it
+        private const float GroundReach = 1f;     // how far above its bottom a body looks for the ground under it: indoors, not up to the floor overhead
         private const float KnockedOver = 1f;     // a walker shoved this much faster (m/s) loses their footing...
         private const float StaggerTime = 0.4f;   // ...for this long (seconds)
 
@@ -157,9 +158,10 @@ namespace World.Core.Physics
                 var ground = GroundUnder(to, body.Size);
                 var here = GroundUnder(body.Position, body.Size) ?? body.Bottom;
                 var rise = ground.HasValue ? ground.Value - here : 0f;
-                if (!ground.HasValue || ground.Value > body.Bottom + StepUp || (rise > Bump && rise > MathF.Abs(speed * dt) * MaxClimb))
+                if (!ground.HasValue || ground.Value > body.Bottom + StepUp || (rise > Bump && rise > MathF.Abs(speed * dt) * MaxClimb) ||
+                    Terrain.Obstructs(to, body.Size))
                 {
-                    v -= axis * speed;   // the ground rises too steeply (or the world ends): it stops dead
+                    v -= axis * speed;   // the ground rises too steeply, there's a wall (or the world ends): it stops dead
                     continue;
                 }
                 body.Position = to;
@@ -316,7 +318,7 @@ namespace World.Core.Physics
                 for (var k = 0; k <= nz; k++)
                 {
                     var point = new Vector3(body.Position.X - body.Size.X / 2f + body.Size.X * i / nx, body.Bottom, body.Position.Z - body.Size.Z / 2f + body.Size.Z * k / nz);
-                    var ground = Terrain.GroundBelow(point, float.MaxValue);
+                    var ground = Terrain.GroundBelow(point, GroundReach);
                     if (ground.HasValue && ground.Value >= body.Bottom - SupportDepth && Terrain.IsWalkable(point))
                     {
                         min = Vector2.Min(min, new Vector2(point.X, point.Z));
@@ -364,7 +366,7 @@ namespace World.Core.Physics
                 for (var k = 0; k <= nz; k++)
                 {
                     var point = new Vector3(position.X - size.X / 2f + size.X * i / nx, position.Y, position.Z - size.Z / 2f + size.Z * k / nz);
-                    var ground = Terrain.GroundBelow(point, float.MaxValue);
+                    var ground = Terrain.GroundBelow(point, GroundReach);
                     if (!ground.HasValue)
                         return null;
                     highest = MathF.Max(highest, ground.Value);
@@ -500,6 +502,13 @@ namespace World.Core.Physics
                     best = body.Top;
             return best;
         }
+
+        // Walls, ceilings and ladders are the ground's own business: bodies have nothing to add to them.
+        public float StepUpAt(Vector3 feet, float step) => Terrain.StepUpAt(feet, step);
+        public Vector3 KeepOut(Vector3 feet, float radius, float height) => Terrain.KeepOut(feet, radius, height);
+        public float? CeilingAbove(Vector3 feet) => Terrain.CeilingAbove(feet);
+        public bool Obstructs(Vector3 bottomCentre, Vector3 size) => Terrain.Obstructs(bottomCentre, size);
+        public Vector3 ClearLine(Vector3 from, Vector3 to) => Terrain.ClearLine(from, to);
 
         // A body's top is level, and always good to stand on.
         public Vector3 NormalAt(Vector3 feet) => TopWithinReach(feet) != null ? Vector3.Up : Terrain.NormalAt(feet);

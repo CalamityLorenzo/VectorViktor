@@ -4,6 +4,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
 using System.Collections.Generic;
+using World.Buildings;
 
 namespace Basic.Levels
 {
@@ -21,6 +22,7 @@ namespace Basic.Levels
 
         private const float EyeHeight = 1.6f;
         private const float PlayerRadius = 0.3f;
+        private const float PlayerHeight = 1.8f;
         private const float WalkSpeed = 2.5f;     // metres per second
         private const float RunMultiplier = 2.5f;
         private const float TurnSpeed = 2.0f;     // radians per second
@@ -221,6 +223,7 @@ namespace Basic.Levels
             var p = _position - spec.WorldOffset + step * speed * dt;
             p = spec.KeepInside(p, PlayerRadius);
             p = _room.PushOutOfProps(p, PlayerRadius);
+            p = spec.KeepOutOfRamps(p, PlayerRadius, PlayerHeight);   // a staircase's side
 
             // Pressed against a wall within a door's width: go through
             foreach (var door in spec.Doors)

@@ -4,7 +4,7 @@ using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 
-namespace Basic.Levels
+namespace World.Buildings
 {
     // Names for the edges of a room built by RoomSpec.Rectangle: 0 = North, 1 = East, 2 = South, 3 = West.
     // A room with its own arbitrary Outline has no fixed wall count, so its doors and openings just use
@@ -22,8 +22,12 @@ namespace Basic.Levels
 
     // A gap in a wall, from the floor up, that leads straight on into the neighbouring room TargetRoom.
     // The two rooms must sit edge to edge in the world (see RoomSpec.WorldOffset), and the neighbour has
-    // an opening of its own in the matching wall. At most one per edge.
-    public record OpeningSpec(int WallIndex, float Offset, float Width, float Height, string TargetRoom);
+    // an opening of its own in the matching wall. At most one per edge. A null TargetRoom leads outside:
+    // a building's doorway (see Building), cut through its outer wall as well.
+    public record OpeningSpec(int WallIndex, float Offset, float Width, float Height, string TargetRoom)
+    {
+        public bool LeadsOutside => TargetRoom == null;
+    }
 
     // A hole in a room's ceiling or floor, leading into TargetRoom directly above or below it. Outline is a
     // convex polygon in the room's own (X, Z). The room below lists it in its CeilingHatches, the room above
@@ -57,8 +61,61 @@ namespace Basic.Levels
     // several metres over a run of one) needs a much larger value than a shallow staircase does:
     // at running speed, a couple of frames' horizontal movement up a slope that steep already outruns
     // the default, and the walker would be dropped back to the floor instead of climbing.
-    public readonly record struct RampSpec(Vector3 Start, Vector3 End, float Width, float MaxStepUp = RoomSpec.DefaultMaxStepUp, int Steps = 0)
+    //
+    // Thickness makes it solid: a walker beside it can't walk into it where it's more than a step above
+    // their feet, from the side or head first - but can walk underneath it where its underside, Thickness
+    // below its surface, clears their head (see RoomSpec.KeepOutOfRamps). A stepped ramp is solid right
+    // down to the floor, whatever its Thickness. Zero (the default) is something you can walk straight
+    // through at floor level: a ladder, or a ramp whose own mesh leaves room under it.
+    public readonly record struct RampSpec(Vector3 Start, Vector3 End, float Width, float MaxStepUp = RoomSpec.DefaultMaxStepUp, int Steps = 0,
+                                           float Thickness = 0f)
     {
+        public bool IsSolid => Steps > 0 || Thickness > 0f;
+
+        // How far down from its surface it's solid, at a point on it: to the floor, if it's stepped.
+        public float Underside(float surface) => Steps > 0 ? 0f : MathF.Max(0f, surface - Thickness);
+
+        // The ramp's own frame: along its run from Start (u) and across it (v), and how long the run is.
+        private (Vector2 u, Vector2 v, float length, float a, float b) Frame(Vector3 local)
+        {
+            var along = new Vector2(End.X - Start.X, End.Z - Start.Z);
+            var length = along.Length();
+            var u = length < 1e-6f ? Vector2.UnitX : along / length;
+            var v = new Vector2(-u.Y, u.X);
+            var offset = new Vector2(local.X - Start.X, local.Z - Start.Z);
+            return (u, v, length, Vector2.Dot(offset, u), Vector2.Dot(offset, v));
+        }
+
+        // The point of its footprint nearest to local (in X and Z; its Y is the ramp's height there), and
+        // whether local is inside the footprint already.
+        public (Vector3 nearest, bool inside) NearestInFootprint(Vector3 local)
+        {
+            var (u, v, length, a, b) = Frame(local);
+            var inside = a >= 0f && a <= length && MathF.Abs(b) <= Width / 2f;
+            var clamped = new Vector2(Start.X, Start.Z) + u * MathHelper.Clamp(a, 0f, length) + v * MathHelper.Clamp(b, -Width / 2f, Width / 2f);
+            var point = new Vector3(clamped.X, 0f, clamped.Y);
+            return (new Vector3(point.X, HeightAt(point), point.Z), inside);
+        }
+
+        // From inside the footprint, out of it the shortest way (through whichever of its four sides is
+        // nearest) and `radius` further.
+        public Vector3 NearestExit(Vector3 local, float radius)
+        {
+            var (u, v, length, a, b) = Frame(local);
+            var exits = new[]
+            {
+                (distance: a, move: -u * (a + radius)),
+                (distance: length - a, move: u * (length - a + radius)),
+                (distance: Width / 2f + b, move: -v * (Width / 2f + b + radius)),
+                (distance: Width / 2f - b, move: v * (Width / 2f - b + radius)),
+            };
+            var best = exits[0];
+            foreach (var exit in exits)
+                if (exit.distance < best.distance)
+                    best = exit;
+            return local + new Vector3(best.move.X, 0f, best.move.Y);
+        }
+
         public bool Contains(Vector3 local)
         {
             var along = new Vector3(End.X - Start.X, 0f, End.Z - Start.Z);
@@ -157,7 +214,8 @@ namespace Basic.Levels
         public IEnumerable<string> Neighbours()
         {
             foreach (var opening in Openings)
-                yield return opening.TargetRoom;
+                if (!opening.LeadsOutside)
+                    yield return opening.TargetRoom;
             foreach (var hatch in CeilingHatches)
                 yield return hatch.TargetRoom;
             foreach (var hatch in FloorHatches)
@@ -217,6 +275,58 @@ namespace Basic.Levels
                     height = rampHeight;
             }
             return height;
+        }
+
+        // The highest thing to stand on at local (x, z) no more than `reach` above local.Y: the floor (unless
+        // there's a hatch in it there) or a ramp - one with a MaxStepUp of its own may be further above, the
+        // way WalkHeightAt allows. Null outside the room, or where there's nothing within reach: a walker
+        // over a floor hatch drops through to the room below.
+        public float? SurfaceAt(Vector3 local, float reach)
+        {
+            if (!Contains(local))
+                return null;
+            float? best = null;
+            if (local.Y + reach >= 0f && !Array.Exists(FloorHatches, h => h.Contains(local)))
+                best = 0f;
+            foreach (var ramp in Ramps)
+            {
+                if (!ramp.Contains(local))
+                    continue;
+                var height = ramp.HeightAt(local);
+                if (height <= local.Y + MathF.Max(reach, ramp.MaxStepUp) && (best == null || height > best.Value))
+                    best = height;
+            }
+            return best;
+        }
+
+        // A walker (a circle of `radius` on the floor, `height` tall, its feet at local.Y) pushed out of
+        // any solid ramp (see RampSpec.Thickness) it's walked into: one that's more than a step above its
+        // feet where it touches it, and whose underside is below its head. So it's stopped by a staircase's
+        // side, and by the underside of the stair coming down to meet it, but not at the foot of a flight,
+        // which is where it steps up onto it.
+        public Vector3 KeepOutOfRamps(Vector3 local, float radius, float height)
+        {
+            foreach (var ramp in Ramps)
+            {
+                if (!ramp.IsSolid)
+                    continue;
+                var (nearest, inside) = ramp.NearestInFootprint(local);
+                var top = nearest.Y;
+                if (top <= local.Y + DefaultMaxStepUp || ramp.Underside(top) >= local.Y + height)
+                    continue;
+                if (inside)
+                {
+                    local = ramp.NearestExit(local, radius);
+                    continue;
+                }
+                var gap = new Vector2(local.X - nearest.X, local.Z - nearest.Z);
+                var distance = gap.Length();
+                if (distance >= radius)
+                    continue;
+                var pushed = new Vector2(nearest.X, nearest.Z) + gap / distance * radius;
+                local = new Vector3(pushed.X, local.Y, pushed.Y);
+            }
+            return local;
         }
 
         // Whether a point (in the room's own coordinates) is over the room's floor. Only (X, Z) counts,

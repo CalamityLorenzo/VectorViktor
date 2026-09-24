@@ -1,14 +1,20 @@
 using Microsoft.Xna.Framework;
 using System;
+using System.Collections.Generic;
 
 namespace World.Core
 {
     // The first world: rolling hills (a few long, low waves and some smaller, seeded bumps on top), a
     // flat-topped plateau to the north-east with sheer cliffs all round - bar one causeway ramp climbing
     // its west side - and a round basin to the south-west, dipping below WaterLevel for a lake later on.
-    // Same seed, same world.
+    // Pads (see Pad) are levelled for buildings to stand on. Same seed and pads, same world.
     public static class TerrainGenerator
     {
+        // Somewhere to build: the rectangle `Half` either side of `Centre` (world X, Z), levelled at the
+        // hills' height at its middle, with a level apron `Apron` wide all round it to walk on, blending
+        // back into the hills over `Blend` beyond that. Keep pads clear of the plateau and the basin.
+        public readonly record struct Pad(Vector2 Centre, Vector2 Half, float Apron = 2f, float Blend = 6f);
+
         public const int Size = 128;          // cells each way
         public const float CellSize = 1f;
 
@@ -23,7 +29,7 @@ namespace World.Core
         public const float BasinDepth = 5f;
         public const float WaterLevel = -2f;
 
-        public static Terrain Create(int seed = 1)
+        public static Terrain Create(int seed = 1, IReadOnlyList<Pad> pads = null)
         {
             var random = new Random(seed);
 
@@ -46,9 +52,22 @@ namespace World.Core
                 return h;
             }
 
+            var levels = new List<(Pad pad, float height)>();
+            foreach (var pad in pads ?? Array.Empty<Pad>())
+                levels.Add((pad, Hills(pad.Centre.X, pad.Centre.Y)));
+
             return Terrain.FromFunction(Size, Size, CellSize, (x, z) =>
             {
                 var h = Hills(x, z);
+
+                // Levelled for building on: flat over the pad and its apron, easing back into the hills beyond
+                foreach (var (pad, height) in levels)
+                {
+                    var outside = new Vector2(MathF.Max(0f, MathF.Abs(x - pad.Centre.X) - pad.Half.X - pad.Apron),
+                                              MathF.Max(0f, MathF.Abs(z - pad.Centre.Y) - pad.Half.Y - pad.Apron)).Length();
+                    if (outside < pad.Blend)
+                        h = MathHelper.Lerp(height, h, SmoothStep(outside / pad.Blend));
+                }
 
                 // The basin: a smooth bowl pressed into the hills
                 var basin = Vector2.Distance(new Vector2(x, z), BasinCentre) / BasinRadius;

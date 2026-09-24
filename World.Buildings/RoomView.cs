@@ -3,7 +3,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System.Collections.Generic;
 
-namespace Basic.Levels
+namespace World.Buildings
 {
     // A room ready to draw: its shell and furniture as instances borrowing meshes from the cache
     // (so a RoomView must not outlive it).

@@ -4,7 +4,7 @@ using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 
-namespace Basic.Levels
+namespace World.Buildings
 {
     // A staircase built against a room's walls, climbing round the room rather than across its floor: one
     // flight along each of a run of consecutive edges of the room's Outline (in its winding order), turning
@@ -103,7 +103,8 @@ namespace Basic.Levels
         }
 
         // What a walker climbs: each flight as a straight slope along its middle, and each landing as two
-        // flat strips, one carrying on from each flight into the corner, which between them cover it.
+        // flat strips, one carrying on from each flight into the corner, which between them cover it. All
+        // solid down to the stair's underside (see RampSpec.Thickness), so you can't walk into its side.
         public RampSpec[] Ramps()
         {
             var ramps = new List<RampSpec>();
@@ -111,13 +112,15 @@ namespace Basic.Levels
             {
                 var (along, length, first) = Run(flight);
                 var middle = flight.Start + flight.Inward * (Width / 2f);
-                ramps.Add(new RampSpec(At(middle + along * first, flight.Base), At(middle + along * length, flight.Base + flight.Steps * Rise), Width));
+                ramps.Add(new RampSpec(At(middle + along * first, flight.Base), At(middle + along * length, flight.Base + flight.Steps * Rise), Width,
+                                       Thickness: Waist));
             }
             foreach (var landing in _landings)
                 foreach (var foot in new[] { landing.FootBefore, landing.FootAfter })
                 {
                     var middle = foot + (landing.Inner - foot) / 2f;
-                    ramps.Add(new RampSpec(At(middle, landing.Height), At(middle + (landing.Corner - foot), landing.Height), Width));
+                    ramps.Add(new RampSpec(At(middle, landing.Height), At(middle + (landing.Corner - foot), landing.Height), Width,
+                                           Thickness: Waist - Rise));
                 }
             return ramps.ToArray();
         }

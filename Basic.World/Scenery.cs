@@ -74,6 +74,10 @@ namespace Basic.World
             Place("edge crate 1", CrateKind.Wood, crate, 25f, plateau.X, south - 2.5f);
             Place("edge crate 2", CrateKind.Cardboard, cardboard, 4f, plateau.X + 1.5f, south - 3f);
 
+            // In the barn, two bales of straw (as wooden crates) inside the doorway, to shove about indoors
+            Place("barn crate 1", CrateKind.Wood, crate, 25f, Town.BarnCentre.X - 3f, Town.BarnCentre.Y - 1.5f);
+            Place("barn crate 2", CrateKind.Wood, crate, 25f, Town.BarnCentre.X - 3f, Town.BarnCentre.Y - 1.5f, above: 1f);
+
             // Also on the plateau, a few metres south of its middle, turned to face you as you come up
             // onto it or stand in the middle: the COLA crate (3.6 wide, 2.0 deep, 2.4 tall - far too heavy
             // to shift) and, beside it, an armchair light enough to push about and climb onto.

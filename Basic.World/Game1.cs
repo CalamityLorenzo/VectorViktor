@@ -4,6 +4,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
 using System.Collections.Generic;
+using World.Buildings;
 using World.Core;
 using World.Core.Characters;
 using World.Core.Movement;
@@ -14,7 +15,9 @@ namespace Basic.World
     // Out of doors: walk over rolling hills, climb the causeway onto the plateau, jump off its cliffs, or
     // go down into the basin. Boxes and crates lie about: push them (the heavier, the slower - some won't
     // budge), knock them into each other, step or jump up onto them, shove them off the plateau. Tall
-    // ones topple when you push them; push into a stack and it comes down. See the
+    // ones topple when you push them; push into a stack and it comes down. South-east, a cottage, a
+    // two-storey house and a barn (see Town) stand on levelled ground: walk in through their doorways,
+    // up the house's stair to the bedroom, up the barn's ladder to its loft. See the
     // world through your own eyes, or from your camera drone as it flies after you. Drawn to a small render target and scaled up with hard pixels, like Basic.Levels.
     // Up / W and Down / S walk (hold Shift to run), Left / Right turn, A / D sidestep, Space jumps.
     // V switches between your own view and the drone's. C toggles colours / wireframe (not Tab, which
@@ -45,6 +48,9 @@ namespace Basic.World
                                         TerrainGenerator.PlateauCentre.Y), MathHelper.PiOver2),   // at its foot, facing up it
             ["basin"] = (TerrainGenerator.BasinCentre, MathHelper.PiOver4),
             ["lockers"] = (new Vector2(-3f, -3f), MathHelper.PiOver2),                   // facing the first locker, to push it over
+            ["town"] = (new Vector2(22f, 6f), MathHelper.Pi),                            // north of the buildings, facing them
+            ["house"] = (Town.HouseCentre + new Vector2(-1.5f, -7f), MathHelper.Pi),     // outside the house's doorway
+            ["barn"] = (Town.BarnCentre + new Vector2(0f, -8f), MathHelper.Pi),          // outside the barn's
         };
 
         private readonly GraphicsDeviceManager _graphics;
@@ -63,6 +69,8 @@ namespace Basic.World
         private Player _player;
         private MeshInstance _terrainView, _playerView, _droneView;
         private readonly List<(Body body, MeshInstance view, float turn)> _things = new List<(Body, MeshInstance, float)>();
+        private readonly List<MeshInstance> _buildingShells = new List<MeshInstance>();
+        private readonly List<RoomView> _rooms = new List<RoomView>();
         private float _pending;          // time not yet stepped through
         private bool _jumpPressed;       // since the last tick
 
@@ -106,8 +114,16 @@ namespace Basic.World
             _lowRes = new RenderTarget2D(GraphicsDevice, LowResWidth, LowResHeight, false, SurfaceFormat.Color, DepthFormat.Depth24);
             _spriteBatch = new SpriteBatch(GraphicsDevice);
 
-            _terrain = TerrainGenerator.Create();
-            _world = new PhysicsWorld(_terrain);
+            _terrain = TerrainGenerator.Create(pads: Town.Pads);
+            var buildings = Town.Build(_terrain);
+            _world = new PhysicsWorld(new BuildingGround(_terrain, buildings));
+            foreach (var building in buildings)
+            {
+                var shell = _meshCache.GetOrAdd(GraphicsDevice, "building:" + building.Name, d => BuildingMesh.Build(d, building));
+                _buildingShells.Add(Placed(new MeshInstance(shell, BuildingMesh.Palette(building))));
+                foreach (var room in building.Rooms)
+                    _rooms.Add(new RoomView(room, GraphicsDevice, _meshCache));
+            }
             foreach (var thing in Scenery.Populate(_world, _terrain))
             {
                 var mesh = _meshCache.GetOrAdd(GraphicsDevice, thing.Key, thing.Build);
@@ -228,6 +244,10 @@ namespace Basic.World
             // Neither camera sees the thing it's in: from inside your own head (or the drone), you'd only
             // see the inside of it. Turn round in your own view, though, and the drone's there, following.
             Draw(_terrainView, gameTime);
+            foreach (var shell in _buildingShells)
+                Draw(shell, gameTime);
+            foreach (var room in _rooms)
+                room.Draw(gameTime, GraphicsDevice, _basicEffect, BackgroundColor, _colorsOn);
             foreach (var (thing, view, turn) in _things)
             {
                 view.Transform = Matrix.CreateRotationY(turn) * thing.Pose;   // upright, on its side, or part way over

@@ -4,7 +4,7 @@ using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 
-namespace Basic.Levels
+namespace World.Buildings
 {
     // The inside of a room as one mesh: floor (or steps), ceiling, one wall per edge of its Outline (with
     // any openings cut in them), the doors painted on the walls, and a grid on the floor so there is
@@ -250,7 +250,7 @@ namespace Basic.Levels
         // Splits a simple polygon (convex or concave, wound either way) into triangles by ear clipping:
         // repeatedly cut off a "convex and empty" corner until three vertices are left. O(n^2) worst case,
         // which is fine for room footprints (a handful of vertices, built once and cached by MeshCache).
-        private static List<(int a, int b, int c)> Triangulate(Vector2[] polygon)
+        internal static List<(int a, int b, int c)> Triangulate(Vector2[] polygon)
         {
             var n = polygon.Length;
             var indices = new List<int>(n);

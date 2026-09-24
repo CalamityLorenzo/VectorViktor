@@ -10,5 +10,6 @@
   <Project Path="LoadingModelMeshes/LoadingModelMeshes.csproj" Id="9768a101-db23-4524-92f4-6914108d7008" />
   <Project Path="VectorViktor/VectorViktor.csproj" />
   <Project Path="World.Core.Tests/World.Core.Tests.csproj" />
+  <Project Path="World.Buildings/World.Buildings.csproj" />
   <Project Path="World.Core/World.Core.csproj" />
 </Solution>
