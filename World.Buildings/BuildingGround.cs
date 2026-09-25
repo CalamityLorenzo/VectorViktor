@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using World.Core;
 using World.Core.Movement;
+using World.Core.Physics;
 
 namespace World.Buildings
 {
@@ -16,14 +17,21 @@ namespace World.Buildings
     // it from above drops you through, to the stair or floor below.
     //
     // The furniture in a room (a PropSpec with a Half) blocks you up to PropHeight above its floor.
+    //
+    // Its doors (see Door) are walls too, wherever they've swung to. They swing on in StepDoors, stopping
+    // against anything in their way, and Interact opens or shuts the one a walker is facing.
     public sealed class BuildingGround : IGround
     {
         public const float PropHeight = 1f;
+        public const float DoorReach = 1.2f;       // how near a door's leaf you must be to open or shut it
         private const float SightMargin = 0.3f;   // how far short of a wall or ceiling a clear line stops
 
         private readonly IGround _terrain;
         private readonly List<Placed> _rooms = new List<Placed>();
         private readonly List<WallSegment> _walls = new List<WallSegment>();
+        private readonly List<Door> _doors = new List<Door>();
+
+        public IReadOnlyList<Door> Doors => _doors;
 
         // A room, and the box round its floor plan in the world, to rule most rooms out quickly.
         private sealed record Placed(RoomSpec Spec, Vector2 Min, Vector2 Max)
@@ -54,7 +62,62 @@ namespace World.Buildings
                     _rooms.Add(new Placed(room, min + offset, max + offset));
                 }
                 _walls.AddRange(building.Walls());
+                _doors.AddRange(building.HangDoors());
             }
+        }
+
+        // The walls, and every door's leaf where it is now.
+        private IEnumerable<WallSegment> AllWalls()
+        {
+            foreach (var wall in _walls)
+                yield return wall;
+            foreach (var door in _doors)
+                yield return door.Panel;
+        }
+
+        // Swings the doors on, each stopping short of any body in its way, or any walker (feet, radius, height).
+        public void StepDoors(float dt, IEnumerable<Body> bodies, IEnumerable<(Vector3 feet, float radius, float height)> walkers)
+        {
+            foreach (var door in _doors)
+            {
+                var bottom = door.Bottom;
+                var top = door.Bottom + door.Height;
+                door.Step(dt, (hinge, tip) =>
+                {
+                    foreach (var body in bodies)
+                        if (body.Bottom < top && body.Top > bottom + 0.01f &&
+                            SegmentHitsBox(hinge, tip, body.Footprint - body.Half, body.Footprint + body.Half))
+                            return true;
+                    foreach (var (feet, radius, height) in walkers)
+                        if (feet.Y < top && feet.Y + height > bottom &&
+                            Vector2.Distance(new Vector2(feet.X, feet.Z), Nearest(new Vector2(feet.X, feet.Z), hinge, tip)) < radius)
+                            return true;
+                    return false;
+                });
+            }
+        }
+
+        // Opens or shuts the nearest door whose leaf is within DoorReach of a walker at `feet`, in front of
+        // them as they face along `heading`, and at the height of their floor. Returns it, or null if none is.
+        public Door Interact(Vector3 feet, Vector3 heading)
+        {
+            var p = new Vector2(feet.X, feet.Z);
+            var ahead = new Vector2(heading.X, heading.Z);
+            Door best = null;
+            var bestDistance = DoorReach;
+            foreach (var door in _doors)
+            {
+                if (MathF.Abs(feet.Y - door.Bottom) > 0.5f)
+                    continue;
+                var nearest = Nearest(p, door.Hinge, door.Tip);
+                var distance = Vector2.Distance(p, nearest);
+                if (distance > bestDistance || (distance > CharacterController.Radius + 0.05f && Vector2.Dot(nearest - p, ahead) <= 0f))
+                    continue;
+                best = door;
+                bestDistance = distance;
+            }
+            best?.Toggle();
+            return best;
         }
 
         public float? GroundBelow(Vector3 feet, float reach) => Surface(feet, reach).height;
@@ -111,7 +174,7 @@ namespace World.Buildings
             // Twice round, so being pushed out of one wall into another (in a corner) settles
             for (var pass = 0; pass < 2; pass++)
             {
-                foreach (var wall in _walls)
+                foreach (var wall in AllWalls())
                 {
                     if (wall.Bottom >= p.Y + height || wall.Top <= p.Y + 0.01f)
                         continue;
@@ -170,7 +233,7 @@ namespace World.Buildings
             const float shrink = 0.01f;   // touching a wall isn't being in it
             var min = new Vector2(bottomCentre.X - size.X / 2f + shrink, bottomCentre.Z - size.Z / 2f + shrink);
             var max = new Vector2(bottomCentre.X + size.X / 2f - shrink, bottomCentre.Z + size.Z / 2f - shrink);
-            foreach (var wall in _walls)
+            foreach (var wall in AllWalls())
                 if (wall.Bottom < bottomCentre.Y + size.Y && wall.Top > bottomCentre.Y + shrink && SegmentHitsBox(wall.A, wall.B, min, max))
                     return true;
             return _terrain.Obstructs(bottomCentre, size);
@@ -185,7 +248,7 @@ namespace World.Buildings
             // Walls it passes through, at a height where there's wall
             var p = new Vector2(from.X, from.Z);
             var r = new Vector2(d.X, d.Z);
-            foreach (var wall in _walls)
+            foreach (var wall in AllWalls())
             {
                 var s = wall.B - wall.A;
                 var denominator = Cross(r, s);

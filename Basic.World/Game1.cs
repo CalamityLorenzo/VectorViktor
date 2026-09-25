@@ -17,15 +17,16 @@ namespace Basic.World
     // budge), knock them into each other, step or jump up onto them, shove them off the plateau. Tall
     // ones topple when you push them; push into a stack and it comes down. South-east, a cottage, a
     // two-storey house and a barn (see Town) stand on levelled ground: walk in through their doorways,
-    // up the house's stair to the bedroom, up the barn's ladder to its loft. See the
+    // up the house's stair to the bedroom, up the barn's ladder to its loft. Their doors are shut: E opens
+    // or shuts the one in front of you (see BuildingGround.Interact). See the
     // world through your own eyes, or from your camera drone as it flies after you. Drawn to a small render target and scaled up with hard pixels, like Basic.Levels.
-    // Up / W and Down / S walk (hold Shift to run), Left / Right turn, A / D sidestep, Space jumps.
+    // Up / W and Down / S walk (hold Shift to run), Left / Right turn, A / D sidestep, Space jumps, E opens or shuts a door.
     // V switches between your own view and the drone's. C toggles colours / wireframe (not Tab, which
     // Alt+Tab would press on the way out), L the low-resolution look, F11 full screen, Escape exits.
     //
     // For development, BASIC_WORLD_SHOT="file.png;seconds;keys" saves one low-resolution frame to the
     // file after that many seconds (default 3), and where every body is to file.txt, then exits, with no need of the screen. keys, all optional:
-    // v starts in the drone view, w holds walk forward, r runs.
+    // v starts in the drone view, w holds walk forward, r runs, e presses E once, halfway to the shot.
     public class Game1 : Game
     {
         private const int WindowWidth = 1440;
@@ -71,11 +72,14 @@ namespace Basic.World
         private readonly List<(Body body, MeshInstance view, float turn)> _things = new List<(Body, MeshInstance, float)>();
         private readonly List<MeshInstance> _buildingShells = new List<MeshInstance>();
         private readonly List<RoomView> _rooms = new List<RoomView>();
+        private readonly List<(Door door, MeshInstance view)> _doors = new List<(Door, MeshInstance)>();
+        private BuildingGround _ground;
         private float _pending;          // time not yet stepped through
         private bool _jumpPressed;       // since the last tick
 
         private readonly (string file, float after, string keys)? _shot = ReadShot();
         private float _clock;
+        private bool _shotPressedE;
 
         private static (string, float, string)? ReadShot()
         {
@@ -116,7 +120,13 @@ namespace Basic.World
 
             _terrain = TerrainGenerator.Create(pads: Town.Pads);
             var buildings = Town.Build(_terrain);
-            _world = new PhysicsWorld(new BuildingGround(_terrain, buildings));
+            _ground = new BuildingGround(_terrain, buildings);
+            _world = new PhysicsWorld(_ground);
+            foreach (var door in _ground.Doors)
+            {
+                var leaf = _meshCache.GetOrAdd(GraphicsDevice, DoorMesh.Key(door), d => DoorMesh.Build(d, door.Width, door.Height));
+                _doors.Add((door, Placed(new MeshInstance(leaf, DoorMesh.Palette(door.Color)))));
+            }
             foreach (var building in buildings)
             {
                 var shell = _meshCache.GetOrAdd(GraphicsDevice, "building:" + building.Name, d => BuildingMesh.Build(d, building));
@@ -177,6 +187,11 @@ namespace Basic.World
                 UpdateTitle();
             }
             _jumpPressed |= Pressed(keyboard, Keys.Space);
+            if (Pressed(keyboard, Keys.E) || (_shot is { } pressing && pressing.keys.Contains('e') && !_shotPressedE && _clock >= pressing.after / 2f))
+            {
+                _shotPressedE = _shot != null;
+                _ground.Interact(_player.Body.Position, _player.Body.Heading);
+            }
 
             var input = IsActive ? ReadInput(keyboard) : MoveInput.None;
             if (_shot is { } shot && shot.keys.Contains('w'))
@@ -184,6 +199,7 @@ namespace Basic.World
             _pending += MathF.Min((float)gameTime.ElapsedGameTime.TotalSeconds, MaxFrame);
             while (_pending >= StepTime)
             {
+                _ground.StepDoors(StepTime, _world.Bodies, new[] { (_player.Body.Position, CharacterController.Radius, Player.Height) });
                 _player.Step(input with { Jump = _jumpPressed }, StepTime, _world);
                 _world.Step(StepTime);
                 _jumpPressed = false;   // a jump happens on one tick, not every tick this frame
@@ -248,6 +264,11 @@ namespace Basic.World
                 Draw(shell, gameTime);
             foreach (var room in _rooms)
                 room.Draw(gameTime, GraphicsDevice, _basicEffect, BackgroundColor, _colorsOn);
+            foreach (var (door, view) in _doors)
+            {
+                view.Transform = DoorMesh.Transform(door);
+                Draw(view, gameTime);
+            }
             foreach (var (thing, view, turn) in _things)
             {
                 view.Transform = Matrix.CreateRotationY(turn) * thing.Pose;   // upright, on its side, or part way over

@@ -28,6 +28,7 @@ namespace World.Buildings
         public Color WallColor { get; init; } = new Color(205, 195, 170);
         public Color RoofColor { get; init; } = new Color(130, 65, 50);
         public Color PlinthColor { get; init; } = new Color(115, 110, 105);   // and the bands between storeys
+        public Color DoorColor { get; init; } = new Color(120, 75, 40);
 
         public Building(string name, params RoomSpec[] rooms)
         {
@@ -168,6 +169,46 @@ namespace World.Buildings
                         yield return new WallSegment(gapLeft, gapRight, floor + opening.Height, shellTop);
                 }
             }
+        }
+
+        // A new door (see Door) for every leaf hung in the building's doorways (see OpeningSpec.Door), shut.
+        // A doorway between two rooms gets its door once, from whichever room's opening asks for it (the
+        // one whose Id sorts first, if both do).
+        public List<Door> HangDoors()
+        {
+            var doors = new List<Door>();
+            foreach (var room in Rooms)
+                foreach (var opening in room.Openings)
+                {
+                    if (!opening.Door || !HangsHere(room, opening))
+                        continue;
+                    var (left, right) = Gap(room, opening);
+                    var l = WallPoint(room, opening.WallIndex, left);
+                    var r = WallPoint(room, opening.WallIndex, right);
+                    var inward = room.Inward(opening.WallIndex);
+                    var into = new Vector2(inward.X, inward.Z);
+                    var width = right - left;
+                    var height = opening.Height - 0.02f;
+                    const float clearance = 0.01f;   // so a shut leaf doesn't touch the jamb
+                    if (width <= Door.MaxLeafWidth)
+                        doors.Add(new Door(l, r - l, into, width - clearance, room.WorldOffset.Y, height, DoorColor));
+                    else
+                    {
+                        doors.Add(new Door(l, r - l, into, width / 2f - clearance, room.WorldOffset.Y, height, DoorColor));
+                        doors.Add(new Door(r, l - r, into, width / 2f - clearance, room.WorldOffset.Y, height, DoorColor));
+                    }
+                }
+            return doors;
+        }
+
+        private bool HangsHere(RoomSpec room, OpeningSpec opening)
+        {
+            if (opening.LeadsOutside)
+                return true;
+            foreach (var other in Rooms)
+                if (other.Id == opening.TargetRoom && Array.Exists(other.Openings, o => o.Door && o.TargetRoom == room.Id))
+                    return string.CompareOrdinal(room.Id, other.Id) < 0;
+            return true;
         }
 
         // A wall from a to b, from `bottom` to `top`, less an opening's gap, if it has one: the wall either

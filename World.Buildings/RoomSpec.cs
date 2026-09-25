@@ -24,7 +24,11 @@ namespace World.Buildings
     // The two rooms must sit edge to edge in the world (see RoomSpec.WorldOffset), and the neighbour has
     // an opening of its own in the matching wall. At most one per edge. A null TargetRoom leads outside:
     // a building's doorway (see Building), cut through its outer wall as well.
-    public record OpeningSpec(int WallIndex, float Offset, float Width, float Height, string TargetRoom)
+    //
+    // Door hangs a door in it, in a building (see Door): one leaf, or two meeting in the middle if it's
+    // wider than Door.MaxLeafWidth, hinged at the room's side of the wall and swinging into the room.
+    // Between two rooms, set it on the opening in either one of them; it's hung only once.
+    public record OpeningSpec(int WallIndex, float Offset, float Width, float Height, string TargetRoom, bool Door = false)
     {
         public bool LeadsOutside => TargetRoom == null;
     }

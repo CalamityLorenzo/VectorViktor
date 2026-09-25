@@ -12,7 +12,7 @@ namespace Basic.World
     //  - a cottage: one room, a sofa facing a television on a sideboard
     //  - a two-storey house: a stair climbs the east and south walls of the room downstairs, up through a
     //    hatch into the bedroom above
-    //  - a barn: tall and bare, with a wide doorway, and a ladder up onto a loft across its south end
+    //  - a barn: tall and bare, with a pair of wide doors, and a ladder up onto a loft across its south end
     public static class Town
     {
         private const float FloorLift = 0.15f;   // a floor stands a step up from the ground round it
@@ -42,7 +42,8 @@ namespace Basic.World
             return new List<Building> { Cottage(On(CottageCentre)), House(On(HouseCentre)), Barn(On(BarnCentre)) };
         }
 
-        private static OpeningSpec Doorway(float offset, float width = 1f, float height = 2.1f) => new OpeningSpec(North, offset, width, height, null);
+        // Every doorway has a door, shut to begin with (see Door): E opens it
+        private static OpeningSpec Doorway(float offset, float width = 1f, float height = 2.1f) => new OpeningSpec(North, offset, width, height, null, Door: true);
 
         private static Building Cottage(Vector3 at)
         {
