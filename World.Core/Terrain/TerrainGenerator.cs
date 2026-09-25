@@ -8,7 +8,9 @@ namespace World.Core
     // flat-topped plateau to the north-east with sheer cliffs all round - bar one causeway ramp climbing
     // its west side - a round basin to the south-west with a lake in it, below WaterLevel, and a small
     // pond, shallow enough round its edge to wade in and deep enough in the middle to swim. Pads (see Pad)
-    // are levelled for buildings to stand on. Same seed and pads, same world.
+    // are levelled for buildings to stand on. All that is within HomeRadius of the middle; beyond it the
+    // country grows, a few very long, tall waves rising out of the hills over HomeFade, out to the edge of
+    // a world a kilometre across. Same seed and pads, same world.
     public static class TerrainGenerator
     {
         // Somewhere to build: the rectangle `Half` either side of `Centre` (world X, Z), levelled at the
@@ -16,8 +18,11 @@ namespace World.Core
         // back into the hills over `Blend` beyond that. Keep pads clear of the plateau and the basin.
         public readonly record struct Pad(Vector2 Centre, Vector2 Half, float Apron = 2f, float Blend = 6f);
 
-        public const int Size = 128;          // cells each way
+        public const int Size = 1024;         // cells each way
         public const float CellSize = 1f;
+
+        public const float HomeRadius = 90f;   // everything above lies within this of the middle
+        public const float HomeFade = 150f;    // and the far country's waves rise out of the hills over this
 
         public static readonly Vector2 PlateauCentre = new Vector2(30f, -30f);
         public const float PlateauRadius = 14f;
@@ -51,11 +56,29 @@ namespace World.Core
                 waves[k] = (new Vector2(MathF.Cos(angle), MathF.Sin(angle)), wavelength, amplitude, (float)(random.NextDouble() * MathHelper.TwoPi));
             }
 
-            float Hills(float x, float z)
+            // Drawn after the home waves, so adding them left those as they were
+            var far = new (Vector2 direction, float wavelength, float amplitude, float phase)[3];
+            for (var k = 0; k < far.Length; k++)
+            {
+                var angle = (float)(random.NextDouble() * MathHelper.TwoPi);
+                far[k] = (new Vector2(MathF.Cos(angle), MathF.Sin(angle)), 250f + 150f * (float)random.NextDouble(),
+                          9f + 4f * (float)random.NextDouble(), (float)(random.NextDouble() * MathHelper.TwoPi));
+            }
+
+            float Waves((Vector2 direction, float wavelength, float amplitude, float phase)[] set, float x, float z)
             {
                 var h = 0f;
-                foreach (var (direction, wavelength, amplitude, phase) in waves)
+                foreach (var (direction, wavelength, amplitude, phase) in set)
                     h += amplitude * MathF.Sin((direction.X * x + direction.Y * z) * MathHelper.TwoPi / wavelength + phase);
+                return h;
+            }
+
+            float Hills(float x, float z)
+            {
+                var h = Waves(waves, x, z);
+                var away = (MathF.Sqrt(x * x + z * z) - HomeRadius) / HomeFade;
+                if (away > 0f)
+                    h += Waves(far, x, z) * SmoothStep(MathF.Min(away, 1f));
                 return h;
             }
 

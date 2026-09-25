@@ -9,17 +9,33 @@ namespace World.Core
     // diagonal (from its north-west corner to its south-east one), and HeightAt interpolates within those
     // triangles, not bilinearly across the cell - so it matches the mesh drawn from it exactly, and feet
     // never float above it or sink into it.
+    //
+    // Made from a height function (FromFunction), it's worked out a chunk at a time - ChunkCells x
+    // ChunkCells cells - the first time anything asks about somewhere in that chunk, and kept. So a big
+    // world costs next to nothing until someone goes there, and a drawing of it can be built chunk by chunk
+    // too (see ChunkBounds).
     public sealed class Terrain : IGround
     {
         // Steeper than this is a cliff: you can't stand on it or walk up it.
         public const float MaxWalkSlopeDegrees = 45f;
         private static readonly float MinWalkNormalY = MathF.Cos(MathHelper.ToRadians(MaxWalkSlopeDegrees));
 
-        private readonly float[] _heights;   // (Width + 1) x (Depth + 1) corners, row by row along X
+        public const int ChunkCells = 32;
+
+        private readonly float[] _heights;                 // all (Width + 1) x (Depth + 1) corners, row by row along X; or
+        private readonly Func<float, float, float> _height; // the function to work them out from, a chunk at a time, into
+        private readonly float[][] _chunks;                 // (ChunkCells + 1) squared corners each, row by row, or null till asked for
 
         public int Width { get; }
         public int Depth { get; }
         public float CellSize { get; }
+
+        // How many chunks have been worked out so far (all of them, made from an array of heights).
+        public int ChunksMade { get; private set; }
+
+        // How many chunks each way: the last ones may be narrower than ChunkCells.
+        public int ChunksX => (Width + ChunkCells - 1) / ChunkCells;
+        public int ChunksZ => (Depth + ChunkCells - 1) / ChunkCells;
 
         // Where grid corner (0, 0) is in the world: the north-west corner of the whole terrain.
         public float OriginX => -Width * CellSize / 2f;
@@ -35,19 +51,72 @@ namespace World.Core
             Depth = depth;
             CellSize = cellSize;
             _heights = heights;
+            ChunksMade = ChunksX * ChunksZ;
         }
 
-        // Samples `height(x, z)` (world coordinates) at every grid corner.
-        public static Terrain FromFunction(int width, int depth, float cellSize, Func<float, float, float> height)
+        private Terrain(int width, int depth, float cellSize, Func<float, float, float> height)
         {
-            var heights = new float[(width + 1) * (depth + 1)];
-            for (var j = 0; j <= depth; j++)
-                for (var i = 0; i <= width; i++)
-                    heights[j * (width + 1) + i] = height(-width * cellSize / 2f + i * cellSize, -depth * cellSize / 2f + j * cellSize);
-            return new Terrain(width, depth, cellSize, heights);
+            if (width < 1 || depth < 1)
+                throw new ArgumentException("A terrain needs at least one cell each way.");
+            Width = width;
+            Depth = depth;
+            CellSize = cellSize;
+            _height = height;
+            _chunks = new float[ChunksX * ChunksZ][];
         }
 
-        public float CornerHeight(int i, int j) => _heights[j * (Width + 1) + i];
+        // `height(x, z)` (world coordinates) at every grid corner, worked out as it's needed.
+        public static Terrain FromFunction(int width, int depth, float cellSize, Func<float, float, float> height) =>
+            new Terrain(width, depth, cellSize, height);
+
+        public float CornerHeight(int i, int j)
+        {
+            if (_heights != null)
+                return _heights[j * (Width + 1) + i];
+            // The last corner of a row belongs to the chunk before it (each chunk has both its edges' corners)
+            var ci = Math.Min(i / ChunkCells, ChunksX - 1);
+            var cj = Math.Min(j / ChunkCells, ChunksZ - 1);
+            var chunk = _chunks[cj * ChunksX + ci] ??= FillChunk(ci, cj);
+            return chunk[(j - cj * ChunkCells) * (ChunkCells + 1) + (i - ci * ChunkCells)];
+        }
+
+        private float[] FillChunk(int ci, int cj)
+        {
+            ChunksMade++;
+            var heights = new float[(ChunkCells + 1) * (ChunkCells + 1)];
+            for (var lj = 0; lj <= ChunkCells; lj++)
+                for (var li = 0; li <= ChunkCells; li++)
+                {
+                    var i = Math.Min(ci * ChunkCells + li, Width);
+                    var j = Math.Min(cj * ChunkCells + lj, Depth);
+                    heights[lj * (ChunkCells + 1) + li] = _height(OriginX + i * CellSize, OriginZ + j * CellSize);
+                }
+            return heights;
+        }
+
+        // Which cells chunk (ci, cj) covers: from cell (i0, j0), cellsX by cellsZ of them. And the lowest and
+        // highest ground in it, and where it is in the world, for deciding whether it's in view.
+        public (int i0, int j0, int cellsX, int cellsZ) ChunkCellsOf(int ci, int cj)
+        {
+            var i0 = ci * ChunkCells;
+            var j0 = cj * ChunkCells;
+            return (i0, j0, Math.Min(ChunkCells, Width - i0), Math.Min(ChunkCells, Depth - j0));
+        }
+
+        public BoundingBox ChunkBounds(int ci, int cj)
+        {
+            var (i0, j0, cellsX, cellsZ) = ChunkCellsOf(ci, cj);
+            float low = float.MaxValue, high = float.MinValue;
+            for (var j = j0; j <= j0 + cellsZ; j++)
+                for (var i = i0; i <= i0 + cellsX; i++)
+                {
+                    var h = CornerHeight(i, j);
+                    low = MathF.Min(low, h);
+                    high = MathF.Max(high, h);
+                }
+            return new BoundingBox(new Vector3(OriginX + i0 * CellSize, low, OriginZ + j0 * CellSize),
+                                   new Vector3(OriginX + (i0 + cellsX) * CellSize, high, OriginZ + (j0 + cellsZ) * CellSize));
+        }
 
         public Vector3 Corner(int i, int j) => new Vector3(OriginX + i * CellSize, CornerHeight(i, j), OriginZ + j * CellSize);
 

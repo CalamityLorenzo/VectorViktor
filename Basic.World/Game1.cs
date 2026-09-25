@@ -53,6 +53,7 @@ namespace Basic.World
             ["basin"] = (TerrainGenerator.BasinCentre, MathHelper.PiOver4),
             ["lockers"] = (new Vector2(-3f, -3f), MathHelper.PiOver2),                   // facing the first locker, to push it over
             ["town"] = (new Vector2(22f, 6f), MathHelper.Pi),                            // north of the buildings, facing them
+            ["far"] = (new Vector2(300f, 300f), -MathHelper.PiOver4),                      // out in the far country, looking back towards home
             ["pond"] = (TerrainGenerator.PondCentre + new Vector2(TerrainGenerator.PondRadius + 3f, 0f), -MathHelper.PiOver2),   // east of it, facing it
             ["house"] = (Town.HouseCentre + new Vector2(-1.5f, -7f), MathHelper.Pi),     // outside the house's doorway
             ["barn"] = (Town.BarnCentre + new Vector2(0f, -8f), MathHelper.Pi),          // outside the barn's
@@ -72,7 +73,8 @@ namespace Basic.World
         private Terrain _terrain;
         private PhysicsWorld _world;
         private Player _player;
-        private MeshInstance _terrainView, _playerView, _droneView;
+        private TerrainView _terrainView;
+        private MeshInstance _playerView, _droneView;
         private readonly List<MeshInstance> _waterViews = new List<MeshInstance>();
         private Color[] _playerColors, _playerPalette;   // dry, and as drawn: darker where wet
         private int _titleWetness = -1;
@@ -149,8 +151,9 @@ namespace Basic.World
             var (at, yaw) = Starts[_start];
             _player = new Player(new Vector3(at.X, 0f, at.Y), yaw, _world);
 
-            var terrainMesh = _meshCache.GetOrAdd(GraphicsDevice, "terrain", d => TerrainMesh.Build(d, _terrain, TerrainGenerator.WaterLevel + 0.5f));
-            _terrainView = Placed(new MeshInstance(terrainMesh, TerrainMesh.Palette()));
+            // Built a chunk at a time round the camera, out to where the fog has hidden it all
+            _terrainView = new TerrainView(_terrain, shore: 0.5f, FogEnd + 15f);
+            _terrainView.Update(GraphicsDevice, _player.Eye, all: true);
             _playerColors = PlayerMesh.Palette(new Color(50, 60, 120), new Color(200, 60, 40), new Color(230, 180, 140));
             _playerPalette = (Color[])_playerColors.Clone();
             _playerView = Placed(new MeshInstance(_meshCache.GetOrAdd(GraphicsDevice, "player", PlayerMesh.Build), _playerPalette));
@@ -293,7 +296,8 @@ namespace Basic.World
 
             // Neither camera sees the thing it's in: from inside your own head (or the drone), you'd only
             // see the inside of it. Turn round in your own view, though, and the drone's there, following.
-            Draw(_terrainView, gameTime);
+            _terrainView.Update(GraphicsDevice, eye);
+            _terrainView.Draw(gameTime, GraphicsDevice, _basicEffect, BackgroundColor, _colorsOn);
             foreach (var water in _waterViews)
                 Draw(water, gameTime);
             foreach (var shell in _buildingShells)
@@ -322,7 +326,8 @@ namespace Basic.World
                 using (var file = System.IO.File.Create(saving.file))
                     _lowRes.SaveAsPng(file, LowResWidth, LowResHeight);
                 // and where everything ended up, beside it
-                var report = new System.Text.StringBuilder().AppendLine($"player {_player.Body.Position}");
+                var report = new System.Text.StringBuilder().AppendLine($"player {_player.Body.Position}")
+                    .AppendLine($"terrain chunks: {_terrain.ChunksMade} of {_terrain.ChunksX * _terrain.ChunksZ} worked out, {_terrainView.Built} built, {_terrainView.Drawn} drawn");
                 foreach (var (thing, _, _) in _things)
                     report.AppendLine($"{thing.Name} {thing.Position} size {thing.Size} resting {thing.Resting} on {(thing.Floating ? "water" : thing.Support?.Name ?? "ground")}");
                 System.IO.File.WriteAllText(System.IO.Path.ChangeExtension(saving.file, ".txt"), report.ToString());
@@ -361,6 +366,7 @@ namespace Basic.World
             if (disposing)
             {
                 _meshCache.Dispose();
+                _terrainView?.Dispose();
                 _basicEffect?.Dispose();
                 _rasterizerState?.Dispose();
                 _lowRes?.Dispose();

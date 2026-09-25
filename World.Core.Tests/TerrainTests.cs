@@ -62,6 +62,63 @@ namespace World.Core.Tests
         }
 
         [Fact]
+        public void WorkedOutAChunkAtATimeItMatchesTheFunctionEverywhere()
+        {
+            // Sizes that aren't whole chunks, so the last chunks each way are narrower
+            static float Height(float x, float z) => MathF.Sin(x * 0.3f) * 2f + z * 0.1f;
+            var terrain = Terrain.FromFunction(70, 50, 0.5f, Height);
+            Assert.Equal(3, terrain.ChunksX);
+            Assert.Equal(2, terrain.ChunksZ);
+            for (var j = 0; j <= terrain.Depth; j++)
+                for (var i = 0; i <= terrain.Width; i++)
+                    Assert.Equal(Height(terrain.OriginX + i * 0.5f, terrain.OriginZ + j * 0.5f), terrain.CornerHeight(i, j));
+        }
+
+        [Fact]
+        public void OnlyTheChunksAskedAboutAreWorkedOut()
+        {
+            var calls = 0;
+            var terrain = Terrain.FromFunction(1024, 1024, 1f, (x, z) => { calls++; return 0f; });
+            Assert.Equal(0, terrain.ChunksMade);
+            terrain.HeightAt(5f, 5f);
+            terrain.HeightAt(6f, 7f);
+            Assert.Equal(1, terrain.ChunksMade);
+            Assert.Equal((Terrain.ChunkCells + 1) * (Terrain.ChunkCells + 1), calls);
+        }
+
+        [Fact]
+        public void AChunksBoundsHoldItsGround()
+        {
+            var terrain = Terrain.FromFunction(64, 64, 1f, (x, z) => x * 0.5f);
+            var bounds = terrain.ChunkBounds(1, 0);   // x from 0 to 32
+            Assert.Equal(new Vector3(0f, 0f, -32f), bounds.Min);
+            Assert.Equal(new Vector3(32f, 16f, 0f), bounds.Max);
+        }
+
+        [Fact]
+        public void TheWorldIsAKilometreAcrossButStartingOutWorksOutLittleOfIt()
+        {
+            var world = TerrainGenerator.Create();
+            Assert.Equal(1024f, world.Width * world.CellSize);
+            world.HeightAt(0f, 0f);
+            Assert.True(world.ChunksMade <= 4, $"{world.ChunksMade} chunks");
+
+            // And far out, the country's bigger than at home
+            float Range(float fromX, float fromZ)
+            {
+                float low = float.MaxValue, high = float.MinValue;
+                for (var z = fromZ; z < fromZ + 150f; z += 5f)
+                    for (var x = fromX; x < fromX + 150f; x += 5f)
+                    {
+                        low = MathF.Min(low, world.HeightAt(x, z));
+                        high = MathF.Max(high, world.HeightAt(x, z));
+                    }
+                return high - low;
+            }
+            Assert.True(Range(300f, 300f) > 2f * Range(-60f, -10f));
+        }
+
+        [Fact]
         public void OffTheEdgeIsNotContained()
         {
             var flat = Grounds.Flat();

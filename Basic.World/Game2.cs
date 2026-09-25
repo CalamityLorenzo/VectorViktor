@@ -145,7 +145,7 @@ namespace Basic.World
             _spriteBatch = new SpriteBatch(GraphicsDevice);
 
             var ground = Terrain.FromFunction(GroundCells, GroundCells, GroundCellSize, (x, z) => 0f);
-            var groundMesh = _meshCache.GetOrAdd(GraphicsDevice, "ground", d => TerrainMesh.Build(d, ground, sandLevel: -1f));
+            var groundMesh = _meshCache.GetOrAdd(GraphicsDevice, "ground", d => TerrainMesh.Build(d, ground, shore: 0f));
             _instances.Add(Placed(new MeshInstance(groundMesh, TerrainMesh.Palette()), Matrix.Identity));
 
             foreach (var piece in Layout)
