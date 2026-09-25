@@ -18,6 +18,9 @@ namespace World.Buildings
     //
     // The furniture in a room (a PropSpec with a Half) blocks you up to PropHeight above its floor.
     //
+    // Free-standing walls outside - garden fences, a billboard's posts - can be given as well (see
+    // WallSegment); they block walkers, bodies and the drone's line of sight the same way.
+    //
     // Its doors (see Door) are walls too, wherever they've swung to. They swing on in StepDoors, stopping
     // against anything in their way, and Interact opens or shuts the one a walker is facing.
     public sealed class BuildingGround : IGround
@@ -43,10 +46,12 @@ namespace World.Buildings
 
         public IReadOnlyList<Building> Buildings { get; }
 
-        public BuildingGround(IGround terrain, IReadOnlyList<Building> buildings)
+        public BuildingGround(IGround terrain, IReadOnlyList<Building> buildings, IEnumerable<WallSegment> walls = null)
         {
             _terrain = terrain;
             Buildings = buildings;
+            if (walls != null)
+                _walls.AddRange(walls);
             foreach (var building in buildings)
             {
                 foreach (var room in building.Rooms)

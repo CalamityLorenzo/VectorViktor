@@ -138,6 +138,18 @@ namespace World.Core.Tests
             Assert.True(crate.Velocity.X > 0f);
         }
 
+        [Fact]
+        public void ASwimmingPoolIsSquare()
+        {
+            // Dug 2 m down, the whole of a 6 x 4 rectangle, into flat ground
+            var ground = Grounds.Flat().Flood(Pool.Rectangle(Vector2.Zero, new Vector2(3f, 2f), -0.1f));
+            Assert.Null(((IGround)ground).WaterAt(new Vector3(2.9f, 0f, 1.9f)));   // the ground's above it: it's dry
+            var dug = Terrain.FromFunction(64, 64, 1f, (x, z) => MathF.Abs(x) < 2.5f && MathF.Abs(z) < 1.5f ? -2f : 0f)
+                .Flood(Pool.Rectangle(Vector2.Zero, new Vector2(3f, 2f), -0.1f));
+            Assert.Equal(-0.1f, ((IGround)dug).WaterAt(new Vector3(1.5f, 0f, 0.5f)));
+            Assert.Null(((IGround)dug).WaterAt(new Vector3(3.5f, 0f, 0f)));   // outside it
+        }
+
         [Theory]
         [InlineData(0)]
         [InlineData(1)]

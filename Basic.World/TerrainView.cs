@@ -18,6 +18,7 @@ namespace Basic.World
 
         private readonly Terrain _terrain;
         private readonly float _shore;
+        private readonly Func<float, float, bool> _bare;   // where the ground gets no grid lines (see TerrainMesh)
         private readonly Color[] _palette = TerrainMesh.Palette();
         private readonly Dictionary<(int ci, int cj), (MeshData mesh, MeshInstance view, BoundingBox bounds)> _chunks =
             new Dictionary<(int, int), (MeshData, MeshInstance, BoundingBox)>();
@@ -29,11 +30,12 @@ namespace Basic.World
         public int Built => _chunks.Count;
         public int Drawn { get; private set; }
 
-        public TerrainView(Terrain terrain, float shore, float drawDistance)
+        public TerrainView(Terrain terrain, float shore, float drawDistance, Func<float, float, bool> bare = null)
         {
             _terrain = terrain;
             _shore = shore;
             DrawDistance = drawDistance;
+            _bare = bare;
         }
 
         // How far a chunk's patch of ground is from the camera, across the ground (0 if it's over it).
@@ -81,7 +83,7 @@ namespace Basic.World
         private void Build(GraphicsDevice device, int ci, int cj)
         {
             var (i0, j0, cellsX, cellsZ) = _terrain.ChunkCellsOf(ci, cj);
-            var mesh = TerrainMesh.Build(device, _terrain, _shore, i0, j0, cellsX, cellsZ);
+            var mesh = TerrainMesh.Build(device, _terrain, _shore, i0, j0, cellsX, cellsZ, _bare);
             var view = new MeshInstance(mesh, _palette) { Transform = Matrix.Identity };
             _chunks[(ci, cj)] = (mesh, view, _terrain.ChunkBounds(ci, cj));
         }

@@ -21,7 +21,9 @@ namespace Basic.World
     // or shuts the one in front of you (see BuildingGround.Interact). There's a lake in the basin and a
     // pond west of the cottage: wade in and it slows you, deeper and you swim; you get wet as high as the
     // water comes up you (the title says how wet, and you darken from the feet up), and dry off out of it.
-    // Light things float. See the
+    // Light things float. East of the town, a street (see Neighbourhood): houses either side of a road,
+    // front gardens sloping down to it, picket fences round the back gardens, a swimming pool in one of
+    // them, and a billboard for the Commodore 64. See the
     // world through your own eyes, or from your camera drone as it flies after you. Drawn to a small render target and scaled up with hard pixels, like Basic.Levels.
     // Up / W and Down / S walk (hold Shift to run), Left / Right turn, A / D sidestep, Space jumps, E opens or shuts a door.
     // V switches between your own view and the drone's. C toggles colours / wireframe (not Tab, which
@@ -53,6 +55,8 @@ namespace Basic.World
             ["basin"] = (TerrainGenerator.BasinCentre, MathHelper.PiOver4),
             ["lockers"] = (new Vector2(-3f, -3f), MathHelper.PiOver2),                   // facing the first locker, to push it over
             ["town"] = (new Vector2(22f, 6f), MathHelper.Pi),                            // north of the buildings, facing them
+            ["street"] = (Neighbourhood.StreetStart, MathHelper.PiOver2),                  // at the west end of the street, looking down it
+            ["pool"] = (Neighbourhood.PoolSide, MathHelper.Pi * 0.75f),                    // in a back garden, by its swimming pool
             ["far"] = (new Vector2(300f, 300f), -MathHelper.PiOver4),                      // out in the far country, looking back towards home
             ["pond"] = (TerrainGenerator.PondCentre + new Vector2(TerrainGenerator.PondRadius + 3f, 0f), -MathHelper.PiOver2),   // east of it, facing it
             ["house"] = (Town.HouseCentre + new Vector2(-1.5f, -7f), MathHelper.Pi),     // outside the house's doorway
@@ -81,6 +85,7 @@ namespace Basic.World
         private readonly List<(Body body, MeshInstance view, float turn)> _things = new List<(Body, MeshInstance, float)>();
         private readonly List<MeshInstance> _buildingShells = new List<MeshInstance>();
         private readonly List<RoomView> _rooms = new List<RoomView>();
+        private readonly List<MeshInstance> _fixtures = new List<MeshInstance>();   // the street's road, fences, pool paving and billboard
         private readonly List<(Door door, MeshInstance view)> _doors = new List<(Door, MeshInstance)>();
         private BuildingGround _ground;
         private float _pending;          // time not yet stepped through
@@ -127,9 +132,19 @@ namespace Basic.World
             _lowRes = new RenderTarget2D(GraphicsDevice, LowResWidth, LowResHeight, false, SurfaceFormat.Color, DepthFormat.Depth24);
             _spriteBatch = new SpriteBatch(GraphicsDevice);
 
-            _terrain = TerrainGenerator.Create(pads: Town.Pads);
+            var pads = new List<TerrainGenerator.Pad>(Town.Pads);
+            pads.AddRange(Neighbourhood.Pads);
+            _terrain = TerrainGenerator.Create(pads: pads);
+            _terrain.Flood(Neighbourhood.SwimmingPool(_terrain));
             var buildings = Town.Build(_terrain);
-            _ground = new BuildingGround(_terrain, buildings);
+            buildings.AddRange(Neighbourhood.Buildings(_terrain));
+            _ground = new BuildingGround(_terrain, buildings, Neighbourhood.Walls(_terrain));
+            foreach (var thing in Neighbourhood.Things(_terrain))
+            {
+                var view = Placed(new MeshInstance(_meshCache.GetOrAdd(GraphicsDevice, thing.Key, thing.Build), thing.Palette));
+                view.Transform = thing.Transform;
+                _fixtures.Add(view);
+            }
             _world = new PhysicsWorld(_ground);
             foreach (var door in _ground.Doors)
             {
@@ -152,7 +167,7 @@ namespace Basic.World
             _player = new Player(new Vector3(at.X, 0f, at.Y), yaw, _world);
 
             // Built a chunk at a time round the camera, out to where the fog has hidden it all
-            _terrainView = new TerrainView(_terrain, shore: 0.5f, FogEnd + 15f);
+            _terrainView = new TerrainView(_terrain, shore: 0.5f, FogEnd + 15f, bare: Neighbourhood.Paved);
             _terrainView.Update(GraphicsDevice, _player.Eye, all: true);
             _playerColors = PlayerMesh.Palette(new Color(50, 60, 120), new Color(200, 60, 40), new Color(230, 180, 140));
             _playerPalette = (Color[])_playerColors.Clone();
@@ -302,6 +317,8 @@ namespace Basic.World
                 Draw(water, gameTime);
             foreach (var shell in _buildingShells)
                 Draw(shell, gameTime);
+            foreach (var fixture in _fixtures)
+                Draw(fixture, gameTime);
             foreach (var room in _rooms)
                 room.Draw(gameTime, GraphicsDevice, _basicEffect, BackgroundColor, _colorsOn);
             foreach (var (door, view) in _doors)

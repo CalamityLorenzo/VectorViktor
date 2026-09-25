@@ -218,6 +218,25 @@ namespace World.Core.Tests
         }
 
         [Fact]
+        public void AFenceStopsYouButYouCanJumpIt()
+        {
+            // A picket fence across the way, at x = 0 (see FenceMesh)
+            var fence = new WallSegment(new Vector2(0f, -5f), new Vector2(0f, 5f), -0.2f, 0.9f);
+            var ground = new BuildingGround(Grounds.Flat(), Array.Empty<Building>(), new[] { fence });
+            var walker = Walker(ground, new Vector3(-3f, 0f, 0f), Grounds.East);
+            Grounds.Run(walker, Grounds.Forward(), 3f, ground);
+            Assert.InRange(walker.Position.X, -CharacterController.Radius - 0.05f, -CharacterController.Radius + 0.01f);
+
+            // A running jump, taking off a stride and a half short of it
+            walker = Walker(ground, new Vector3(-6f, 0f, 0f), Grounds.East);
+            while (walker.Position.X < -2.5f)
+                walker.Step(Grounds.Forward(run: true), Grounds.Tick, ground);
+            walker.Step(new MoveInput(new Vector2(0f, 1f), Run: true, Jump: true), Grounds.Tick, ground);
+            Grounds.Run(walker, Grounds.Forward(run: true), 2f, ground);
+            Assert.True(walker.Position.X > 1f, $"stopped at {walker.Position}");
+        }
+
+        [Fact]
         public void ABodyPushedAtAWallStopsAtIt()
         {
             var hut = Hut();

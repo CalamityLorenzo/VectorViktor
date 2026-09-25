@@ -1,6 +1,7 @@
 using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using System;
 using System.Collections.Generic;
 using World.Core;
 
@@ -8,8 +9,8 @@ namespace Basic.World
 {
     // The terrain as one mesh: every triangle HeightAt uses, flat-coloured by what it is - sand round the
     // lakes and ponds (up to `shore` above their water), grass in three bands of height, rock wherever
-    // it's too steep to walk - and shaded in three steps by how squarely it faces the light, so the hills' shapes read between the grid lines, which
-    // are drawn every couple of cells, in white like everything else. Cliff faces get no grid, only an
+    // it's too steep to walk - and shaded in three steps by how squarely it faces the light, so the hills'
+    // shapes read between the grid lines, which are drawn every couple of cells, in white like everything else. Cliff faces get no grid, only an
     // outline where the rock ends. The mesh is in world coordinates. A big terrain is drawn a chunk at a
     // time (see Terrain.ChunkCellsOf): each chunk's mesh is just its own cells, the lines along its far
     // edges left to the chunks beyond it, unless it's at the terrain's own edge.
@@ -44,8 +45,10 @@ namespace Basic.World
         public static MeshData Build(GraphicsDevice device, Terrain terrain, float shore) =>
             Build(device, terrain, shore, 0, 0, terrain.Width, terrain.Depth);
 
-        // Cells i0 to i0 + cellsX (not including it) along X, and j0 to j0 + cellsZ along Z.
-        public static MeshData Build(GraphicsDevice device, Terrain terrain, float shore, int i0, int j0, int cellsX, int cellsZ)
+        // Cells i0 to i0 + cellsX (not including it) along X, and j0 to j0 + cellsZ along Z. Where `bare`
+        // says so (under a road, say), the ground gets no grid lines: they'd show through what's on it.
+        public static MeshData Build(GraphicsDevice device, Terrain terrain, float shore, int i0, int j0, int cellsX, int cellsZ,
+                                     Func<float, float, bool> bare = null)
         {
             // Gathered per colour first: MeshData's draw ranges must each be one unbroken run
             var slots = new List<(Vector3 a, Vector3 b, Vector3 c)>[Bands * Shades];
@@ -85,7 +88,8 @@ namespace Basic.World
                 var outline = one.HasValue && other.HasValue && one.Value != other.Value;
                 var rim = !one.HasValue || !other.HasValue;
                 var open = one == false && other == false && onGrid;
-                if (outline || rim || open)
+                var middle = (a + b) / 2f;
+                if ((outline || rim || open) && (bare == null || !bare(middle.X, middle.Z)))
                 {
                     mesh.AddLine(a, b);
                     lines++;

@@ -15,15 +15,13 @@ namespace Basic.World
     //  - a barn: tall and bare, with a pair of wide doors, and a ladder up onto a loft across its south end
     public static class Town
     {
-        private const float FloorLift = 0.15f;   // a floor stands a step up from the ground round it
-        private const float Slab = 0.3f;         // between storeys
+        private const float FloorLift = Houses.FloorLift;
 
         public static readonly Vector2 CottageCentre = new Vector2(14f, 16f);
         public static readonly Vector2 HouseCentre = new Vector2(32f, 18f);
         public static readonly Vector2 BarnCentre = new Vector2(22f, 36f);
 
         private const float CottageWidth = 8f, CottageDepth = 6f;
-        private const float HouseSize = 7f;
         private const float BarnWidth = 10f, BarnDepth = 8f, BarnHeight = 5.5f;
         private const float Wall = 0.3f;         // the outer wall's thickness, and a little to spare
 
@@ -31,7 +29,7 @@ namespace Basic.World
         public static readonly TerrainGenerator.Pad[] Pads =
         {
             new(CottageCentre, new Vector2(CottageWidth / 2f + Wall, CottageDepth / 2f + Wall)),
-            new(HouseCentre, new Vector2(HouseSize / 2f + Wall, HouseSize / 2f + Wall)),
+            new(HouseCentre, new Vector2(Houses.TwoStoreySize / 2f + Wall, Houses.TwoStoreySize / 2f + Wall)),
             new(BarnCentre, new Vector2(BarnWidth / 2f + Wall, BarnDepth / 2f + Wall)),
         };
 
@@ -39,11 +37,16 @@ namespace Basic.World
         public static List<Building> Build(Terrain terrain)
         {
             Vector3 On(Vector2 centre) => new Vector3(centre.X, terrain.HeightAt(centre.X, centre.Y) + FloorLift, centre.Y);
-            return new List<Building> { Cottage(On(CottageCentre)), House(On(HouseCentre)), Barn(On(BarnCentre)) };
+            return new List<Building>
+            {
+                Cottage(On(CottageCentre)),
+                Houses.TwoStorey("house", "House", On(HouseCentre), new Color(215, 190, 120), new Color(80, 85, 95)),
+                Barn(On(BarnCentre)),
+            };
         }
 
         // Every doorway has a door, shut to begin with (see Door): E opens it
-        private static OpeningSpec Doorway(float offset, float width = 1f, float height = 2.1f) => new OpeningSpec(North, offset, width, height, null, Door: true);
+        private static OpeningSpec Doorway(float offset, float width = 1f, float height = 2.1f) => Houses.Doorway(North, offset, width, height);
 
         private static Building Cottage(Vector3 at)
         {
@@ -76,57 +79,6 @@ namespace Basic.World
                 },
             };
             return new Building("Cottage", lounge) { WallColor = new Color(235, 230, 215), RoofColor = new Color(160, 60, 45) };
-        }
-
-        private static Building House(Vector3 at)
-        {
-            // Four steps up the east wall, a landing in the south-east corner, then twelve along the south
-            // wall, up through the hatch; 16 rises of 18 cm in all
-            var outline = RoomSpec.Rectangle(HouseSize, HouseSize);
-            const float downHeight = 2.6f;
-            var stair = new WallStair(outline, firstWall: East, steps: new[] { 4, 12 }, stepsPerWall: 12, height: downHeight + Slab, width: 1f);
-            var hatch = stair.Hatch(margin: 0.05f);
-
-            var down = new RoomSpec
-            {
-                Id = "house", Name = "House",
-                Outline = outline, Height = downHeight, WorldOffset = at,
-                Floor = new Color(120, 80, 50), WallA = new Color(200, 170, 90), WallB = new Color(170, 140, 70), Ceiling = new Color(235, 230, 210),
-                Openings = new[] { Doorway(-1.5f) },
-                CeilingHatches = new[] { new HatchSpec(hatch, "houseupstairs", Slab) },
-                Ramps = stair.Ramps(),
-                Props = new[]
-                {
-                    new PropSpec("housestair", stair.Build,
-                        WallStair.Palette(new Color(150, 105, 60), new Color(110, 75, 40), new Color(130, 90, 50), new Color(90, 60, 35)),
-                        Vector3.Zero, 0f),
-                    // Against the west wall, facing east: 1.30 wide, so along Z
-                    new PropSpec("settee", SetteeMesh.Build,
-                        SetteeMesh.Palette(new Color(195, 145, 45), new Color(225, 180, 85), new Color(150, 100, 60)),
-                        new Vector3(-3.0f, 0f, 0.5f), 90f, new Vector2(0.4f, 0.65f)),
-                    new PropSpec("coffeetable", CoffeeTableMesh.Build,
-                        CoffeeTableMesh.Palette(new Color(200, 150, 80), new Color(120, 80, 40)),
-                        new Vector3(-1.8f, 0f, 0.5f), 90f, new Vector2(0.25f, 0.5f)),
-                },
-            };
-            var up = new RoomSpec
-            {
-                Id = "houseupstairs", Name = "Bedroom",
-                Outline = outline, Height = 2.4f, WorldOffset = at + Vector3.Up * (downHeight + Slab),
-                Floor = new Color(90, 70, 110), WallA = new Color(150, 170, 210), WallB = new Color(120, 140, 180), Ceiling = new Color(235, 235, 240),
-                FloorHatches = new[] { new HatchSpec(hatch, "house") },
-                Props = new[]
-                {
-                    // Against the north wall, facing south
-                    new PropSpec("sofa", SofaMesh.Build,
-                        SofaMesh.Palette(new Color(60, 125, 125), new Color(100, 170, 160), new Color(150, 100, 60)),
-                        new Vector3(0f, 0f, -3.0f), 0f, new Vector2(0.99f, 0.4f)),
-                    new PropSpec("fern", FernMesh.Build,
-                        FernMesh.Palette(new Color(190, 95, 60), new Color(50, 150, 60)),
-                        new Vector3(-3.0f, 0f, -3.0f), 0f, new Vector2(0.2f, 0.2f)),
-                },
-            };
-            return new Building("House", down, up) { WallColor = new Color(215, 190, 120), RoofColor = new Color(80, 85, 95) };
         }
 
         private static Building Barn(Vector3 at)

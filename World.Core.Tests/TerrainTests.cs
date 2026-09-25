@@ -119,6 +119,26 @@ namespace World.Core.Tests
         }
 
         [Fact]
+        public void PadsCanBeLevelledWithEachOtherAndRaisedOrDug()
+        {
+            // Out on open ground, clear of the plateau, the lake and the pond: a road pad, a garden 0.6 m above
+            // it, and a pool dug 1 m into the garden, all level with the road
+            var road = new Vector2(60f, -60f);
+            var terrain = TerrainGenerator.Create(pads: new[]
+            {
+                new TerrainGenerator.Pad(road + new Vector2(0f, 12f), new Vector2(4f, 4f), Raise: 0.6f, LevelWith: road),
+                new TerrainGenerator.Pad(road + new Vector2(0f, 13f), new Vector2(1f, 1f), Apron: 0f, Blend: 0f, Raise: -0.4f, LevelWith: road),
+                new TerrainGenerator.Pad(road, new Vector2(10f, 3f)),
+            });
+            float At(float dx, float dz) => terrain.HeightAt(road.X + dx, road.Y + dz);
+            var level = At(0f, 0f);
+            Assert.Equal(level + 0.6f, At(-2f, 15f), 3);    // the garden, clear of the road's slope
+            Assert.Equal(level - 0.4f, At(0f, 13f), 3);     // the pool's floor
+            Assert.Equal(level + 0.6f, At(0f, 15.5f), 3);   // a cell past its edge, the garden again: dug straight down, within a cell
+            Assert.InRange(At(0f, 5.5f), level + 0.01f, level + 0.59f);   // the front garden, sloping down to the road
+        }
+
+        [Fact]
         public void OffTheEdgeIsNotContained()
         {
             var flat = Grounds.Flat();

@@ -176,12 +176,14 @@ namespace World.Core
             return (i, j, u - i, v - j);
         }
 
-        // Its lakes and ponds (see Pool), filled once it's made: see Flood.
-        public IReadOnlyList<Pool> Pools { get; private set; } = Array.Empty<Pool>();
+        // Its lakes, ponds and pools (see Pool), filled once it's made: see Flood.
+        public IReadOnlyList<Pool> Pools => _pools;
+        private readonly List<Pool> _pools = new List<Pool>();
 
+        // Fills these, as well as any it has already.
         public Terrain Flood(params Pool[] pools)
         {
-            Pools = pools;
+            _pools.AddRange(pools);
             return this;
         }
 

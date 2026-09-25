@@ -16,7 +16,12 @@ namespace World.Core
         // Somewhere to build: the rectangle `Half` either side of `Centre` (world X, Z), levelled at the
         // hills' height at its middle, with a level apron `Apron` wide all round it to walk on, blending
         // back into the hills over `Blend` beyond that. Keep pads clear of the plateau and the basin.
-        public readonly record struct Pad(Vector2 Centre, Vector2 Half, float Apron = 2f, float Blend = 6f);
+        //
+        // `LevelWith` levels it with the hills somewhere else instead, and `Raise` puts it that much higher
+        // (or, below zero, lower): so a row of pads can be made level with each other, a house's garden a
+        // little above the road in front of it, or a swimming pool dug into the garden. Later pads are
+        // levelled over earlier ones, and their blends run into what those made.
+        public readonly record struct Pad(Vector2 Centre, Vector2 Half, float Apron = 2f, float Blend = 6f, float Raise = 0f, Vector2? LevelWith = null);
 
         public const int Size = 1024;         // cells each way
         public const float CellSize = 1f;
@@ -86,7 +91,10 @@ namespace World.Core
 
             var levels = new List<(Pad pad, float height)>();
             foreach (var pad in pads ?? Array.Empty<Pad>())
-                levels.Add((pad, Hills(pad.Centre.X, pad.Centre.Y)));
+            {
+                var at = pad.LevelWith ?? pad.Centre;
+                levels.Add((pad, Hills(at.X, at.Y) + pad.Raise));
+            }
 
             return Terrain.FromFunction(Size, Size, CellSize, (x, z) =>
             {
@@ -99,6 +107,8 @@ namespace World.Core
                                               MathF.Max(0f, MathF.Abs(z - pad.Centre.Y) - pad.Half.Y - pad.Apron)).Length();
                     if (outside < pad.Blend)
                         h = MathHelper.Lerp(height, h, SmoothStep(outside / pad.Blend));
+                    else if (pad.Blend <= 0f && outside <= 0f)
+                        h = height;   // sheer-sided: a hole dug straight down
                 }
 
                 // The basin: a smooth bowl pressed into the hills, and a bank round its rim, raised only where
