@@ -16,6 +16,11 @@ namespace World.Buildings
     // reached through hatches (see RoomSpec.CeilingHatches) - or they meet at openings, and their shell
     // leaves out the wall between them. A doorway to outside is an opening with no TargetRoom: it's cut
     // through the shell as well, lined across the wall's thickness.
+    //
+    // The roof is flat, unless it's pitched (see Roof, and Gable): two slopes RoofOverhang out past the
+    // walls, the end walls rising to the ridge. Its underside sits on the top room's walls - on its
+    // ceiling if that's flat, with a closed-off space above it, or, if the top room is itself pitched
+    // (RoomSpec.Pitched), along its sloping ceiling, so that room's an attic under the roof.
     public sealed class Building
     {
         public string Name { get; }
@@ -24,6 +29,8 @@ namespace World.Buildings
         public float WallThickness { get; init; } = 0.25f;
         public float PlinthDepth { get; init; } = 0.6f;     // how far the shell goes down below the ground floor
         public float RoofThickness { get; init; } = 0.3f;
+        public float RoofOverhang { get; init; } = 0.4f;
+        public Gable? Roof { get; init; }
 
         public Color WallColor { get; init; } = new Color(205, 195, 170);
         public Color RoofColor { get; init; } = new Color(130, 65, 50);
@@ -70,16 +77,35 @@ namespace World.Buildings
         }
 
         // How far up and down a room's shell goes: from the ceiling of the room below (or the plinth's foot)
-        // to its own ceiling (or the top of the roof, if nothing stands on it).
+        // to its own ceiling, or, if nothing stands on it, the top of a flat roof or the underside of a
+        // pitched one's ridge.
         public (float bottom, float top, bool roofed) ShellSpan(RoomSpec room)
         {
             var below = Below(room);
             var above = Above(room);
             var floor = room.WorldOffset.Y;
             var bottom = below != null ? below.WorldOffset.Y + below.Height : floor - PlinthDepth;
-            var top = floor + room.Height + (above == null ? RoofThickness : 0f);
+            var top = above != null ? floor + room.Height
+                : RoofOf(room) is { } gable ? RoofUnderside(room, gable, 0f)
+                : floor + room.Height + RoofThickness;
             return (bottom, top, above == null);
         }
+
+        // The pitched roof over a room, if it's the top one and there is one: its own ceiling's, or the building's.
+        public Gable? RoofOf(RoomSpec room) => Above(room) != null ? null : room.Pitched ?? Roof;
+
+        // How high a pitched roof's underside is, `fromRidge` across from its ridge line: rising from the top
+        // of the room's walls at their inside faces, at the roof's slope - RoofClearance above an attic's
+        // ceiling, which follows the same slope, so the two never lie in one plane and fight to be seen.
+        public static float RoofUnderside(RoomSpec room, Gable gable, float fromRidge) =>
+            room.WorldOffset.Y + room.Height + gable.Slope * (gable.HalfSpan(room.Outline) - fromRidge) +
+            (room.Pitched != null ? RoofClearance : 0f);
+
+        private const float RoofClearance = 0.05f;
+
+        // How far a point in the world is across from the ridge line over a room.
+        public static float FromRidge(RoomSpec room, Gable gable, Vector2 world) =>
+            gable.FromRidge(world - new Vector2(room.WorldOffset.X, room.WorldOffset.Z));
 
         // A room's outline pushed out by the wall's thickness, in the world: each corner moved out along
         // both its edges' outward normals (a mitre), so the outer walls stay parallel to the inner ones.

@@ -9,13 +9,16 @@ namespace Basic.World
 {
     // The buildings, south-east of where you start, each on its own levelled pad of ground, all with their
     // doorways facing north:
-    //  - a cottage: one room, a sofa facing a television on a sideboard
+    //  - a cottage: one room, a sofa facing a television on a sideboard, under a pitched roof
     //  - a two-storey house: a stair climbs the east and south walls of the room downstairs, up through a
-    //    hatch into the bedroom above
-    //  - a barn: tall and bare, with a pair of wide doors, and a ladder up onto a loft across its south end
+    //    hatch into the bedroom above, and from there a ladder climbs through another into the attic,
+    //    under its pitched roof
+    //  - a barn: tall and bare, with a pair of wide doors, a ladder up onto a loft across its south end,
+    //    and a pitched roof
     public static class Town
     {
         private const float FloorLift = Houses.FloorLift;
+        private const float RoofPitch = 35f;     // degrees, for every building's pitched roof
 
         public static readonly Vector2 CottageCentre = new Vector2(14f, 16f);
         public static readonly Vector2 HouseCentre = new Vector2(32f, 18f);
@@ -40,7 +43,8 @@ namespace Basic.World
             return new List<Building>
             {
                 Cottage(On(CottageCentre)),
-                Houses.TwoStorey("house", "House", On(HouseCentre), new Color(215, 190, 120), new Color(80, 85, 95)),
+                Houses.TwoStorey("house", "House", On(HouseCentre), new Color(215, 190, 120), new Color(80, 85, 95),
+                    pitched: Gable.Pitched(RoofPitch, alongX: true), attic: true),
                 Barn(On(BarnCentre)),
             };
         }
@@ -78,7 +82,11 @@ namespace Basic.World
                         new Vector3(-3.5f, 0f, 2.5f), 0f, new Vector2(0.2f, 0.2f)),
                 },
             };
-            return new Building("Cottage", lounge) { WallColor = new Color(235, 230, 215), RoofColor = new Color(160, 60, 45) };
+            return new Building("Cottage", lounge)
+            {
+                WallColor = new Color(235, 230, 215), RoofColor = new Color(160, 60, 45),
+                Roof = Gable.Pitched(RoofPitch, alongX: true),   // the ridge along its length
+            };
         }
 
         private static Building Barn(Vector3 at)
@@ -113,7 +121,11 @@ namespace Basic.World
                     new RampSpec(ladderFoot, ladderHead, 1f, MaxStepUp: 5f),   // steep: see RampSpec.MaxStepUp
                 },
             };
-            return new Building("Barn", barn) { WallColor = new Color(170, 55, 40), RoofColor = new Color(70, 70, 75), WallThickness = Wall };
+            return new Building("Barn", barn)
+            {
+                WallColor = new Color(170, 55, 40), RoofColor = new Color(70, 70, 75), WallThickness = Wall,
+                Roof = Gable.Pitched(RoofPitch, alongX: true),   // the ridge along its length
+            };
         }
     }
 }

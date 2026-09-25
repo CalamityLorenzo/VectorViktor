@@ -10,14 +10,17 @@ namespace MeshRawData
     // Clearance up, on two posts behind it, facing +Z. On its white face, the Commodore logo on the left -
     // the thick C, open to the right, and in its mouth the two flags, blue over red, their ends cut away to
     // a notch - and on the right COMMODORE, with a big 64 under it, in blue block capitals. The origin is
-    // on the ground between the posts. Everything's gathered into one draw range per colour.
+    // on the ground between the posts, which go PostSunk into it, each through a concrete footing standing
+    // a little proud of the ground. Everything's gathered into one draw range per colour.
     public static class BillboardMesh
     {
-        public const int Post = 0, Board = 3, Face = 6, Blue = 7, Red = 8;
-        public const int PaletteSize = 9;
+        public const int Post = 0, Board = 3, Face = 6, Blue = 7, Red = 8, Footing = 9;
+        public const int PaletteSize = 12;
 
         public const float Width = 7f, Height = 3.5f, Clearance = 2.4f;
         private const float BoardDepth = 0.2f, Border = 0.15f, Lift = 0.01f;
+        public const float PostSize = 0.3f, PostSunk = 0.5f;
+        private const float FootingSize = 0.8f, FootingProud = 0.2f;
 
         public static Color[] Palette(Color post, Color board)
         {
@@ -27,6 +30,7 @@ namespace MeshRawData
             palette[Face] = new Color(245, 245, 240);
             palette[Blue] = new Color(30, 55, 150);
             palette[Red] = new Color(215, 35, 40);
+            MeshBuilder.SetBoxShades(palette, Footing, new Color(165, 160, 150));
             return palette;
         }
 
@@ -42,6 +46,10 @@ namespace MeshRawData
             ['6'] = new[] { new[] { 0f, 0f, 0.16f, 1f }, new[] { 0.16f, 0.84f, 0.6f, 1f }, new[] { 0.16f, 0.42f, 0.6f, 0.58f }, new[] { 0.16f, 0f, 0.6f, 0.16f }, new[] { 0.44f, 0.16f, 0.6f, 0.42f } },
             ['4'] = new[] { new[] { 0f, 0.58f, 0.16f, 1f }, new[] { 0f, 0.42f, 0.44f, 0.58f }, new[] { 0.44f, 0f, 0.6f, 1f } },
         };
+
+        // Where the posts stand, in its own X and Z: behind the board, a little in from its ends.
+        public static readonly float[] PostsAt = { -Width * 0.3f, Width * 0.3f };
+        public const float PostZ = -BoardDepth / 2f - PostSize / 2f;
 
         public static MeshData Build(GraphicsDevice device)
         {
@@ -78,9 +86,14 @@ namespace MeshRawData
                 mesh.AddLineLoop(polygon);
             }
 
-            // Posts behind the board, up to near its top; the board; its white face
-            foreach (var x in new[] { -Width * 0.3f, Width * 0.3f })
-                Box(Post, new Vector3(x, 0f, -BoardDepth / 2f - 0.1f), 0.2f, 0.2f, Clearance + Height - 0.3f);
+            // Posts behind the board, from well down in the ground up to near its top, each in its footing;
+            // the board; its white face
+            foreach (var x in PostsAt)
+            {
+                var foot = new Vector3(x, 0f, PostZ);
+                Box(Post, foot - Vector3.Up * PostSunk, PostSize, PostSize, PostSunk + Clearance + Height - 0.3f);
+                Box(Footing, foot - Vector3.Up * PostSunk, FootingSize, FootingSize, PostSunk + FootingProud);
+            }
             Box(Board, new Vector3(0f, Clearance, 0f), Width, BoardDepth, Height);
             var hw = Width / 2f - Border;
             Paint(Face, Lift, new Vector2(-hw, Border), new Vector2(hw, Border), new Vector2(hw, Height - Border), new Vector2(-hw, Height - Border));

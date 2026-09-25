@@ -17,7 +17,7 @@ namespace MeshRawData
         public const int PaletteSize = 3;
 
         public const float Height = 0.9f;   // low enough to jump, at a run
-        private const float PicketWidth = 0.08f, PicketThickness = 0.025f, PicketSpacing = 0.16f;
+        private const float PicketWidth = 0.12f, PicketThickness = 0.025f, PicketSpacing = 0.22f;   // a 10 cm gap between pickets
         private const float RailHeight = 0.07f, RailThickness = 0.04f, PostSize = 0.1f, Sunk = 0.1f;
 
         public static Color[] Palette(Color paint)

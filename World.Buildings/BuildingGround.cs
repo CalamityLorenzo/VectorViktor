@@ -198,7 +198,7 @@ namespace World.Buildings
                 {
                     if (!room.Near(p, radius))
                         continue;
-                    var local = room.Spec.KeepOutOfRamps(p - room.Offset, radius, height);
+                    var local = room.Spec.KeepUnderRoof(room.Spec.KeepOutOfRamps(p - room.Offset, radius, height), radius, height);
                     if (local.Y < PropHeight && local.Y + height > 0f)
                     {
                         var q = new Vector2(local.X, local.Z);
@@ -268,20 +268,43 @@ namespace World.Buildings
                     hit = t;
             }
 
-            // Ceilings and floors it passes through, where there's no hatch
+            // Floors it passes through, where there's no hatch
             foreach (var room in _rooms)
             {
-                foreach (var (height, hatches) in new[] { (room.Spec.Height, room.Spec.CeilingHatches), (0f, room.Spec.FloorHatches) })
+                var y = room.Offset.Y;
+                if ((from.Y - y) * (to.Y - y) >= 0f)
+                    continue;
+                var t = (y - from.Y) / d.Y;
+                if (t >= hit)
+                    continue;
+                var local = from + d * t - room.Offset;
+                if (room.Spec.Contains(local) && !Array.Exists(room.Spec.FloorHatches, h => h.Contains(local)))
+                    hit = t;
+            }
+
+            // And ceilings, which may slope (under a pitched roof, over a stair): found by walking along the
+            // line in short steps for where it goes from under a room's ceiling to over it, or back
+            var steps = Math.Max(8, (int)MathF.Ceiling(d.Length() / 0.25f));
+            foreach (var room in _rooms)
+            {
+                float? Above(float t)
                 {
-                    var y = room.Offset.Y + height;
-                    if ((from.Y - y) * (to.Y - y) >= 0f)
-                        continue;
-                    var t = (y - from.Y) / d.Y;
-                    if (t >= hit)
-                        continue;
                     var local = from + d * t - room.Offset;
-                    if (room.Spec.Contains(local) && !Array.Exists(hatches, h => h.Contains(local)))
-                        hit = t;
+                    if (!room.Spec.Contains(local) || local.Y < 0f || Array.Exists(room.Spec.CeilingHatches, h => h.Contains(local)))
+                        return null;
+                    return local.Y - room.Spec.CeilingHeightAt(local);
+                }
+                var before = Above(0f);
+                for (var k = 1; k <= steps && k / (float)steps < hit; k++)
+                {
+                    var t = k / (float)steps;
+                    var now = Above(t);
+                    if (before.HasValue && now.HasValue && (before.Value < 0f) != (now.Value < 0f))
+                    {
+                        hit = t - 1f / steps;
+                        break;
+                    }
+                    before = now;
                 }
             }
 

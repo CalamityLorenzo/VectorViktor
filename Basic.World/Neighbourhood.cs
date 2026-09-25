@@ -12,7 +12,7 @@ using static World.Buildings.Walls;
 namespace Basic.World
 {
     // A street east of the town: a straight road running east-west, a pair of two-storey houses on its
-    // south side and a pair of bungalows on its north, all facing it. Each house stands GardenRise above
+    // south side and a pair of bungalows on its north, all facing it, under pitched roofs. Each house stands GardenRise above
     // the road, its front garden sloping gently down to the pavement, and behind it a back garden with a
     // white picket fence round it and a gateway in its west side. The second house on the south side has
     // a swimming pool in its back garden, deep enough to swim in, with a shallow end to walk out at. On
@@ -26,6 +26,7 @@ namespace Basic.World
         public static readonly Vector2 RoadCentre = new Vector2(80f, 30f);
         public const float RoadLength = 60f;                   // six 10 m straights
         public const float GardenRise = 0.6f;
+        private static readonly Gable RoofPitch = Gable.Pitched(35f, alongX: true);   // every house's ridge running along the street
         private const float FrontGarden = 7f, BackGarden = 12f, PlotHalfWidth = 8f;
         private const float WallThickness = 0.25f;             // Building's default
         private static readonly float RoadHalf = RoadBuilder.LaneWidth + RoadBuilder.PavementWidth;   // centre line to the back of the pavement
@@ -69,6 +70,9 @@ namespace Basic.World
             return BillboardAt + new Vector2(turned.X, turned.Z);
         }
 
+        // Where to stand to see it: in front of it, down the street
+        public static readonly Vector2 BillboardView = new Vector2(101f, 25f);
+
         // Where to stand to see it all from behind: in the pool's garden, facing the pool
         public static readonly Vector2 PoolSide = new Vector2(84f, 51.5f);
 
@@ -89,6 +93,9 @@ namespace Basic.World
                 Apron: 0f, Blend: 0f, Raise: GardenRise - PoolDepth, LevelWith: RoadCentre));
             pads.Add(new TerrainGenerator.Pad(new Vector2(PoolCentre.X + PoolHalf.X - 1.5f, PoolCentre.Y), new Vector2(0.5f, PoolHalf.Y - 1f),
                 Apron: 0f, Blend: 0f, Raise: GardenRise - ShallowDepth, LevelWith: RoadCentre));
+            // Level ground under the billboard, so both its posts stand in it alike - level with the road, since
+            // the road's slope reaches it, and would tip one end of it otherwise
+            pads.Add(new TerrainGenerator.Pad(BillboardAt, new Vector2(4f, 2.5f), Apron: 1f, Blend: 4f, LevelWith: RoadCentre));
             // The road, last, over the gardens' slopes
             pads.Add(new TerrainGenerator.Pad(RoadCentre, new Vector2(RoadLength / 2f, RoadHalf), Apron: 0.5f, Blend: 6f));
             return pads.ToArray();
@@ -112,8 +119,8 @@ namespace Basic.World
                 var at = new Vector3(plot.X, floor, plot.Middle);
                 var name = "Street house " + plot.Id.Substring("street".Length);
                 buildings.Add(plot.Kind == Kind.TwoStorey
-                    ? Houses.TwoStorey(plot.Id, name, at, plot.Outside, plot.Roof)
-                    : Houses.Bungalow(plot.Id, name, at, plot.Side > 0 ? North : South, plot.Outside, plot.Roof));
+                    ? Houses.TwoStorey(plot.Id, name, at, plot.Outside, plot.Roof, RoofPitch)
+                    : Houses.Bungalow(plot.Id, name, at, plot.Side > 0 ? North : South, plot.Outside, plot.Roof, RoofPitch));
             }
             return buildings;
         }
@@ -149,9 +156,18 @@ namespace Basic.World
                     }
 
             var foot = terrain.HeightAt(BillboardAt.X, BillboardAt.Y);
-            foreach (var x in new[] { -BillboardMesh.Width * 0.3f, BillboardMesh.Width * 0.3f })
-                yield return new WallSegment(OnBillboard(x - 0.15f, -0.2f), OnBillboard(x + 0.15f, -0.2f), foot - 1f,
-                                             foot + BillboardMesh.Clearance + BillboardMesh.Height);
+            foreach (var x in BillboardMesh.PostsAt)
+            {
+                // Each post, as its four sides
+                var half = BillboardMesh.PostSize / 2f;
+                var corners = new[]
+                {
+                    OnBillboard(x - half, BillboardMesh.PostZ - half), OnBillboard(x + half, BillboardMesh.PostZ - half),
+                    OnBillboard(x + half, BillboardMesh.PostZ + half), OnBillboard(x - half, BillboardMesh.PostZ + half),
+                };
+                for (var k = 0; k < 4; k++)
+                    yield return new WallSegment(corners[k], corners[(k + 1) % 4], foot - 1f, foot + BillboardMesh.Clearance + BillboardMesh.Height);
+            }
         }
 
         // Everything else to draw: the road, the fences, the pool's paving and the billboard - each a mesh, how

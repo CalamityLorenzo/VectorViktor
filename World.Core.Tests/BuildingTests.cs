@@ -236,6 +236,64 @@ namespace World.Core.Tests
             Assert.True(walker.Position.X > 1f, $"stopped at {walker.Position}");
         }
 
+        // A bedroom with a ladder up through a hatch in its ceiling, into an attic under a roof pitched at
+        // 0.7 (35 degrees), its ridge along X, its walls 0.5 m high (see the town's house in Basic.World)
+        private static (Building building, RoomSpec bedroom, RoomSpec attic) Attic()
+        {
+            var foot = new Vector3(-2f, 0f, -0.3f);
+            var head = new Vector3(-2f, Height + Slab, 0.3f);
+            var hatch = new[] { new Vector2(-2.5f, -0.35f), new Vector2(-1.5f, -0.35f), new Vector2(-1.5f, 0.45f), new Vector2(-2.5f, 0.45f) };
+            var bedroom = Room("bed", 7f, new Vector3(0f, Floor, 0f),
+                               openings: new[] { new OpeningSpec(Walls.North, 1.5f, 1.0f, 2.1f, null) },
+                               ramps: new[] { new RampSpec(foot, head, 1f, MaxStepUp: 5f), new RampSpec(head, head + Vector3.UnitZ * 0.3f, 1f) },
+                               ceilingHatches: new[] { new HatchSpec(hatch, "attic", Slab) });
+            var attic = new RoomSpec
+            {
+                Id = "attic", Name = "attic",
+                Outline = RoomSpec.Rectangle(7f, 7f), Height = 0.5f,
+                Floor = Color.Gray, WallA = Color.White, WallB = Color.LightGray, Ceiling = Color.DarkGray,
+                WorldOffset = new Vector3(0f, Floor + Height + Slab, 0f),
+                Pitched = new Gable(0.7f, AlongX: true),
+                FloorHatches = new[] { new HatchSpec(hatch, "bed") },
+            };
+            return (new Building("house", bedroom, attic), bedroom, attic);
+        }
+
+        [Fact]
+        public void APitchedCeilingRisesFromItsWallsToTheRidge()
+        {
+            var (_, _, attic) = Attic();
+            Assert.Equal(0.5f, attic.CeilingHeightAt(new Vector3(0f, 0f, 3.5f)), 3);
+            Assert.Equal(0.5f + 0.7f * 3.5f, attic.CeilingHeightAt(new Vector3(2f, 0f, 0f)), 3);
+            Assert.Equal(0.5f + 0.7f * 1.5f, attic.CeilingHeightAt(new Vector3(-1f, 0f, -2f)), 3);
+            Assert.Equal(0.5f + 0.7f * 3.5f, attic.CeilingHeightAt(new Vector3(3.4f, 0f, 0f)), 3);   // the ridge runs right to the gable ends
+        }
+
+        [Fact]
+        public void TheLadderClimbsThroughTheHatchIntoTheAttic()
+        {
+            var (building, _, attic) = Attic();
+            var ground = On(building);
+            var walker = Walker(ground, new Vector3(-2f, Floor, -2f), South);
+            Grounds.Run(walker, Grounds.Forward(), 3f, ground);
+            Assert.True(walker.Grounded);
+            Assert.Equal(attic.WorldOffset.Y, walker.Position.Y, 2);
+        }
+
+        [Fact]
+        public void UnderTheSlopeYouCantGoWhereItsLowerThanYourHead()
+        {
+            var (building, _, attic) = Attic();
+            var ground = On(building);
+            var walker = Walker(ground, attic.WorldOffset + new Vector3(2f, 0f, 0f), South);
+            Assert.Equal(attic.WorldOffset.Y, walker.Position.Y, 3);
+            Grounds.Run(walker, Grounds.Forward(), 3f, ground);
+
+            // As far as the slope's a head's height up, less a body's radius: well short of the wall
+            var furthest = 3.5f - (CharacterController.Height - 0.5f) / 0.7f - CharacterController.Radius;
+            Assert.InRange(walker.Position.Z, furthest - 0.05f, furthest + 0.01f);
+        }
+
         [Fact]
         public void ABodyPushedAtAWallStopsAtIt()
         {

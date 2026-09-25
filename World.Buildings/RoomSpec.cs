@@ -163,6 +163,32 @@ namespace World.Buildings
         }
     }
 
+    // A pitched roof: two slopes rising at `Slope` (rise over run) from the walls either side to a ridge
+    // over the middle, the ridge running along X (AlongX) or along Z. On a room (RoomSpec.Pitched), its
+    // ceiling follows the slopes up from Height at those two walls - an attic, with headroom only down the
+    // middle; on a building (Building.Roof), the roof outside does. Only for rectangles centred on the room's
+    // origin, like RoomSpec.Rectangle's.
+    public readonly record struct Gable(float Slope, bool AlongX)
+    {
+        // A roof pitched at `degrees` from the level.
+        public static Gable Pitched(float degrees, bool alongX) => new Gable(MathF.Tan(MathHelper.ToRadians(degrees)), alongX);
+
+        // How far a point is from the ridge line, across the roof, and how far the room's walls are from it.
+        public float FromRidge(Vector3 local) => MathF.Abs(AlongX ? local.Z : local.X);
+        public float FromRidge(Vector2 local) => MathF.Abs(AlongX ? local.Y : local.X);
+        public float HalfSpan(Vector2[] outline)
+        {
+            var half = 0f;
+            foreach (var p in outline)
+                half = MathF.Max(half, FromRidge(p));
+            return half;
+        }
+
+        // The ridge line's direction, and the way across it, as plan (X, Z) vectors.
+        public Vector2 Along => AlongX ? Vector2.UnitX : Vector2.UnitY;
+        public Vector2 Across => AlongX ? Vector2.UnitY : Vector2.UnitX;
+    }
+
     // A piece of furniture standing in a room. Position is where the mesh's origin goes, YawDegrees turns
     // its front (+Z) round the vertical. Half is the half-extent (X, Z) of the floor area it blocks,
     // already turned to the room's axes; leave it at zero for something you can't walk into (a TV on a sideboard).
@@ -212,6 +238,9 @@ namespace World.Buildings
         // that its own edges win - enough to let the upper room's floor grid show through a ceiling it is
         // flush with, or only a few centimetres above.
         public HatchSpec[] CeilingHatches { get; init; } = Array.Empty<HatchSpec>();
+
+        // A ceiling that follows a pitched roof up from Height at its walls (see Gable), or null for a flat one.
+        public Gable? Pitched { get; init; }
         public HatchSpec[] FloorHatches { get; init; } = Array.Empty<HatchSpec>();
 
         // Every room that can be seen from this one: through an opening, or up or down through a hatch.
@@ -250,13 +279,28 @@ namespace World.Buildings
 
         // How high the ceiling is above this point: flat at Height, except above a stepped ramp (see
         // RampSpec.Steps), which it slopes to follow across the room's whole breadth, so headroom stays
-        // constant along it. The first stepped ramp whose run contains the point wins.
+        // constant along it - the first stepped ramp whose run contains the point wins - or under a pitched
+        // roof (see Pitched), rising from Height at the walls to the ridge.
         public float CeilingHeightAt(Vector3 local)
         {
             foreach (var ramp in Ramps)
                 if (ramp.Steps > 0 && ramp.InRange(local))
                     return Height + ramp.HeightAt(local);
+            if (Pitched is { } gable)
+                return Height + gable.Slope * MathF.Max(0f, gable.HalfSpan(Outline) - gable.FromRidge(local));
             return Height;
+        }
+
+        // Under a pitched ceiling, a walker (a circle of `radius`, `height` tall, feet at local.Y) kept out
+        // from under the slope where it comes down below their head: no nearer the walls than that.
+        public Vector3 KeepUnderRoof(Vector3 local, float radius, float height)
+        {
+            if (Pitched is not { } gable || local.Y < -0.05f || local.Y >= CeilingHeightAt(local) || !Contains(local))
+                return local;
+            var furthest = gable.HalfSpan(Outline) - MathF.Max(0f, local.Y + height - Height) / gable.Slope - radius;
+            var across = gable.AlongX ? local.Z : local.X;
+            var kept = MathHelper.Clamp(across, -MathF.Max(0f, furthest), MathF.Max(0f, furthest));
+            return gable.AlongX ? new Vector3(local.X, local.Y, kept) : new Vector3(kept, local.Y, local.Z);
         }
 
         // Default RampSpec.MaxStepUp: generous enough for a shallow staircase's per-frame rise, but see

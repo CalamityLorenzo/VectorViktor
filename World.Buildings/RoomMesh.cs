@@ -55,6 +55,8 @@ namespace World.Buildings
             var ceilingPieces = new List<Vector2[]> { room.Outline };
             foreach (var hatch in room.CeilingHatches)
                 ceilingPieces = CutOut(ceilingPieces, hatch.Outline);
+            if (room.Pitched is { } gable)
+                ceilingPieces = SplitAtRidge(ceilingPieces, gable);   // so each slope is flat
             AddCeiling(mesh, room, ceilingPieces);
             foreach (var hatch in room.CeilingHatches)
                 AddSlabEdge(mesh, room, hatch);
@@ -221,6 +223,20 @@ namespace World.Buildings
                 if (after.Count >= 3)
                     result.Add(after.ToArray());
             }
+            return result;
+        }
+
+        // Each piece cut in two along a pitched ceiling's ridge line (through the origin), one side of it each.
+        private static List<Vector2[]> SplitAtRidge(List<Vector2[]> pieces, Gable gable)
+        {
+            var result = new List<Vector2[]>();
+            foreach (var piece in pieces)
+                foreach (var side in new[] { gable.Across, -gable.Across })
+                {
+                    var half = ClipToHalfPlane(piece, Vector2.Zero, side);
+                    if (half.Count >= 3)
+                        result.Add(half.ToArray());
+                }
             return result;
         }
 
@@ -426,10 +442,38 @@ namespace World.Buildings
             float Top(float along) => room.CeilingHeightAt(room.WallPoint(wallIndex, along));
             Vector3 P(float along, float y) => room.WallPoint(wallIndex, along) + Vector3.Up * y;
             void Line(float a0, float y0, float a1, float y1) => mesh.AddLine(P(a0, y0), P(a1, y1));
+            // Under a pitched ceiling, where along the wall it passes under the ridge: its top peaks there
+            float? ridge = null;
+            if (room.Pitched is { } gable)
+            {
+                var t = new Vector2(room.Tangent(wallIndex).X, room.Tangent(wallIndex).Z);
+                var middle = room.WallPoint(wallIndex, 0f);
+                var across = Vector2.Dot(t, gable.Across);
+                if (MathF.Abs(across) > 1e-4f)
+                    ridge = -Vector2.Dot(new Vector2(middle.X, middle.Z), gable.Across) / across;
+            }
+            bool Peaks(float a0, float a1) => ridge.HasValue && ridge.Value > a0 + Tiny && ridge.Value < a1 - Tiny;
+            void TopLine(float a0, float a1)
+            {
+                if (Peaks(a0, a1))
+                {
+                    Line(a0, Top(a0), ridge.Value, Top(ridge.Value));
+                    Line(ridge.Value, Top(ridge.Value), a1, Top(a1));
+                }
+                else
+                    Line(a0, Top(a0), a1, Top(a1));
+            }
             void Piece(float a0, float a1, float bottom)
             {
                 if (a1 - a0 < Tiny || (Top(a0) - bottom < Tiny && Top(a1) - bottom < Tiny))
                     return;
+                if (Peaks(a0, a1))
+                {
+                    var r = ridge.Value;
+                    quads.Add(new[] { P(a0, bottom), P(r, bottom), P(r, Top(r)), P(a0, Top(a0)) });
+                    quads.Add(new[] { P(r, bottom), P(a1, bottom), P(a1, Top(a1)), P(r, Top(r)) });
+                    return;
+                }
                 quads.Add(new[] { P(a0, bottom), P(a1, bottom), P(a1, Top(a1)), P(a0, Top(a0)) });
             }
 
@@ -437,7 +481,7 @@ namespace World.Buildings
             {
                 Piece(-half, half, 0f);
                 Line(-half, 0f, half, 0f);
-                Line(-half, Top(-half), half, Top(half));
+                TopLine(-half, half);
                 Line(-half, 0f, -half, Top(-half));
                 Line(half, 0f, half, Top(half));
                 return;
@@ -459,13 +503,13 @@ namespace World.Buildings
             if (hasRight) Line(right, 0f, half, 0f);
             if (lintel)
             {
-                Line(-half, Top(-half), half, Top(half));
+                TopLine(-half, half);
                 Line(left, opening.Height, right, opening.Height);
             }
             else
             {
-                if (hasLeft) Line(-half, Top(-half), left, Top(left));
-                if (hasRight) Line(right, Top(right), half, Top(half));
+                if (hasLeft) TopLine(-half, left);
+                if (hasRight) TopLine(right, half);
             }
             if (hasLeft)
             {

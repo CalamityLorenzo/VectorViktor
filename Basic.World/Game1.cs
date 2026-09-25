@@ -55,13 +55,20 @@ namespace Basic.World
             ["basin"] = (TerrainGenerator.BasinCentre, MathHelper.PiOver4),
             ["lockers"] = (new Vector2(-3f, -3f), MathHelper.PiOver2),                   // facing the first locker, to push it over
             ["town"] = (new Vector2(22f, 6f), MathHelper.Pi),                            // north of the buildings, facing them
+            ["attic"] = (Town.HouseCentre, MathHelper.PiOver2),                           // up in the house's attic, facing its east end
+            ["bedroom"] = (Town.HouseCentre + new Vector2(-2f, -2f), MathHelper.Pi),      // in the house's bedroom, facing the ladder up to the attic
             ["street"] = (Neighbourhood.StreetStart, MathHelper.PiOver2),                  // at the west end of the street, looking down it
+            ["billboard"] = (Neighbourhood.BillboardView, MathHelper.PiOver4),              // in front of the billboard, looking at it
             ["pool"] = (Neighbourhood.PoolSide, MathHelper.Pi * 0.75f),                    // in a back garden, by its swimming pool
             ["far"] = (new Vector2(300f, 300f), -MathHelper.PiOver4),                      // out in the far country, looking back towards home
             ["pond"] = (TerrainGenerator.PondCentre + new Vector2(TerrainGenerator.PondRadius + 3f, 0f), -MathHelper.PiOver2),   // east of it, facing it
             ["house"] = (Town.HouseCentre + new Vector2(-1.5f, -7f), MathHelper.Pi),     // outside the house's doorway
             ["barn"] = (Town.BarnCentre + new Vector2(0f, -8f), MathHelper.Pi),          // outside the barn's
         };
+
+        // Starts up in a building, rather than on the ground under it: dropped from this far above the ground,
+        // you land on the highest floor below that
+        private static readonly Dictionary<string, float> FromAbove = new Dictionary<string, float> { ["bedroom"] = 4.5f, ["attic"] = 100f };
 
         private readonly GraphicsDeviceManager _graphics;
         private readonly MeshCache _meshCache = new MeshCache();
@@ -164,7 +171,8 @@ namespace Basic.World
                 _things.Add((thing.Body, Placed(new MeshInstance(mesh, thing.Palette)), thing.Turn));
             }
             var (at, yaw) = Starts[_start];
-            _player = new Player(new Vector3(at.X, 0f, at.Y), yaw, _world);
+            var dropFrom = FromAbove.TryGetValue(_start, out var above) ? _terrain.HeightAt(at.X, at.Y) + above : 0f;
+            _player = new Player(new Vector3(at.X, dropFrom, at.Y), yaw, _world);
 
             // Built a chunk at a time round the camera, out to where the fog has hidden it all
             _terrainView = new TerrainView(_terrain, shore: 0.5f, FogEnd + 15f, bare: Neighbourhood.Paved);
