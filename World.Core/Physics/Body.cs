@@ -45,6 +45,12 @@ namespace World.Core.Physics
 
         public bool IsStatic => float.IsPositiveInfinity(Mass);
         public float InverseMass => IsStatic || Toppling ? 0f : 1f / Mass;   // mid-topple, nothing shifts it
+        // Held up by water (see PhysicsWorld): it's lighter than the water it would displace.
+        public bool Floating { get; internal set; }
+
+        // Kilograms per cubic metre: less than water's, and it floats.
+        public float Density => Mass / (Size.X * Size.Y * Size.Z);
+
         public float Bottom => Position.Y;
         public float Top => Position.Y + Size.Y;
         public Vector3 Centre => Position + Vector3.Up * (Size.Y / 2f);

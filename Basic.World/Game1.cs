@@ -18,7 +18,10 @@ namespace Basic.World
     // ones topple when you push them; push into a stack and it comes down. South-east, a cottage, a
     // two-storey house and a barn (see Town) stand on levelled ground: walk in through their doorways,
     // up the house's stair to the bedroom, up the barn's ladder to its loft. Their doors are shut: E opens
-    // or shuts the one in front of you (see BuildingGround.Interact). See the
+    // or shuts the one in front of you (see BuildingGround.Interact). There's a lake in the basin and a
+    // pond west of the cottage: wade in and it slows you, deeper and you swim; you get wet as high as the
+    // water comes up you (the title says how wet, and you darken from the feet up), and dry off out of it.
+    // Light things float. See the
     // world through your own eyes, or from your camera drone as it flies after you. Drawn to a small render target and scaled up with hard pixels, like Basic.Levels.
     // Up / W and Down / S walk (hold Shift to run), Left / Right turn, A / D sidestep, Space jumps, E opens or shuts a door.
     // V switches between your own view and the drone's. C toggles colours / wireframe (not Tab, which
@@ -50,6 +53,7 @@ namespace Basic.World
             ["basin"] = (TerrainGenerator.BasinCentre, MathHelper.PiOver4),
             ["lockers"] = (new Vector2(-3f, -3f), MathHelper.PiOver2),                   // facing the first locker, to push it over
             ["town"] = (new Vector2(22f, 6f), MathHelper.Pi),                            // north of the buildings, facing them
+            ["pond"] = (TerrainGenerator.PondCentre + new Vector2(TerrainGenerator.PondRadius + 3f, 0f), -MathHelper.PiOver2),   // east of it, facing it
             ["house"] = (Town.HouseCentre + new Vector2(-1.5f, -7f), MathHelper.Pi),     // outside the house's doorway
             ["barn"] = (Town.BarnCentre + new Vector2(0f, -8f), MathHelper.Pi),          // outside the barn's
         };
@@ -69,6 +73,9 @@ namespace Basic.World
         private PhysicsWorld _world;
         private Player _player;
         private MeshInstance _terrainView, _playerView, _droneView;
+        private readonly List<MeshInstance> _waterViews = new List<MeshInstance>();
+        private Color[] _playerColors, _playerPalette;   // dry, and as drawn: darker where wet
+        private int _titleWetness = -1;
         private readonly List<(Body body, MeshInstance view, float turn)> _things = new List<(Body, MeshInstance, float)>();
         private readonly List<MeshInstance> _buildingShells = new List<MeshInstance>();
         private readonly List<RoomView> _rooms = new List<RoomView>();
@@ -144,8 +151,14 @@ namespace Basic.World
 
             var terrainMesh = _meshCache.GetOrAdd(GraphicsDevice, "terrain", d => TerrainMesh.Build(d, _terrain, TerrainGenerator.WaterLevel + 0.5f));
             _terrainView = Placed(new MeshInstance(terrainMesh, TerrainMesh.Palette()));
-            _playerView = Placed(new MeshInstance(_meshCache.GetOrAdd(GraphicsDevice, "player", PlayerMesh.Build),
-                PlayerMesh.Palette(new Color(50, 60, 120), new Color(200, 60, 40), new Color(230, 180, 140))));
+            _playerColors = PlayerMesh.Palette(new Color(50, 60, 120), new Color(200, 60, 40), new Color(230, 180, 140));
+            _playerPalette = (Color[])_playerColors.Clone();
+            _playerView = Placed(new MeshInstance(_meshCache.GetOrAdd(GraphicsDevice, "player", PlayerMesh.Build), _playerPalette));
+            for (var i = 0; i < _terrain.Pools.Count; i++)
+            {
+                var pool = _terrain.Pools[i];
+                _waterViews.Add(Placed(new MeshInstance(_meshCache.GetOrAdd(GraphicsDevice, "water" + i, d => WaterMesh.Build(d, pool)), WaterMesh.Palette())));
+            }
             _droneView = Placed(new MeshInstance(_meshCache.GetOrAdd(GraphicsDevice, "drone", DroneMesh.Build),
                 DroneMesh.Palette(new Color(90, 90, 100), new Color(60, 60, 65), new Color(40, 40, 45), new Color(120, 220, 230))));
             _droneView.Scale = 1.5f;   // so it reads at low resolution, even a few metres off
@@ -165,8 +178,25 @@ namespace Basic.World
             return instance;
         }
 
-        private void UpdateTitle() =>
-            Window.Title = "Basic.World - " + (_player.View == ViewMode.FirstPerson ? "your view" : "drone view");
+        private void UpdateTitle()
+        {
+            _titleWetness = (int)MathF.Round(_player.Wetness * 100f);
+            Window.Title = "Basic.World - " + (_player.View == ViewMode.FirstPerson ? "your view" : "drone view") +
+                (_player.Body.Swimming ? " - swimming" : "") + (_titleWetness > 0 ? $" - wet {_titleWetness}%" : "");
+        }
+
+        // Wet clothes are darker: the legs first, as you wade in, then the body and the head (see PlayerMesh's
+        // heights), as high as you've been soaked.
+        private void DampenPlayer()
+        {
+            var soaked = _player.Wetness * Player.Height;
+            foreach (var (part, bottom, top) in new[] { (PlayerMesh.Legs, 0f, 0.85f), (PlayerMesh.Body, 0.85f, 1.5f), (PlayerMesh.Head, 1.5f, 1.8f) })
+            {
+                var wet = MathHelper.Clamp((soaked - bottom) / (top - bottom), 0f, 1f);
+                for (var shade = 0; shade < 3; shade++)
+                    _playerPalette[part + shade] = Color.Lerp(_playerColors[part + shade], Color.Lerp(_playerColors[part + shade], Color.Black, 0.45f), wet);
+            }
+        }
 
         protected override void Update(GameTime gameTime)
         {
@@ -226,6 +256,10 @@ namespace Basic.World
 
         protected override void Draw(GameTime gameTime)
         {
+            if ((int)MathF.Round(_player.Wetness * 100f) != _titleWetness)
+                UpdateTitle();
+            DampenPlayer();
+
             var target = _lowResOn ? _lowRes : null;
             GraphicsDevice.SetRenderTarget(target);
             GraphicsDevice.Clear(BackgroundColor);
@@ -260,6 +294,8 @@ namespace Basic.World
             // Neither camera sees the thing it's in: from inside your own head (or the drone), you'd only
             // see the inside of it. Turn round in your own view, though, and the drone's there, following.
             Draw(_terrainView, gameTime);
+            foreach (var water in _waterViews)
+                Draw(water, gameTime);
             foreach (var shell in _buildingShells)
                 Draw(shell, gameTime);
             foreach (var room in _rooms)
@@ -288,7 +324,7 @@ namespace Basic.World
                 // and where everything ended up, beside it
                 var report = new System.Text.StringBuilder().AppendLine($"player {_player.Body.Position}");
                 foreach (var (thing, _, _) in _things)
-                    report.AppendLine($"{thing.Name} {thing.Position} size {thing.Size} resting {thing.Resting} on {thing.Support?.Name ?? "ground"}");
+                    report.AppendLine($"{thing.Name} {thing.Position} size {thing.Size} resting {thing.Resting} on {(thing.Floating ? "water" : thing.Support?.Name ?? "ground")}");
                 System.IO.File.WriteAllText(System.IO.Path.ChangeExtension(saving.file, ".txt"), report.ToString());
                 Exit();
                 return;

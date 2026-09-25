@@ -1,4 +1,5 @@
 using Microsoft.Xna.Framework;
+using System;
 using World.Core.Movement;
 using World.Core.Physics;
 
@@ -8,10 +9,17 @@ namespace World.Core.Characters
 
     // The player character: a walker, and the camera drone that follows it. You see the world either
     // through the character's own eyes or from the drone.
+    //
+    // Wading or swimming soaks you as high as the water comes up you, at once; out of it, you dry off, from
+    // soaked to dry in DryingTime.
     public sealed class Player
     {
         public const float EyeHeight = 1.6f;
         public const float Height = CharacterController.Height;
+        public const float DryingTime = 90f;   // seconds
+
+        // How wet you are: 0 dry, 1 soaked to the top of your head.
+        public float Wetness { get; private set; }
 
         public CharacterController Body { get; }
         public Drone Drone { get; }
@@ -33,6 +41,13 @@ namespace World.Core.Characters
         {
             Body.Step(input, dt, ground);
             Drone.Step(Body.Position, Body.Yaw, Eye, dt, ground);
+            Soak(dt);
+        }
+
+        private void Soak(float dt)
+        {
+            var immersion = MathHelper.Clamp(Body.WaterDepth / Height, 0f, 1f);
+            Wetness = MathF.Max(immersion, Wetness - dt / DryingTime);
         }
 
         // Among bodies: stood on one, it carries you along with it; walk into one and you push it. Step
@@ -46,6 +61,7 @@ namespace World.Core.Characters
             Body.Step(input, dt, world);
             world.PushWalker(Body, Height);
             Drone.Step(Body.Position, Body.Yaw, Eye, dt, world);
+            Soak(dt);
         }
     }
 }

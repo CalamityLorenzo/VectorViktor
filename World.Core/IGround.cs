@@ -39,5 +39,8 @@ namespace World.Core
         // Looking from `from` towards `to`: `to`, or if a wall or ceiling is in the way, the furthest point
         // along the line short of it that can still be seen from `from`.
         Vector3 ClearLine(Vector3 from, Vector3 to) => to;
+
+        // The height of the water's surface at (point.X, point.Z), if there's water there; null where it's dry.
+        float? WaterAt(Vector3 point) => null;
     }
 }

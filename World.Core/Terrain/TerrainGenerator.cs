@@ -6,8 +6,9 @@ namespace World.Core
 {
     // The first world: rolling hills (a few long, low waves and some smaller, seeded bumps on top), a
     // flat-topped plateau to the north-east with sheer cliffs all round - bar one causeway ramp climbing
-    // its west side - and a round basin to the south-west, dipping below WaterLevel for a lake later on.
-    // Pads (see Pad) are levelled for buildings to stand on. Same seed and pads, same world.
+    // its west side - a round basin to the south-west with a lake in it, below WaterLevel, and a small
+    // pond, shallow enough round its edge to wade in and deep enough in the middle to swim. Pads (see Pad)
+    // are levelled for buildings to stand on. Same seed and pads, same world.
     public static class TerrainGenerator
     {
         // Somewhere to build: the rectangle `Half` either side of `Centre` (world X, Z), levelled at the
@@ -27,7 +28,13 @@ namespace World.Core
         public static readonly Vector2 BasinCentre = new Vector2(-30f, 30f);
         public const float BasinRadius = 18f;
         public const float BasinDepth = 5f;
-        public const float WaterLevel = -2f;
+        public const float WaterLevel = -2f;      // the lake's surface
+        private const float BankHeight = 0.5f;    // the least the basin's rim stands above it
+
+        public static readonly Vector2 PondCentre = new Vector2(-6f, 14f);
+        public const float PondRadius = 6f;
+        public const float PondDepth = 1.9f;      // the hollow, below the hills round it
+        public const float PondFreeboard = 0.3f;  // how far below the hills at its middle its surface is
 
         public static Terrain Create(int seed = 1, IReadOnlyList<Pad> pads = null)
         {
@@ -52,6 +59,8 @@ namespace World.Core
                 return h;
             }
 
+            var pondRim = Hills(PondCentre.X, PondCentre.Y);
+
             var levels = new List<(Pad pad, float height)>();
             foreach (var pad in pads ?? Array.Empty<Pad>())
                 levels.Add((pad, Hills(pad.Centre.X, pad.Centre.Y)));
@@ -69,16 +78,30 @@ namespace World.Core
                         h = MathHelper.Lerp(height, h, SmoothStep(outside / pad.Blend));
                 }
 
-                // The basin: a smooth bowl pressed into the hills
+                // The basin: a smooth bowl pressed into the hills, and a bank round its rim, raised only where
+                // the hills are lower than the lake, so its water can't spill out there
                 var basin = Vector2.Distance(new Vector2(x, z), BasinCentre) / BasinRadius;
                 if (basin < 1f)
                     h -= BasinDepth * SmoothStep(1f - basin);
+                if (basin > 0.85f && basin < 1.3f)
+                {
+                    var bank = basin < 1f ? SmoothStep((basin - 0.85f) / 0.15f) : SmoothStep((1.3f - basin) / 0.3f);
+                    h += MathF.Max(0f, WaterLevel + BankHeight - h) * bank;
+                }
+
+                // The pond: a smaller bowl with a level rim all round, so the water can't spill out on a low
+                // side, and a band half its radius wide beyond that blending back into the hills
+                var pond = Vector2.Distance(new Vector2(x, z), PondCentre) / PondRadius;
+                if (pond < 1f)
+                    h = pondRim - PondDepth * SmoothStep(1f - pond);
+                else if (pond < 1.5f)
+                    h = MathHelper.Lerp(pondRim, h, SmoothStep((pond - 1f) / 0.5f));
 
                 // The plateau and its causeway stand up out of the hills wherever they're higher, and
                 // since heights are only sampled at grid corners, their edges drop within a single cell
                 h = MathF.Max(h, PlateauAt(x, z, h));
                 return h;
-            });
+            }).Flood(new Pool(BasinCentre, BasinRadius, WaterLevel), new Pool(PondCentre, PondRadius, pondRim - PondFreeboard));
         }
 
         // The plateau's own height at (x, z), or below anything (so the hills win) outside it. The causeway

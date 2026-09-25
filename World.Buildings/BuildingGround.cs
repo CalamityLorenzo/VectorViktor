@@ -286,6 +286,9 @@ namespace World.Buildings
             return from + d * MathF.Max(0f, hit - SightMargin / MathF.Max(length, 1e-6f));
         }
 
+        // The terrain's lakes and ponds; buildings keep dry, standing clear of them.
+        public float? WaterAt(Vector3 point) => _terrain.WaterAt(point);
+
         private static float Cross(Vector2 a, Vector2 b) => a.X * b.Y - a.Y * b.X;
 
         private static Vector2 Nearest(Vector2 p, Vector2 a, Vector2 b)

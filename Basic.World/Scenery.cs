@@ -74,6 +74,12 @@ namespace Basic.World
             Place("edge crate 1", CrateKind.Wood, crate, 25f, plateau.X, south - 2.5f);
             Place("edge crate 2", CrateKind.Cardboard, cardboard, 4f, plateau.X + 1.5f, south - 3f);
 
+            // Afloat on the pond (see PhysicsWorld): a cardboard box riding high, and a heavy wooden crate, about
+            // half under - too heavy to budge on land, but afloat, there's nothing to grip, so you can push it
+            var pond = TerrainGenerator.PondCentre;
+            Place("pond box", CrateKind.Cardboard, cardboard, 4f, pond.X + 1.5f, pond.Y - 1f);
+            Place("pond crate", CrateKind.Wood, crate, 300f, pond.X - 1f, pond.Y + 1.5f);
+
             // In the barn, two bales of straw (as wooden crates) inside the doorway, to shove about indoors
             Place("barn crate 1", CrateKind.Wood, crate, 25f, Town.BarnCentre.X - 3f, Town.BarnCentre.Y - 1.5f);
             Place("barn crate 2", CrateKind.Wood, crate, 25f, Town.BarnCentre.X - 3f, Town.BarnCentre.Y - 1.5f, above: 1f);

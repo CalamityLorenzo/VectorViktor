@@ -17,6 +17,10 @@ namespace World.Core.Movement
     // off it downhill. Walls (see IGround.KeepOut) push you back out after every sub-step, so you slide
     // along one you walk into at an angle. On a ladder (see IGround.StepUpAt), each stride may rise, or
     // drop, further than a step.
+    //
+    // In water (see IGround.WaterAt) you wade, slower the deeper it is. Deeper than SwimDepth, you float,
+    // your head out of it, and swim - slowly, and not jumping - until the bottom comes up under you again
+    // and you stand. Fall or jump into deep water and you stop sinking at the same depth.
     public sealed class CharacterController
     {
         public const float WalkSpeed = 2.5f;          // metres per second
@@ -33,6 +37,11 @@ namespace World.Core.Movement
         public const float Radius = 0.3f;             // how far ahead a blocking slope is felt, so the eye stays clear of it
         public const float MaxSubStep = 0.1f;         // metres
         public const float Height = 1.8f;             // feet to the top of the head, for walls and ceilings
+        public const float SwimDepth = 1.3f;          // water deeper than this over the bottom and you float, feet this far down
+        public const float WadeSlowing = 0.6f;        // how much slower you wade in water SwimDepth deep (less, shallower)
+        public const float SwimSpeed = 1.2f;          // metres per second
+        public const float SwimRunMultiplier = 1.5f;
+        public const float SwimAcceleration = 5f;
 
         // Against bodies (see PhysicsWorld.PushWalker): how heavy you are when one hits you, and how hard
         // and how powerfully you can push one. The force is the most you can shove with at all, so
@@ -47,6 +56,10 @@ namespace World.Core.Movement
         public Vector3 Velocity { get; set; }
         public float Yaw { get; set; }
         public bool Grounded { get; private set; }
+        public bool Swimming { get; private set; }
+
+        // How far below the water's surface your feet are, or 0 out of it.
+        public float WaterDepth { get; private set; }
 
         // The velocity asked for on the last tick: where you're trying to go, whether or not you can.
         public Vector3 Wish { get; private set; }
@@ -84,7 +97,14 @@ namespace World.Core.Movement
             var wish = Right * input.Move.X + Heading * input.Move.Y;
             if (wish.LengthSquared() > 1f)
                 wish.Normalize();   // so going diagonally isn't faster
-            wish *= input.Run ? WalkSpeed * RunMultiplier : WalkSpeed;
+            if (Swimming)
+                wish *= input.Run ? SwimSpeed * SwimRunMultiplier : SwimSpeed;
+            else
+            {
+                wish *= input.Run ? WalkSpeed * RunMultiplier : WalkSpeed;
+                if (Grounded && WaterDepth > 0f)
+                    wish *= 1f - WadeSlowing * MathF.Min(WaterDepth / SwimDepth, 1f);   // wading
+            }
             Wish = wish;
 
             var velocity = Velocity;
@@ -96,7 +116,7 @@ namespace World.Core.Movement
                 Grounded = false;
 
             var footing = Grounded && Staggered <= 0f;
-            horizontal = Approach(horizontal, wish, (footing ? GroundAcceleration : AirAcceleration) * dt);
+            horizontal = Approach(horizontal, wish, (Swimming ? SwimAcceleration : footing ? GroundAcceleration : AirAcceleration) * dt);
             Staggered = MathF.Max(0f, Staggered - dt);
             if (sliding)
                 horizontal += Downhill(ground.NormalAt(Position)) * SlideAcceleration * dt;
@@ -106,7 +126,7 @@ namespace World.Core.Movement
                 Grounded = false;
                 velocity.Y = JumpSpeed;
             }
-            if (!Grounded)
+            if (!Grounded && !Swimming)
                 velocity.Y = MathF.Max(velocity.Y - Gravity * dt, -TerminalSpeed);
             else
                 velocity.Y = 0f;
@@ -146,7 +166,7 @@ namespace World.Core.Movement
             }
 
             // Up and down
-            if (!Grounded)
+            if (!Grounded && !Swimming)
             {
                 // Looking for ground as far above the feet as they've just fallen past, so a fast fall
                 // can't drop straight through the top of a box in one tick
@@ -167,6 +187,27 @@ namespace World.Core.Movement
                     velocity.Y = MathF.Min(velocity.Y, 0f);
                 }
             }
+
+            // Deep water holds you up, your feet SwimDepth under; out of it, you're standing on the bottom again
+            var surface = ground.WaterAt(position);
+            var bottom = ground.GroundBelow(position, MaxStepUp);
+            if (surface.HasValue && bottom.HasValue && bottom.Value < surface.Value - SwimDepth && (Swimming || position.Y <= surface.Value - SwimDepth))
+            {
+                Swimming = true;
+                Grounded = false;
+                position.Y = surface.Value - SwimDepth;
+                velocity.Y = 0f;
+            }
+            else if (Swimming)
+            {
+                Swimming = false;
+                if (bottom.HasValue)
+                {
+                    position.Y = bottom.Value;
+                    Grounded = true;
+                }
+            }
+            WaterDepth = surface.HasValue ? MathF.Max(0f, surface.Value - position.Y) : 0f;
 
             Position = position;
             Velocity = new Vector3(horizontal.X, velocity.Y, horizontal.Z);

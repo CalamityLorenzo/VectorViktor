@@ -35,6 +35,10 @@ namespace World.Core.Physics
     // It tips only if there's room to: not into a wall, another body, or a bank of ground. While it's
     // going over it's fixed where it is, and anything stood on it stays put until it lands.
     //
+    // In water (see IGround.WaterAt), a body lighter than the water it would displace floats, as deep in
+    // it as its density says - a cardboard box high, a wooden crate lower - and slides about with nothing
+    // but the water's drag to slow it. A denser one sinks, slowly, to the bottom, and drags through it.
+    //
     // It's also the ground walkers walk on: the terrain, with the tops of the bodies on it (see IGround).
     public sealed class PhysicsWorld : IGround
     {
@@ -56,6 +60,9 @@ namespace World.Core.Physics
         private const float GroundReach = 1f;     // how far above its bottom a body looks for the ground under it: indoors, not up to the floor overhead
         private const float KnockedOver = 1f;     // a walker shoved this much faster (m/s) loses their footing...
         private const float StaggerTime = 0.4f;   // ...for this long (seconds)
+        public const float WaterDensity = 1000f;  // kg per cubic metre
+        public const float WaterDrag = 1.5f;      // how quickly water slows a body in it: its speed falls by this fraction per second, near enough
+        public const float SinkDrag = 3f;         // and slows its sinking
 
         private readonly List<Body> _bodies = new List<Body>();
 
@@ -96,6 +103,14 @@ namespace World.Core.Physics
         {
             var v = new Vector2(body.Velocity.X, body.Velocity.Z);
             var force = new Vector2(body.Force.X, body.Force.Z);
+
+            if (body.Floating)
+            {
+                // Nothing to grip: pushes shove it along, and the water slows it
+                v = v * MathF.Exp(-WaterDrag * dt) + force / body.Mass * dt;
+                body.Velocity = new Vector3(v.X, body.Velocity.Y - Gravity * dt, v.Y);
+                return;
+            }
 
             if (OnSteepGround(body))
             {
@@ -143,7 +158,15 @@ namespace World.Core.Physics
                 v += force / body.Mass * dt;
             }
 
-            body.Velocity = new Vector3(v.X, body.Velocity.Y - Gravity * dt, v.Y);
+            // Under water, a sinking body is dragged back too, and sinks slowly
+            var vy = body.Velocity.Y - Gravity * dt;
+            var water = Terrain.WaterAt(body.Position);
+            if (water.HasValue && body.Bottom < water.Value)
+            {
+                v *= MathF.Exp(-WaterDrag * dt);
+                vy *= MathF.Exp(-SinkDrag * dt);
+            }
+            body.Velocity = new Vector3(v.X, vy, v.Y);
         }
 
         private void MoveAcross(Body body, float dt)
@@ -282,6 +305,23 @@ namespace World.Core.Physics
                         on = other;
                     }
                 }
+
+                // Afloat, if the water's deep enough to hold it up clear of whatever's under it
+                var water = Terrain.WaterAt(body.Position);
+                if (water.HasValue && body.Density < WaterDensity)
+                {
+                    var afloat = water.Value - body.Size.Y * body.Density / WaterDensity;
+                    if ((!support.HasValue || afloat > support.Value) && (body.Floating || now <= afloat))
+                    {
+                        body.Position = new Vector3(body.Position.X, afloat, body.Position.Z);
+                        body.Velocity = new Vector3(body.Velocity.X, 0f, body.Velocity.Z);
+                        body.Resting = true;
+                        body.Support = null;
+                        body.Floating = true;
+                        continue;
+                    }
+                }
+                body.Floating = false;
 
                 if (support.HasValue && (now <= support.Value || (body.Resting && was - support.Value <= SnapDown)))
                 {
@@ -509,6 +549,7 @@ namespace World.Core.Physics
         public float? CeilingAbove(Vector3 feet) => Terrain.CeilingAbove(feet);
         public bool Obstructs(Vector3 bottomCentre, Vector3 size) => Terrain.Obstructs(bottomCentre, size);
         public Vector3 ClearLine(Vector3 from, Vector3 to) => Terrain.ClearLine(from, to);
+        public float? WaterAt(Vector3 point) => Terrain.WaterAt(point);
 
         // A body's top is level, and always good to stand on.
         public Vector3 NormalAt(Vector3 feet) => TopWithinReach(feet) != null ? Vector3.Up : Terrain.NormalAt(feet);

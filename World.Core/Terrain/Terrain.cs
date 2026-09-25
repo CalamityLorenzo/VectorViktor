@@ -1,5 +1,6 @@
 using Microsoft.Xna.Framework;
 using System;
+using System.Collections.Generic;
 
 namespace World.Core
 {
@@ -106,7 +107,27 @@ namespace World.Core
             return (i, j, u - i, v - j);
         }
 
+        // Its lakes and ponds (see Pool), filled once it's made: see Flood.
+        public IReadOnlyList<Pool> Pools { get; private set; } = Array.Empty<Pool>();
+
+        public Terrain Flood(params Pool[] pools)
+        {
+            Pools = pools;
+            return this;
+        }
+
+        // The surface of whichever pool is over (x, z), where the ground there is below it; null where it's dry.
+        public float? WaterLevelAt(float x, float z)
+        {
+            float? level = null;
+            foreach (var pool in Pools)
+                if (pool.Covers(x, z) && (!level.HasValue || pool.Level > level.Value) && HeightAt(x, z) < pool.Level)
+                    level = pool.Level;
+            return level;
+        }
+
         float? IGround.GroundBelow(Vector3 feet, float reach) => Contains(feet.X, feet.Z) ? HeightAt(feet.X, feet.Z) : null;
+        float? IGround.WaterAt(Vector3 point) => WaterLevelAt(point.X, point.Z);
         Vector3 IGround.NormalAt(Vector3 feet) => NormalAt(feet.X, feet.Z);
         bool IGround.IsWalkable(Vector3 feet) => IsWalkable(feet.X, feet.Z);
     }

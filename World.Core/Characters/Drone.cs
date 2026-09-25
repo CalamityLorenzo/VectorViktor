@@ -10,12 +10,14 @@ namespace World.Core.Characters
     // over a ridge rather than going through it, and it keeps them in sight: if the ground (or a box) lies
     // between its station and their head - they've gone over a cliff's edge, say - it comes in closer,
     // to where it can see them. Walls and ceilings (see IGround.ClearLine) bring it in the same way, so
-    // indoors it stays in the room with them. It turns lazily to keep facing them.
+    // indoors it stays in the room with them. Over water it keeps WaterClearance above the surface, never
+    // flying into it. It turns lazily to keep facing them.
     public sealed class Drone
     {
         public const float FollowDistance = 3f;
         public const float FollowHeight = 2f;
         public const float MinClearance = 1f;
+        public const float WaterClearance = 0.5f;
         public const float Stiffness = 4f;       // the spring's natural frequency, radians per second
         public const float TurnRate = 3f;        // radians per second
         public const float SightClearance = 0.3f; // how far above the ground its line of sight to them must stay
@@ -88,6 +90,9 @@ namespace World.Core.Characters
             var below = ground.GroundBelow(position, GroundReach);
             if (below.HasValue && position.Y < below.Value + MinClearance)
                 position.Y = below.Value + MinClearance;
+            var water = ground.WaterAt(position);
+            if (water.HasValue && position.Y < water.Value + WaterClearance)
+                position.Y = water.Value + WaterClearance;
             return position;
         }
     }
