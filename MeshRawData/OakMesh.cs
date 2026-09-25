@@ -94,16 +94,12 @@ namespace MeshRawData
                 }
             }
 
-            // Faces, sorted into shades by how far they face up, so each shade is one contiguous range
-            var faceSets = new List<(Vector3 a, Vector3 b, Vector3 c)>[LeafShades];
-            for (var s = 0; s < LeafShades; s++)
-                faceSets[s] = new List<(Vector3, Vector3, Vector3)>();
-
+            // Faces, shaded by how far they face up
             void Face(Vector3 a, Vector3 b, Vector3 c)
             {
                 var facing = Vector3.Normalize((a + b + c) / 3f - CanopyCentre).Y;
                 var shade = facing > 0.72f ? 4 : facing > 0.35f ? 3 : facing > -0.15f ? 2 : facing > -0.55f ? 1 : 0;
-                faceSets[shade].Add((a, b, c));
+                mesh.AddTri(LeafBase + shade, a, b, c);
                 mesh.AddOutlineTri(a, b, c, CanopyCentre);
             }
 
@@ -118,15 +114,6 @@ namespace MeshRawData
                     Face(rings[r][k], rings[r + 1][n], rings[r + 1][k]);
                 }
                 Face(poleTop, rings[last][k], rings[last][n]);
-            }
-
-            for (var shade = 0; shade < LeafShades; shade++)
-            {
-                if (faceSets[shade].Count == 0)
-                    continue;
-                mesh.AddSolidRange(faceSets[shade].Count, LeafBase + shade);
-                foreach (var (a, b, c) in faceSets[shade])
-                    mesh.AddTri(a, b, c);
             }
 
             return mesh.Build(device);

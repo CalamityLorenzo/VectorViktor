@@ -79,36 +79,30 @@ namespace MeshRawData
             var mesh = new MeshBuilder();
 
             // ---- Body sides (28 tris)
-            mesh.AddSolidRange(4 * (n - 1), BodyBase + MeshBuilder.Side);
             for (var i = 0; i < n - 1; i++)
             {
-                mesh.AddQuad(BL(i), BL(i + 1), TL(i + 1), TL(i));   // left
-                mesh.AddQuad(BR(i), BR(i + 1), TR(i + 1), TR(i));   // right
+                mesh.AddQuad(BodyBase + MeshBuilder.Side, BL(i), BL(i + 1), TL(i + 1), TL(i));   // left
+                mesh.AddQuad(BodyBase + MeshBuilder.Side, BR(i), BR(i + 1), TR(i + 1), TR(i));   // right
             }
 
             // ---- Underside and the nose / tail end panels (18 tris)
-            mesh.AddSolidRange(2 * (n - 1) + 4, BodyBase + MeshBuilder.Dim);
             for (var i = 0; i < n - 1; i++)
-                mesh.AddQuad(BL(i), BR(i), BR(i + 1), BL(i + 1));
-            mesh.AddQuad(BL(0), BR(0), TR(0), TL(0));
-            mesh.AddQuad(BL(n - 1), BR(n - 1), TR(n - 1), TL(n - 1));
+                mesh.AddQuad(BodyBase + MeshBuilder.Dim, BL(i), BR(i), BR(i + 1), BL(i + 1));
+            mesh.AddQuad(BodyBase + MeshBuilder.Dim, BL(0), BR(0), TR(0), TL(0));
+            mesh.AddQuad(BodyBase + MeshBuilder.Dim, BL(n - 1), BR(n - 1), TR(n - 1), TL(n - 1));
 
             // ---- Top surface: hood, shoulders, rear deck, and the roof (16 tris)
-            mesh.AddSolidRange(2 * (n - 1) + 2, BodyBase + MeshBuilder.Top);
             for (var i = 0; i < n - 1; i++)
-                mesh.AddQuad(TL(i), TR(i), TR(i + 1), TL(i + 1));
-            mesh.AddQuad(roofFrontL, roofFrontR, roofRearR, roofRearL);
+                mesh.AddQuad(BodyBase + MeshBuilder.Top, TL(i), TR(i), TR(i + 1), TL(i + 1));
+            mesh.AddQuad(BodyBase + MeshBuilder.Top, roofFrontL, roofFrontR, roofRearR, roofRearL);
 
             // ---- Glass: windscreen and rear window (4 tris), then the side windows (4 tris)
-            mesh.AddSolidRange(4, Glass);
-            mesh.AddQuad(cabinBaseFrontL, cabinBaseFrontR, roofFrontR, roofFrontL);   // windscreen
-            mesh.AddQuad(roofRearL, roofRearR, cabinBaseRearR, cabinBaseRearL);       // rear window
-            mesh.AddSolidRange(4, GlassDim);
-            mesh.AddQuad(cabinBaseFrontL, cabinBaseRearL, roofRearL, roofFrontL);     // left window
-            mesh.AddQuad(cabinBaseFrontR, cabinBaseRearR, roofRearR, roofFrontR);     // right window
+            mesh.AddQuad(Glass, cabinBaseFrontL, cabinBaseFrontR, roofFrontR, roofFrontL);   // windscreen
+            mesh.AddQuad(Glass, roofRearL, roofRearR, cabinBaseRearR, cabinBaseRearL);       // rear window
+            mesh.AddQuad(GlassDim, cabinBaseFrontL, cabinBaseRearL, roofRearL, roofFrontL);     // left window
+            mesh.AddQuad(GlassDim, cabinBaseFrontR, cabinBaseRearR, roofRearR, roofFrontR);     // right window
 
             // ---- Side strakes: three slanted dark slashes behind the door on each side (12 tris)
-            mesh.AddSolidRange(12, Trim);
             const float strakeBottomY = 0.085f, strakeTopY = 0.145f, strakeWidth = 0.03f, strakeLean = 0.03f;
             foreach (var side in new[] { -1f, 1f })
                 foreach (var z0 in new[] { -0.02f, -0.10f, -0.18f })
@@ -122,12 +116,11 @@ namespace MeshRawData
                         Q(z0 - strakeWidth - strakeLean, strakeTopY),
                         Q(z0 - strakeLean, strakeTopY),
                     };
-                    mesh.AddQuad(strake[0], strake[1], strake[2], strake[3]);
+                    mesh.AddQuad(Trim, strake[0], strake[1], strake[2], strake[3]);
                     mesh.AddLineLoop(strake);
                 }
 
-            // ---- Wheels: octagonal (flat top and bottom), at the four corners. Emitted in three
-            // passes across all four wheels so each colour stays one contiguous range.
+            // ---- Wheels: octagonal (flat top and bottom), at the four corners.
             const float apothem = 0.085f, halfTrack = 0.035f, hubInset = 0.55f;
             var radius = apothem / MathF.Cos(MathF.PI / 8f);
             var wheelCentres = new[]
@@ -147,27 +140,18 @@ namespace MeshRawData
                 return ring;
             }
 
-            mesh.AddSolidRange(8 * 2 * wheelCentres.Length, Tyre);           // tread: 8 quads per wheel
+            // Each wheel: its tread, both flat faces, and a hub on the outward face only
             foreach (var (x, z) in wheelCentres)
             {
                 var a = Ring(x - halfTrack, z, 1f);
                 var b = Ring(x + halfTrack, z, 1f);
                 for (var k = 0; k < 8; k++)
-                    mesh.AddQuad(a[k], a[(k + 1) % 8], b[(k + 1) % 8], b[k]);
-            }
+                    mesh.AddQuad(Tyre, a[k], a[(k + 1) % 8], b[(k + 1) % 8], b[k]);
+                mesh.AddPolygon(TyreCap, a);
+                mesh.AddPolygon(TyreCap, b);
 
-            mesh.AddSolidRange(6 * 2 * wheelCentres.Length, TyreCap);        // both flat faces: 6 tris each
-            foreach (var (x, z) in wheelCentres)
-            {
-                mesh.AddPolygon(Ring(x - halfTrack, z, 1f));
-                mesh.AddPolygon(Ring(x + halfTrack, z, 1f));
-            }
-
-            mesh.AddSolidRange(6 * wheelCentres.Length, Hub);                // hub on the outward face only
-            foreach (var (x, z) in wheelCentres)
-            {
                 var hub = Ring(x + MathF.Sign(x) * (halfTrack + 0.002f), z, hubInset);
-                mesh.AddPolygon(hub);
+                mesh.AddPolygon(Hub, hub);
                 mesh.AddLineLoop(hub);
             }
 

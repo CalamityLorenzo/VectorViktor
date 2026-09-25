@@ -78,9 +78,8 @@ namespace MeshRawData
                 }
 
             // All in the one plane, z = 0, with nothing in front of or behind them to hide them from either side
-            mesh.AddSolidRange(strokes.Count * 2, Paint);
             foreach (var s in strokes)
-                mesh.AddQuad(new Vector3(s[0], s[1], 0f), new Vector3(s[2], s[1], 0f), new Vector3(s[2], s[3], 0f), new Vector3(s[0], s[3], 0f));
+                mesh.AddQuad(Paint, new Vector3(s[0], s[1], 0f), new Vector3(s[2], s[1], 0f), new Vector3(s[2], s[3], 0f), new Vector3(s[0], s[3], 0f));
             foreach (var s in strokes)
                 mesh.AddLineLoop(new Vector3(s[0], s[1], 0f), new Vector3(s[2], s[1], 0f), new Vector3(s[2], s[3], 0f), new Vector3(s[0], s[3], 0f));
 

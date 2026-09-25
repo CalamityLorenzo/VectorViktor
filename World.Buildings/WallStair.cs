@@ -127,28 +127,12 @@ namespace World.Buildings
 
         public MeshData Build(GraphicsDevice device)
         {
+            // One draw range per colour, however many steps there are (see MeshBuilder)
             var mesh = new MeshBuilder();
-            var faces = new List<Vector3[]>[PaletteSize];
-            for (var slot = 0; slot < PaletteSize; slot++)
-                faces[slot] = new List<Vector3[]>();
-
             foreach (var flight in _flights)
-                AddFlight(mesh, faces, flight);
+                AddFlight(mesh, flight);
             foreach (var landing in _landings)
-                AddLanding(mesh, faces, landing);
-
-            // One draw range per slot, however many steps there are
-            for (var slot = 0; slot < PaletteSize; slot++)
-            {
-                var triangles = 0;
-                foreach (var polygon in faces[slot])
-                    triangles += polygon.Length - 2;
-                if (triangles == 0)
-                    continue;
-                mesh.AddSolidRange(triangles, slot);
-                foreach (var polygon in faces[slot])
-                    mesh.AddPolygon(polygon);
-            }
+                AddLanding(mesh, landing);
             return mesh.Build(device);
         }
 
@@ -161,7 +145,7 @@ namespace World.Buildings
             return (Vector2.Normalize(flight.End - flight.Start), length, length - flight.Steps * flight.Going);
         }
 
-        private void AddFlight(MeshBuilder mesh, List<Vector3[]>[] faces, Flight flight)
+        private void AddFlight(MeshBuilder mesh, Flight flight)
         {
             var (along, length, first) = Run(flight);
             var w = Width;
@@ -181,8 +165,8 @@ namespace World.Buildings
                 var low = flight.Base + i * Rise;
                 var high = low + Rise;
 
-                faces[Tread].Add(new[] { P(a0, 0f, high), P(a1, 0f, high), P(a1, w, high), P(a0, w, high) });
-                faces[Riser].Add(new[] { P(a0, 0f, low), P(a0, w, low), P(a0, w, high), P(a0, 0f, high) });
+                mesh.AddQuad(Tread, P(a0, 0f, high), P(a1, 0f, high), P(a1, w, high), P(a0, w, high));
+                mesh.AddQuad(Riser, P(a0, 0f, low), P(a0, w, low), P(a0, w, high), P(a0, 0f, high));
 
                 // This step's slice of the open side, down to the underside - with a kink where that meets the floor
                 var side = new List<Vector3> { P(a0, w, Under(a0)) };
@@ -191,7 +175,7 @@ namespace World.Buildings
                 side.Add(P(a1, w, Under(a1)));
                 side.Add(P(a1, w, high));
                 side.Add(P(a0, w, high));
-                faces[Side].Add(side.ToArray());
+                mesh.AddPolygon(Side, side.ToArray());
 
                 mesh.AddLine(P(a0, 0f, low), P(a0, w, low));
                 mesh.AddLine(P(a0, 0f, high), P(a0, w, high));
@@ -206,7 +190,7 @@ namespace World.Buildings
 
             if (floorEnd < length)
             {
-                faces[Underside].Add(new[] { P(floorEnd, 0f, Under(floorEnd)), P(length, 0f, Under(length)), P(length, w, Under(length)), P(floorEnd, w, Under(floorEnd)) });
+                mesh.AddQuad(Underside, P(floorEnd, 0f, Under(floorEnd)), P(length, 0f, Under(length)), P(length, w, Under(length)), P(floorEnd, w, Under(floorEnd)));
                 foreach (var lateral in new[] { 0f, w })
                     mesh.AddLine(P(floorEnd, lateral, Under(floorEnd)), P(length, lateral, Under(length)));
             }
@@ -217,14 +201,14 @@ namespace World.Buildings
         // A slab filling the corner, level with the top of the flight before it. Its open corner is just
         // the point where the two flights' sides meet, so it has no side faces of its own - only a top and
         // an underside, which is level with where both flights' undersides reach it.
-        private void AddLanding(MeshBuilder mesh, List<Vector3[]>[] faces, Landing landing)
+        private void AddLanding(MeshBuilder mesh, Landing landing)
         {
             var top = landing.Height;
             var under = top + Rise - Waist;
             Vector3[] Kite(float y) => new[] { At(landing.FootBefore, y), At(landing.Corner, y), At(landing.FootAfter, y), At(landing.Inner, y) };
 
-            faces[Tread].Add(Kite(top));
-            faces[Underside].Add(Kite(under));
+            mesh.AddPolygon(Tread, Kite(top));
+            mesh.AddPolygon(Underside, Kite(under));
 
             foreach (var y in new[] { top, under })
             {

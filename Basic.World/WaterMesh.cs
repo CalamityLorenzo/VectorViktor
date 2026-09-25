@@ -42,8 +42,7 @@ namespace Basic.World
 
             var mesh = new MeshBuilder();
             var outline = pool.IsRectangle ? Box(1f) : Ring(pool.Radius);
-            mesh.AddSolidRange(outline.Length - 2, 0);
-            mesh.AddPolygon(outline);
+            mesh.AddPolygon(0, outline);
             foreach (var ripple in Ripples)
                 mesh.AddLineLoop(pool.IsRectangle ? Box(ripple) : Ring(pool.Radius * ripple));
             return mesh.Build(device);

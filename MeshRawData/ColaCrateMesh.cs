@@ -46,18 +46,13 @@ namespace MeshRawData
             var mesh = new MeshBuilder();
             mesh.AddBox(CrateBase, Vector3.Zero, Depth, Width, Height);
 
-            var strokeCount = 0;
-            foreach (var letter in Letters)
-                strokeCount += letter.Length;
-
             // Text runs left to right as seen from in front of the crate, which is +X
             var left = -(Letters.Length * LetterAdvance - (LetterAdvance - 0.6f)) / 2f;
             Vector3 Point(float cursor, float x, float y, float lift) => new Vector3(left + cursor + x, LetterBottom + y, Depth / 2f + lift);
 
-            mesh.AddSolidRange(strokeCount * 2, Paint);
             for (var i = 0; i < Letters.Length; i++)
                 foreach (var s in Letters[i])
-                    mesh.AddQuad(Point(i * LetterAdvance, s[0], s[1], PaintLift), Point(i * LetterAdvance, s[2], s[1], PaintLift),
+                    mesh.AddQuad(Paint, Point(i * LetterAdvance, s[0], s[1], PaintLift), Point(i * LetterAdvance, s[2], s[1], PaintLift),
                                  Point(i * LetterAdvance, s[2], s[3], PaintLift), Point(i * LetterAdvance, s[0], s[3], PaintLift));
 
             // Faces vanish in wireframe, so each stroke is outlined too

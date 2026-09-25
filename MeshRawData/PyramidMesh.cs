@@ -40,7 +40,8 @@ namespace MeshRawData
                     new DrawRange(0, 2, Base),
                     new DrawRange(6, 4, Side),
                 },
-                ToBuffer(device, edges));
+                ToBuffer(device, edges),
+                BoundingBox.CreateFromPoints(solid));
         }
 
         private static VertexBuffer ToBuffer(GraphicsDevice device, Vector3[] positions)

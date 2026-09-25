@@ -1,6 +1,7 @@
 using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
+using System.Threading;
 
 namespace World.Core
 {
@@ -13,7 +14,8 @@ namespace World.Core
     // Made from a height function (FromFunction), it's worked out a chunk at a time - ChunkCells x
     // ChunkCells cells - the first time anything asks about somewhere in that chunk, and kept. So a big
     // world costs next to nothing until someone goes there, and a drawing of it can be built chunk by chunk
-    // too (see ChunkBounds).
+    // too (see ChunkBounds). Working a chunk out is safe from more than one thread at once, so its drawing can
+    // be built off the main thread.
     public sealed class Terrain : IGround
     {
         // Steeper than this is a cliff: you can't stand on it or walk up it.
@@ -31,7 +33,8 @@ namespace World.Core
         public float CellSize { get; }
 
         // How many chunks have been worked out so far (all of them, made from an array of heights).
-        public int ChunksMade { get; private set; }
+        public int ChunksMade => Volatile.Read(ref _chunksMade);
+        private int _chunksMade;
 
         // How many chunks each way: the last ones may be narrower than ChunkCells.
         public int ChunksX => (Width + ChunkCells - 1) / ChunkCells;
@@ -51,7 +54,7 @@ namespace World.Core
             Depth = depth;
             CellSize = cellSize;
             _heights = heights;
-            ChunksMade = ChunksX * ChunksZ;
+            _chunksMade = ChunksX * ChunksZ;
         }
 
         private Terrain(int width, int depth, float cellSize, Func<float, float, float> height)
@@ -76,13 +79,23 @@ namespace World.Core
             // The last corner of a row belongs to the chunk before it (each chunk has both its edges' corners)
             var ci = Math.Min(i / ChunkCells, ChunksX - 1);
             var cj = Math.Min(j / ChunkCells, ChunksZ - 1);
-            var chunk = _chunks[cj * ChunksX + ci] ??= FillChunk(ci, cj);
+            var chunk = Volatile.Read(ref _chunks[cj * ChunksX + ci]) ?? MakeChunk(ci, cj);
             return chunk[(j - cj * ChunkCells) * (ChunkCells + 1) + (i - ci * ChunkCells)];
+        }
+
+        // Two threads asking for the same new chunk at once may both work it out; only the first one's is kept.
+        private float[] MakeChunk(int ci, int cj)
+        {
+            var made = FillChunk(ci, cj);
+            var kept = Interlocked.CompareExchange(ref _chunks[cj * ChunksX + ci], made, null);
+            if (kept != null)
+                return kept;
+            Interlocked.Increment(ref _chunksMade);
+            return made;
         }
 
         private float[] FillChunk(int ci, int cj)
         {
-            ChunksMade++;
             var heights = new float[(ChunkCells + 1) * (ChunkCells + 1)];
             for (var lj = 0; lj <= ChunkCells; lj++)
                 for (var li = 0; li <= ChunkCells; li++)
@@ -148,10 +161,16 @@ namespace World.Core
         public Vector3 NormalAt(float x, float z)
         {
             var (i, j, fx, fz) = Locate(x, z);
+            return TriangleNormal(i, j, southWest: fx < fz);
+        }
+
+        // The upward normal of one of cell (i, j)'s triangles (see Triangle).
+        public Vector3 TriangleNormal(int i, int j, bool southWest)
+        {
             var a = CornerHeight(i, j);
             var c = CornerHeight(i + 1, j + 1);
             float dx, dz;   // the slope: rise per metre along X and along Z
-            if (fx >= fz)
+            if (!southWest)
             {
                 dx = CornerHeight(i + 1, j) - a;
                 dz = c - CornerHeight(i + 1, j);
@@ -164,7 +183,10 @@ namespace World.Core
             return Vector3.Normalize(new Vector3(-dx / CellSize, 1f, -dz / CellSize));
         }
 
-        public bool IsWalkable(float x, float z) => NormalAt(x, z).Y >= MinWalkNormalY;
+        public bool IsWalkable(float x, float z) => IsWalkableNormal(NormalAt(x, z));
+
+        // Whether ground facing this way is gentle enough to stand on.
+        public static bool IsWalkableNormal(Vector3 normal) => normal.Y >= MinWalkNormalY;
 
         // Which cell (x, z) is in, clamped onto the grid, and how far across it (0..1 each way).
         private (int i, int j, float fx, float fz) Locate(float x, float z)

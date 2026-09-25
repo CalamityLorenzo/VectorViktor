@@ -146,26 +146,17 @@ namespace Basic.World
 
             var ground = Terrain.FromFunction(GroundCells, GroundCells, GroundCellSize, (x, z) => 0f);
             var groundMesh = _meshCache.GetOrAdd(GraphicsDevice, "ground", d => TerrainMesh.Build(d, ground, shore: 0f));
-            _instances.Add(Placed(new MeshInstance(groundMesh, TerrainMesh.Palette()), Matrix.Identity));
+            _instances.Add(new MeshInstance(groundMesh, TerrainMesh.Palette()));
 
             foreach (var piece in Layout)
             {
                 var mesh = _meshCache.GetOrAdd(GraphicsDevice, piece.Key, piece.Build);
-                _instances.Add(Placed(new MeshInstance(mesh, RoadPalette),
-                    Matrix.CreateRotationY(piece.Turn) * Matrix.CreateTranslation(piece.X, 0f, piece.Z)));
+                _instances.Add(new MeshInstance(mesh, RoadPalette)
+                {
+                    Transform = Matrix.CreateRotationY(piece.Turn) * Matrix.CreateTranslation(piece.X, 0f, piece.Z),
+                });
             }
             UpdateCamera();
-        }
-
-        // Stands where it's put, with no spin of its own.
-        private static MeshInstance Placed(MeshInstance instance, Matrix transform)
-        {
-            instance.Pitch = 0f;
-            instance.Yaw = 0f;
-            instance.YawSpeed = 0f;
-            instance.PitchSpeed = 0f;
-            instance.Transform = transform;
-            return instance;
         }
 
         protected override void Update(GameTime gameTime)

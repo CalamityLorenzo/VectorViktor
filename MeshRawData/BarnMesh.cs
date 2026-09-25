@@ -54,23 +54,19 @@ namespace MeshRawData
             var mesh = new MeshBuilder();
 
             // Long side walls
-            mesh.AddSolidRange(4, WallBase + MeshBuilder.Side);
-            mesh.AddQuad(front[0], back[0], back[6], front[6]);   // left
-            mesh.AddQuad(back[1], front[1], front[2], back[2]);   // right
+            mesh.AddQuad(WallBase + MeshBuilder.Side, front[0], back[0], back[6], front[6]);   // left
+            mesh.AddQuad(WallBase + MeshBuilder.Side, back[1], front[1], front[2], back[2]);   // right
 
             // Gable ends and the floor (darker, like the nose/tail shade of the boxes)
-            mesh.AddSolidRange(12, WallBase + MeshBuilder.Dim);
-            mesh.AddPolygon(front);
-            mesh.AddPolygon(back);
-            mesh.AddQuad(front[0], front[1], back[1], back[0]);   // floor
+            mesh.AddPolygon(WallBase + MeshBuilder.Dim, front);
+            mesh.AddPolygon(WallBase + MeshBuilder.Dim, back);
+            mesh.AddQuad(WallBase + MeshBuilder.Dim, front[0], front[1], back[1], back[0]);   // floor
 
             // Roof: steep lower pitch, then the shallower upper pitch, on each side
-            mesh.AddSolidRange(4, RoofLow);
-            mesh.AddQuad(front[6], back[6], back[5], front[5]);   // left, lower
-            mesh.AddQuad(back[2], front[2], front[3], back[3]);   // right, lower
-            mesh.AddSolidRange(4, RoofHigh);
-            mesh.AddQuad(front[5], back[5], back[4], front[4]);   // left, upper
-            mesh.AddQuad(back[3], front[3], front[4], back[4]);   // right, upper
+            mesh.AddQuad(RoofLow, front[6], back[6], back[5], front[5]);   // left, lower
+            mesh.AddQuad(RoofLow, back[2], front[2], front[3], back[3]);   // right, lower
+            mesh.AddQuad(RoofHigh, front[5], back[5], back[4], front[4]);   // left, upper
+            mesh.AddQuad(RoofHigh, back[3], front[3], front[4], back[4]);   // right, upper
 
             // Double doors: two thin leaves on the front gable, each with an X brace
             const float leafWidth = 0.3f, leafHeight = 0.45f, leafDepth = 0.02f;

@@ -30,31 +30,14 @@ namespace World.Buildings
         public static MeshData Build(GraphicsDevice device, Building building)
         {
             var mesh = new MeshBuilder();
-            var faces = new List<Vector3[]>[PaletteSize];
-            for (var slot = 0; slot < PaletteSize; slot++)
-                faces[slot] = new List<Vector3[]>();
-
             foreach (var room in building.Rooms)
-                AddShell(mesh, faces, building, room);
-
-            // One draw range per colour
-            for (var slot = 0; slot < PaletteSize; slot++)
-            {
-                var triangles = 0;
-                foreach (var polygon in faces[slot])
-                    triangles += polygon.Length - 2;
-                if (triangles == 0)
-                    continue;
-                mesh.AddSolidRange(triangles, slot);
-                foreach (var polygon in faces[slot])
-                    mesh.AddPolygon(polygon);
-            }
+                AddShell(mesh, building, room);
             return mesh.Build(device);
         }
 
         private static Vector3 At(Vector2 p, float y) => new Vector3(p.X, y, p.Y);
 
-        private static void AddShell(MeshBuilder mesh, List<Vector3[]>[] faces, Building building, RoomSpec room)
+        private static void AddShell(MeshBuilder mesh, Building building, RoomSpec room)
         {
             var floor = room.WorldOffset.Y;
             var (bottom, top, roofed) = building.ShellSpan(room);
@@ -101,8 +84,8 @@ namespace World.Buildings
                         return;
                     var split = MathF.Min(MathHelper.Clamp(floor, y0, tp), MathHelper.Clamp(floor, y0, tq));
                     if (split > y0)
-                        faces[Plinth].Add(new[] { At(p, y0), At(q, y0), At(q, split), At(p, split) });
-                    faces[wall].Add(new[] { At(p, split), At(q, split), At(q, tq), At(p, tp) });
+                        mesh.AddPolygon(Plinth, At(p, y0), At(q, y0), At(q, split), At(p, split));
+                    mesh.AddPolygon(wall, At(p, split), At(q, split), At(q, tq), At(p, tp));
                     mesh.AddLine(At(p, tp), At(q, tq));
                     if (split > y0 && split < MathF.Min(tp, tq))
                         mesh.AddLine(At(p, split), At(q, split));
@@ -135,10 +118,10 @@ namespace World.Buildings
                 mesh.AddLine(At(outerLeft, head), At(outerRight, head));
 
                 // Lined across the wall's thickness: both sides, the head and the threshold
-                faces[Reveal].Add(new[] { At(innerLeft, floor), At(outerLeft, floor), At(outerLeft, head), At(innerLeft, head) });
-                faces[Reveal].Add(new[] { At(innerRight, floor), At(outerRight, floor), At(outerRight, head), At(innerRight, head) });
-                faces[Reveal].Add(new[] { At(innerLeft, head), At(outerLeft, head), At(outerRight, head), At(innerRight, head) });
-                faces[Plinth].Add(new[] { At(innerLeft, floor), At(outerLeft, floor), At(outerRight, floor), At(innerRight, floor) });
+                mesh.AddPolygon(Reveal, At(innerLeft, floor), At(outerLeft, floor), At(outerLeft, head), At(innerLeft, head));
+                mesh.AddPolygon(Reveal, At(innerRight, floor), At(outerRight, floor), At(outerRight, head), At(innerRight, head));
+                mesh.AddPolygon(Reveal, At(innerLeft, head), At(outerLeft, head), At(outerRight, head), At(innerRight, head));
+                mesh.AddPolygon(Plinth, At(innerLeft, floor), At(outerLeft, floor), At(outerRight, floor), At(innerRight, floor));
                 foreach (var y in new[] { floor, head })
                 {
                     mesh.AddLine(At(innerLeft, y), At(outerLeft, y));
@@ -150,16 +133,16 @@ namespace World.Buildings
                 return;
             if (gable is { } pitched)
             {
-                AddPitchedRoof(mesh, faces, building, room, pitched);
+                AddPitchedRoof(mesh, building, room, pitched);
                 return;
             }
             foreach (var (i, j, k) in RoomMesh.Triangulate(outer))
-                faces[Roof].Add(new[] { At(outer[i], top), At(outer[j], top), At(outer[k], top) });
+                mesh.AddPolygon(Roof, At(outer[i], top), At(outer[j], top), At(outer[k], top));
         }
 
         // Two slopes meeting at the ridge, RoofThickness thick, reaching RoofOverhang past the outer walls on
         // every side: their tops, their undersides, and the boards along their edges.
-        private static void AddPitchedRoof(MeshBuilder mesh, List<Vector3[]>[] faces, Building building, RoomSpec room, Gable gable)
+        private static void AddPitchedRoof(MeshBuilder mesh, Building building, RoomSpec room, Gable gable)
         {
             var centre = new Vector2(room.WorldOffset.X, room.WorldOffset.Z);
             var halfAlong = 0f;
@@ -175,16 +158,16 @@ namespace World.Buildings
             foreach (var side in new[] { -1f, 1f })
             {
                 var eave = side * across;
-                faces[Roof].Add(new[] { P(-along, 0f, Under(0f) + t), P(along, 0f, Under(0f) + t), P(along, eave, Under(across) + t), P(-along, eave, Under(across) + t) });
-                faces[RoofUnder].Add(new[] { P(-along, 0f, Under(0f)), P(along, 0f, Under(0f)), P(along, eave, Under(across)), P(-along, eave, Under(across)) });
-                faces[RoofUnder].Add(new[] { P(-along, eave, Under(across)), P(along, eave, Under(across)), P(along, eave, Under(across) + t), P(-along, eave, Under(across) + t) });
+                mesh.AddPolygon(Roof, P(-along, 0f, Under(0f) + t), P(along, 0f, Under(0f) + t), P(along, eave, Under(across) + t), P(-along, eave, Under(across) + t));
+                mesh.AddPolygon(RoofUnder, P(-along, 0f, Under(0f)), P(along, 0f, Under(0f)), P(along, eave, Under(across)), P(-along, eave, Under(across)));
+                mesh.AddPolygon(RoofUnder, P(-along, eave, Under(across)), P(along, eave, Under(across)), P(along, eave, Under(across) + t), P(-along, eave, Under(across) + t));
                 mesh.AddLine(P(-along, eave, Under(across)), P(along, eave, Under(across)));
                 mesh.AddLine(P(-along, eave, Under(across) + t), P(along, eave, Under(across) + t));
 
                 // The verges, at the gable ends
                 foreach (var end in new[] { -along, along })
                 {
-                    faces[RoofUnder].Add(new[] { P(end, 0f, Under(0f)), P(end, eave, Under(across)), P(end, eave, Under(across) + t), P(end, 0f, Under(0f) + t) });
+                    mesh.AddPolygon(RoofUnder, P(end, 0f, Under(0f)), P(end, eave, Under(across)), P(end, eave, Under(across) + t), P(end, 0f, Under(0f) + t));
                     mesh.AddLine(P(end, 0f, Under(0f) + t), P(end, eave, Under(across) + t));
                     mesh.AddLine(P(end, 0f, Under(0f)), P(end, eave, Under(across)));
                     mesh.AddLine(P(end, eave, Under(across)), P(end, eave, Under(across) + t));

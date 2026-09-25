@@ -10,8 +10,8 @@ namespace Basic.World
 {
     // The terrain as drawn: a mesh for each chunk (see Terrain.ChunkCellsOf), built as the camera comes
     // within DrawDistance of it - nearest first, and no more than BuildsPerFrame a frame, so walking on
-    // doesn't stutter - drawn only if it's in view, and thrown away once the camera's more than
-    // DropDistance off. So only the country round you is ever built or drawn, however big the world.
+    // doesn't stutter - drawn only if it's in view (see MeshBatch), and thrown away once the camera's more
+    // than DropDistance off. So only the country round you is ever built or drawn, however big the world.
     public sealed class TerrainView : IDisposable
     {
         public const int BuildsPerFrame = 4;
@@ -20,8 +20,12 @@ namespace Basic.World
         private readonly float _shore;
         private readonly Func<float, float, bool> _bare;   // where the ground gets no grid lines (see TerrainMesh)
         private readonly Color[] _palette = TerrainMesh.Palette();
-        private readonly Dictionary<(int ci, int cj), (MeshData mesh, MeshInstance view, BoundingBox bounds)> _chunks =
-            new Dictionary<(int, int), (MeshData, MeshInstance, BoundingBox)>();
+        private readonly Dictionary<(int ci, int cj), (MeshData mesh, MeshInstance view)> _chunks =
+            new Dictionary<(int, int), (MeshData, MeshInstance)>();
+
+        // Kept from one frame to the next, so looking round costs no garbage
+        private readonly List<(float distance, int ci, int cj)> _wanted = new List<(float, int, int)>();
+        private readonly List<(int, int)> _gone = new List<(int, int)>();
 
         public float DrawDistance { get; }
         public float DropDistance => DrawDistance + 40f;
@@ -29,6 +33,10 @@ namespace Basic.World
         // How many chunks are built now, and how many were in view last time they were drawn.
         public int Built => _chunks.Count;
         public int Drawn { get; private set; }
+
+        // How long building them has taken, all told.
+        public TimeSpan BuildTime => _buildTime.Elapsed;
+        private readonly System.Diagnostics.Stopwatch _buildTime = new System.Diagnostics.Stopwatch();
 
         public TerrainView(Terrain terrain, float shore, float drawDistance, Func<float, float, bool> bare = null)
         {
@@ -57,23 +65,23 @@ namespace Basic.World
             var ci0 = (int)MathF.Floor((camera.X - _terrain.OriginX) / (Terrain.ChunkCells * _terrain.CellSize));
             var cj0 = (int)MathF.Floor((camera.Z - _terrain.OriginZ) / (Terrain.ChunkCells * _terrain.CellSize));
 
-            var wanted = new List<(float distance, int ci, int cj)>();
+            _wanted.Clear();
             for (var cj = Math.Max(0, cj0 - reach); cj <= Math.Min(_terrain.ChunksZ - 1, cj0 + reach); cj++)
                 for (var ci = Math.Max(0, ci0 - reach); ci <= Math.Min(_terrain.ChunksX - 1, ci0 + reach); ci++)
                 {
                     var distance = Distance(ci, cj, camera);
                     if (distance <= DrawDistance && !_chunks.ContainsKey((ci, cj)))
-                        wanted.Add((distance, ci, cj));
+                        _wanted.Add((distance, ci, cj));
                 }
-            wanted.Sort((a, b) => a.distance.CompareTo(b.distance));
-            for (var k = 0; k < wanted.Count && (all || k < BuildsPerFrame); k++)
-                Build(device, wanted[k].ci, wanted[k].cj);
+            _wanted.Sort((a, b) => a.distance.CompareTo(b.distance));
+            for (var k = 0; k < _wanted.Count && (all || k < BuildsPerFrame); k++)
+                Build(device, _wanted[k].ci, _wanted[k].cj);
 
-            var gone = new List<(int, int)>();
+            _gone.Clear();
             foreach (var key in _chunks.Keys)
                 if (Distance(key.ci, key.cj, camera) > DropDistance)
-                    gone.Add(key);
-            foreach (var key in gone)
+                    _gone.Add(key);
+            foreach (var key in _gone)
             {
                 _chunks[key].mesh.Dispose();
                 _chunks.Remove(key);
@@ -82,29 +90,25 @@ namespace Basic.World
 
         private void Build(GraphicsDevice device, int ci, int cj)
         {
+            _buildTime.Start();
             var (i0, j0, cellsX, cellsZ) = _terrain.ChunkCellsOf(ci, cj);
             var mesh = TerrainMesh.Build(device, _terrain, _shore, i0, j0, cellsX, cellsZ, _bare);
-            var view = new MeshInstance(mesh, _palette) { Transform = Matrix.Identity };
-            _chunks[(ci, cj)] = (mesh, view, _terrain.ChunkBounds(ci, cj));
+            _chunks[(ci, cj)] = (mesh, new MeshInstance(mesh, _palette));   // in world coordinates already
+            _buildTime.Stop();
         }
 
-        public void Draw(GameTime gameTime, GraphicsDevice device, BasicEffect effect, Color background, bool colorsOn)
+        // Adds every chunk that's built to the batch, which leaves out those not in view.
+        public void Collect(MeshBatch batch)
         {
-            var frustum = new BoundingFrustum(effect.View * effect.Projection);
             Drawn = 0;
-            foreach (var (_, view, bounds) in _chunks.Values)
-            {
-                if (!frustum.Intersects(bounds))
-                    continue;
-                view.ColorsOn = colorsOn;
-                view.Draw(gameTime, device, effect, background);
-                Drawn++;
-            }
+            foreach (var (_, view) in _chunks.Values)
+                if (batch.Add(view))
+                    Drawn++;
         }
 
         public void Dispose()
         {
-            foreach (var (mesh, _, _) in _chunks.Values)
+            foreach (var (mesh, _) in _chunks.Values)
                 mesh.Dispose();
             _chunks.Clear();
         }

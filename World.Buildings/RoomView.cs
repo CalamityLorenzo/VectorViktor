@@ -13,29 +13,26 @@ namespace World.Buildings
 
         public RoomSpec Spec { get; }
 
+        // Its shell and furniture, placed in the world.
+        public IReadOnlyList<MeshInstance> Instances => _instances;
+
         public RoomView(RoomSpec spec, GraphicsDevice device, MeshCache cache)
         {
             Spec = spec;
 
             var shell = cache.GetOrAdd(device, "room:" + spec.Id, d => RoomMesh.Build(d, spec));
-            _instances.Add(Place(new MeshInstance(shell, RoomMesh.Palette(spec)), spec.WorldOffset, 0f));
+            _instances.Add(new MeshInstance(shell, RoomMesh.Palette(spec)) { Position = spec.WorldOffset });
 
+            // Nothing here moves: just a fixed position and heading.
             foreach (var prop in spec.Props)
             {
                 var mesh = cache.GetOrAdd(device, prop.Key, prop.Build);
-                _instances.Add(Place(new MeshInstance(mesh, prop.Palette), spec.WorldOffset + prop.Position, prop.YawDegrees));
+                _instances.Add(new MeshInstance(mesh, prop.Palette)
+                {
+                    Position = spec.WorldOffset + prop.Position,
+                    Yaw = MathHelper.ToRadians(prop.YawDegrees),
+                });
             }
-        }
-
-        // Nothing here moves: no tumbling, just a fixed position and heading.
-        private static MeshInstance Place(MeshInstance instance, Vector3 position, float yawDegrees)
-        {
-            instance.Position = position;
-            instance.Pitch = 0f;
-            instance.Yaw = MathHelper.ToRadians(yawDegrees);
-            instance.YawSpeed = 0f;
-            instance.PitchSpeed = 0f;
-            return instance;
         }
 
         public void Draw(GameTime gameTime, GraphicsDevice device, BasicEffect effect, Color background, bool colorsOn)

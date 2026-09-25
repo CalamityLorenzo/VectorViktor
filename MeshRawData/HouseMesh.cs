@@ -49,11 +49,10 @@ namespace MeshRawData
             var backLeft = roofBase + Vector3.UnitZ * halfD - Vector3.UnitX * halfW;
             var backRight = roofBase + Vector3.UnitZ * halfD + Vector3.UnitX * halfW;
 
-            mesh.AddSolidRange(4, Roof);
-            mesh.AddTri(frontLeft, frontRight, roofPeak);   // front slope
-            mesh.AddTri(backRight, backLeft, roofPeak);     // back slope
-            mesh.AddTri(frontLeft, backLeft, roofPeak);     // left slope
-            mesh.AddTri(backRight, frontRight, roofPeak);   // right slope
+            mesh.AddTri(Roof, frontLeft, frontRight, roofPeak);   // front slope
+            mesh.AddTri(Roof, backRight, backLeft, roofPeak);     // back slope
+            mesh.AddTri(Roof, frontLeft, backLeft, roofPeak);     // left slope
+            mesh.AddTri(Roof, backRight, frontRight, roofPeak);   // right slope
 
             mesh.AddLine(frontLeft, roofPeak);
             mesh.AddLine(frontRight, roofPeak);

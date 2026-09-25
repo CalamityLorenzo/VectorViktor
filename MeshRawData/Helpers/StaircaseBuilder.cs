@@ -46,14 +46,8 @@ namespace MeshRawData.Helpers
             float carpetEndInset = 0.02f,
             float carpetThickness = 0.015f)
         {
+            // However many steps, it's one draw range per colour (see MeshBuilder)
             var mesh = new MeshBuilder();
-
-            // Collected across every flight and emitted as one batch per slot at the end, so an
-            // N-step staircase costs a constant handful of draw ranges rather than growing with N.
-            var treadTops = new List<Vector3[]>();
-            var trimQuads = new List<Vector3[]>();
-            var landingTops = new List<Vector3[]>();
-            var carpetTops = new List<Vector3[]>();
 
             var origin = Vector3.Zero;
             var forward = Vector3.UnitZ;
@@ -69,10 +63,10 @@ namespace MeshRawData.Helpers
                     var bottomCenter = origin + forward * centerAlong + Vector3.Up * (stepTopY - treadThickness);
                     var (a, b, c, d, e, f, g, h) = BoxCorners(bottomCenter, forward, right, run, width, treadThickness);
 
-                    treadTops.Add(new[] { e, f, g, h });
-                    trimQuads.Add(new[] { b, c, g, f });  // nosing, facing down the flight
-                    trimQuads.Add(new[] { a, b, f, e });  // left flank
-                    trimQuads.Add(new[] { c, d, h, g });  // right flank
+                    mesh.AddQuad(Tread, e, f, g, h);
+                    mesh.AddQuad(Trim, b, c, g, f);   // nosing, facing down the flight
+                    mesh.AddQuad(Trim, a, b, f, e);   // left flank
+                    mesh.AddQuad(Trim, c, d, h, g);   // right flank
                     mesh.AddLineLoop(e, f, g, h);
                     mesh.AddLine(b, f);
                     mesh.AddLine(c, g);
@@ -82,7 +76,7 @@ namespace MeshRawData.Helpers
                         var carpetBottom = origin + forward * centerAlong + Vector3.Up * stepTopY;
                         var (_, _, _, _, ce, cf, cg, ch) = BoxCorners(
                             carpetBottom, forward, right, run - carpetEndInset * 2f, width - carpetSideInset * 2f, carpetThickness);
-                        carpetTops.Add(new[] { ce, cf, cg, ch });
+                        mesh.AddQuad(Carpet, ce, cf, cg, ch);
                         mesh.AddLineLoop(ce, cf, cg, ch);
                     }
                 }
@@ -106,10 +100,10 @@ namespace MeshRawData.Helpers
                 {
                     var landingBottom = origin + forward * (width * 0.5f) + Vector3.Up * (height - treadThickness);
                     var (a, b, c, d, e, f, g, h) = BoxCorners(landingBottom, forward, right, width, width, treadThickness);
-                    landingTops.Add(new[] { e, f, g, h });
-                    trimQuads.Add(new[] { b, c, g, f });
-                    trimQuads.Add(new[] { a, b, f, e });
-                    trimQuads.Add(new[] { c, d, h, g });
+                    mesh.AddQuad(Landing, e, f, g, h);
+                    mesh.AddQuad(Trim, b, c, g, f);
+                    mesh.AddQuad(Trim, a, b, f, e);
+                    mesh.AddQuad(Trim, c, d, h, g);
                     mesh.AddLineLoop(e, f, g, h);
                     mesh.AddLine(b, f);
                     mesh.AddLine(c, g);
@@ -128,25 +122,7 @@ namespace MeshRawData.Helpers
                 }
             }
 
-            AddQuadBatch(mesh, Tread, treadTops);
-            AddQuadBatch(mesh, Trim, trimQuads);
-            AddQuadBatch(mesh, Landing, landingTops);
-            if (carpet)
-                AddQuadBatch(mesh, Carpet, carpetTops);
-
             return mesh.Build(device);
-        }
-
-        // Skips the range entirely when empty — a zero-primitive draw range is a wasted draw call
-        // (and there may be no landings at all, on a staircase with no turns).
-        private static void AddQuadBatch(MeshBuilder mesh, int colorSlot, List<Vector3[]> quads)
-        {
-            if (quads.Count == 0)
-                return;
-
-            mesh.AddSolidRange(quads.Count * 2, colorSlot);
-            foreach (var q in quads)
-                mesh.AddQuad(q[0], q[1], q[2], q[3]);
         }
 
         // The 8 corners of a box whose bottom face is centred on bottomCenter, oriented by an

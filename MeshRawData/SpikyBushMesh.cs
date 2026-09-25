@@ -64,10 +64,6 @@ namespace MeshRawData
             Branch(fork, new Vector3(-0.03f, 0.88f, -0.30f), 0.03f, 0.02f);
 
             // ---- Canopy: each blob is an 8-sided, 4-band low-poly sphere, squashed
-            var faceSets = new List<(Vector3 a, Vector3 b, Vector3 c)>[3];   // by MeshBuilder.Side / Dim / Top
-            for (var s = 0; s < 3; s++)
-                faceSets[s] = new List<(Vector3, Vector3, Vector3)>();
-
             foreach (var (centre, radius, squash) in Blobs)
             {
                 // Rings at latitude -45, 0 and +45 degrees, plus the two poles
@@ -94,7 +90,7 @@ namespace MeshRawData
                 {
                     var facing = Vector3.Normalize((a + b + c) / 3f).Y;
                     var shade = facing > 0.5f ? MeshBuilder.Top : facing < -0.5f ? MeshBuilder.Dim : MeshBuilder.Side;
-                    faceSets[shade].Add((centre + a, centre + b, centre + c));
+                    mesh.AddTri(LeafBase + shade, centre + a, centre + b, centre + c);
                     mesh.AddOutlineTri(centre + a, centre + b, centre + c, centre);
                 }
                 for (var k = 0; k < Segments; k++)
@@ -107,15 +103,6 @@ namespace MeshRawData
                     Face(rings[1][k], rings[2][n], rings[2][k]);
                     Face(poleTop, rings[2][k], rings[2][n]);
                 }
-            }
-
-            for (var shade = 0; shade < 3; shade++)
-            {
-                if (faceSets[shade].Count == 0)
-                    continue;
-                mesh.AddSolidRange(faceSets[shade].Count, LeafBase + shade);
-                foreach (var (a, b, c) in faceSets[shade])
-                    mesh.AddTri(a, b, c);
             }
 
             return mesh.Build(device);

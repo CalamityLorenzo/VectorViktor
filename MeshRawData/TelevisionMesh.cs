@@ -51,10 +51,9 @@ namespace MeshRawData
                     screenCentreY + v * screenHeight / 2f,
                     frontZ + 0.002f + bulge * (1f - u * u) * (1f - v * v));
             }
-            mesh.AddSolidRange(cells * cells * 2, Glass);
             for (var i = 0; i < cells; i++)
                 for (var j = 0; j < cells; j++)
-                    mesh.AddQuad(ScreenPoint(i, j), ScreenPoint(i + 1, j), ScreenPoint(i + 1, j + 1), ScreenPoint(i, j + 1));
+                    mesh.AddQuad(Glass, ScreenPoint(i, j), ScreenPoint(i + 1, j), ScreenPoint(i + 1, j + 1), ScreenPoint(i, j + 1));
 
             var outline = new System.Collections.Generic.List<Vector3>();
             for (var i = 0; i < cells; i++) outline.Add(ScreenPoint(i, 0));            // bottom, left to right

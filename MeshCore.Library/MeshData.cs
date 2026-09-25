@@ -1,3 +1,4 @@
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
 namespace MeshCore.Library
@@ -15,11 +16,15 @@ namespace MeshCore.Library
         // Highest ColorSlot used by any solid range + 1; a palette must have at least this many colours.
         public int PaletteSize { get; }
 
-        public MeshData(VertexBuffer solids, DrawRange[] solidRanges, VertexBuffer edges, OutlineData? outline = null)
+        // The box round every vertex, faces and edges alike, in the mesh's own space: for culling it.
+        public BoundingBox Bounds { get; }
+
+        public MeshData(VertexBuffer solids, DrawRange[] solidRanges, VertexBuffer edges, BoundingBox bounds, OutlineData? outline = null)
         {
             Solids = solids ?? throw new ArgumentNullException(nameof(solids));
             Edges = edges ?? throw new ArgumentNullException(nameof(edges));
             SolidRanges = solidRanges ?? throw new ArgumentNullException(nameof(solidRanges));
+            Bounds = bounds;
             Outline = outline;
             PaletteSize = SolidRanges.Select(r => r.ColorSlot + 1).DefaultIfEmpty(0).Max();
 

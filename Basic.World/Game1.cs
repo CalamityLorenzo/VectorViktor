@@ -3,7 +3,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
-using System.Collections.Generic;
+using System.Linq;
 using World.Buildings;
 using World.Core;
 using World.Core.Characters;
@@ -45,30 +45,10 @@ namespace Basic.World
         private static readonly Color BackgroundColor = new Color(27, 13, 120);
         private const float FogStart = 20f, FogEnd = 95f;   // metres
 
-        // Where you can start (the optional command-line argument), and which way you face
-        private static readonly Dictionary<string, (Vector2 at, float yaw)> Starts = new Dictionary<string, (Vector2, float)>
-        {
-            ["hills"] = (Vector2.Zero, MathHelper.PiOver4),                                // looking north-east to the plateau
-            ["plateau"] = (TerrainGenerator.PlateauCentre, MathHelper.Pi),                 // on top, facing its sheer south side
-            ["causeway"] = (new Vector2(TerrainGenerator.PlateauCentre.X - TerrainGenerator.PlateauRadius - TerrainGenerator.RampLength,
-                                        TerrainGenerator.PlateauCentre.Y), MathHelper.PiOver2),   // at its foot, facing up it
-            ["basin"] = (TerrainGenerator.BasinCentre, MathHelper.PiOver4),
-            ["lockers"] = (new Vector2(-3f, -3f), MathHelper.PiOver2),                   // facing the first locker, to push it over
-            ["town"] = (new Vector2(22f, 6f), MathHelper.Pi),                            // north of the buildings, facing them
-            ["attic"] = (Town.HouseCentre, MathHelper.PiOver2),                           // up in the house's attic, facing its east end
-            ["bedroom"] = (Town.HouseCentre + new Vector2(-2f, -2f), MathHelper.Pi),      // in the house's bedroom, facing the ladder up to the attic
-            ["street"] = (Neighbourhood.StreetStart, MathHelper.PiOver2),                  // at the west end of the street, looking down it
-            ["billboard"] = (Neighbourhood.BillboardView, MathHelper.PiOver4),              // in front of the billboard, looking at it
-            ["pool"] = (Neighbourhood.PoolSide, MathHelper.Pi * 0.75f),                    // in a back garden, by its swimming pool
-            ["far"] = (new Vector2(300f, 300f), -MathHelper.PiOver4),                      // out in the far country, looking back towards home
-            ["pond"] = (TerrainGenerator.PondCentre + new Vector2(TerrainGenerator.PondRadius + 3f, 0f), -MathHelper.PiOver2),   // east of it, facing it
-            ["house"] = (Town.HouseCentre + new Vector2(-1.5f, -7f), MathHelper.Pi),     // outside the house's doorway
-            ["barn"] = (Town.BarnCentre + new Vector2(0f, -8f), MathHelper.Pi),          // outside the barn's
-        };
-
-        // Starts up in a building, rather than on the ground under it: dropped from this far above the ground,
-        // you land on the highest floor below that
-        private static readonly Dictionary<string, float> FromAbove = new Dictionary<string, float> { ["bedroom"] = 4.5f, ["attic"] = 100f };
+        // The world's parts, in the order they're put together (see WorldBuilder): each district's pads are
+        // levelled over the ones before it. Where you can start (the optional command-line argument) is theirs.
+        private static IDistrict[] Districts() => new IDistrict[] { new Countryside(), new Town(), new Neighbourhood() };
+        private const string DefaultStart = "hills";
 
         private readonly GraphicsDeviceManager _graphics;
         private readonly MeshCache _meshCache = new MeshCache();
@@ -81,19 +61,14 @@ namespace Basic.World
         private bool _colorsOn = true;   // off = faces drawn in the background colour (wireframe look)
         private bool _lowResOn = true;
 
-        private Terrain _terrain;
+        private BuiltWorld _built;
         private PhysicsWorld _world;
         private Player _player;
-        private TerrainView _terrainView;
+        private WorldView _worldView;
+        private readonly MeshBatch _batch = new MeshBatch();
         private MeshInstance _playerView, _droneView;
-        private readonly List<MeshInstance> _waterViews = new List<MeshInstance>();
         private Color[] _playerColors, _playerPalette;   // dry, and as drawn: darker where wet
         private int _titleWetness = -1;
-        private readonly List<(Body body, MeshInstance view, float turn)> _things = new List<(Body, MeshInstance, float)>();
-        private readonly List<MeshInstance> _buildingShells = new List<MeshInstance>();
-        private readonly List<RoomView> _rooms = new List<RoomView>();
-        private readonly List<MeshInstance> _fixtures = new List<MeshInstance>();   // the street's road, fences, pool paving and billboard
-        private readonly List<(Door door, MeshInstance view)> _doors = new List<(Door, MeshInstance)>();
         private BuildingGround _ground;
         private float _pending;          // time not yet stepped through
         private bool _jumpPressed;       // since the last tick
@@ -114,7 +89,7 @@ namespace Basic.World
 
         public Game1(string start = null)
         {
-            _start = start != null && Starts.ContainsKey(start) ? start : "hills";
+            _start = start ?? DefaultStart;
             _graphics = new GraphicsDeviceManager(this)
             {
                 PreferredBackBufferWidth = WindowWidth,
@@ -139,69 +114,28 @@ namespace Basic.World
             _lowRes = new RenderTarget2D(GraphicsDevice, LowResWidth, LowResHeight, false, SurfaceFormat.Color, DepthFormat.Depth24);
             _spriteBatch = new SpriteBatch(GraphicsDevice);
 
-            var pads = new List<TerrainGenerator.Pad>(Town.Pads);
-            pads.AddRange(Neighbourhood.Pads);
-            _terrain = TerrainGenerator.Create(pads: pads);
-            _terrain.Flood(Neighbourhood.SwimmingPool(_terrain));
-            var buildings = Town.Build(_terrain);
-            buildings.AddRange(Neighbourhood.Buildings(_terrain));
-            _ground = new BuildingGround(_terrain, buildings, Neighbourhood.Walls(_terrain));
-            foreach (var thing in Neighbourhood.Things(_terrain))
-            {
-                var view = Placed(new MeshInstance(_meshCache.GetOrAdd(GraphicsDevice, thing.Key, thing.Build), thing.Palette));
-                view.Transform = thing.Transform;
-                _fixtures.Add(view);
-            }
-            _world = new PhysicsWorld(_ground);
-            foreach (var door in _ground.Doors)
-            {
-                var leaf = _meshCache.GetOrAdd(GraphicsDevice, DoorMesh.Key(door), d => DoorMesh.Build(d, door.Width, door.Height));
-                _doors.Add((door, Placed(new MeshInstance(leaf, DoorMesh.Palette(door.Color)))));
-            }
-            foreach (var building in buildings)
-            {
-                var shell = _meshCache.GetOrAdd(GraphicsDevice, "building:" + building.Name, d => BuildingMesh.Build(d, building));
-                _buildingShells.Add(Placed(new MeshInstance(shell, BuildingMesh.Palette(building))));
-                foreach (var room in building.Rooms)
-                    _rooms.Add(new RoomView(room, GraphicsDevice, _meshCache));
-            }
-            foreach (var thing in Scenery.Populate(_world, _terrain))
-            {
-                var mesh = _meshCache.GetOrAdd(GraphicsDevice, thing.Key, thing.Build);
-                _things.Add((thing.Body, Placed(new MeshInstance(mesh, thing.Palette)), thing.Turn));
-            }
-            var (at, yaw) = Starts[_start];
-            var dropFrom = FromAbove.TryGetValue(_start, out var above) ? _terrain.HeightAt(at.X, at.Y) + above : 0f;
-            _player = new Player(new Vector3(at.X, dropFrom, at.Y), yaw, _world);
+            _built = WorldBuilder.Build(Districts());
+            _ground = _built.Ground;
+            _world = _built.Physics;
+            if (!_built.Starts.TryGetValue(_start, out var start))
+                start = _built.Starts[DefaultStart];
+            var dropFrom = start.Above > 0f ? _built.Terrain.HeightAt(start.At.X, start.At.Y) + start.Above : 0f;
+            _player = new Player(new Vector3(start.At.X, dropFrom, start.At.Y), start.Yaw, _world);
 
-            // Built a chunk at a time round the camera, out to where the fog has hidden it all
-            _terrainView = new TerrainView(_terrain, shore: 0.5f, FogEnd + 15f, bare: Neighbourhood.Paved);
-            _terrainView.Update(GraphicsDevice, _player.Eye, all: true);
+            // The terrain's built a chunk at a time round the camera, out to where the fog has hidden it all
+            _worldView = new WorldView(_built, GraphicsDevice, _meshCache, FogEnd + 15f);
+            _worldView.Update(GraphicsDevice, _player.Eye, all: true);
             _playerColors = PlayerMesh.Palette(new Color(50, 60, 120), new Color(200, 60, 40), new Color(230, 180, 140));
             _playerPalette = (Color[])_playerColors.Clone();
-            _playerView = Placed(new MeshInstance(_meshCache.GetOrAdd(GraphicsDevice, "player", PlayerMesh.Build), _playerPalette));
-            for (var i = 0; i < _terrain.Pools.Count; i++)
+            _playerView = new MeshInstance(_meshCache.GetOrAdd(GraphicsDevice, "player", PlayerMesh.Build), _playerPalette);
+            _droneView = new MeshInstance(_meshCache.GetOrAdd(GraphicsDevice, "drone", DroneMesh.Build),
+                DroneMesh.Palette(new Color(90, 90, 100), new Color(60, 60, 65), new Color(40, 40, 45), new Color(120, 220, 230)))
             {
-                var pool = _terrain.Pools[i];
-                _waterViews.Add(Placed(new MeshInstance(_meshCache.GetOrAdd(GraphicsDevice, "water" + i, d => WaterMesh.Build(d, pool)), WaterMesh.Palette())));
-            }
-            _droneView = Placed(new MeshInstance(_meshCache.GetOrAdd(GraphicsDevice, "drone", DroneMesh.Build),
-                DroneMesh.Palette(new Color(90, 90, 100), new Color(60, 60, 65), new Color(40, 40, 45), new Color(120, 220, 230))));
-            _droneView.Scale = 1.5f;   // so it reads at low resolution, even a few metres off
+                Scale = 1.5f,   // so it reads at low resolution, even a few metres off
+            };
             if (_shot?.keys.Contains('v') == true)
                 _player.ToggleView();
             UpdateTitle();
-        }
-
-        // Stands upright where it's put, with no spin of its own.
-        private static MeshInstance Placed(MeshInstance instance)
-        {
-            instance.Position = Vector3.Zero;
-            instance.Pitch = 0f;
-            instance.Yaw = 0f;
-            instance.YawSpeed = 0f;
-            instance.PitchSpeed = 0f;
-            return instance;
         }
 
         private void UpdateTitle()
@@ -307,9 +241,11 @@ namespace Basic.World
                 eye = _player.Drone.Position;
                 lookAt = _player.Eye;
             }
+            // The far plane is where the fog ends: past it everything's the background's colour anyway, and the
+            // batch leaves out whatever's beyond it
             _basicEffect.View = Matrix.CreateLookAt(eye, lookAt, Vector3.Up);
             _basicEffect.Projection = Matrix.CreatePerspectiveFieldOfView(
-                MathHelper.ToRadians(70f), GraphicsDevice.Viewport.AspectRatio, 0.1f, 300f);
+                MathHelper.ToRadians(70f), GraphicsDevice.Viewport.AspectRatio, 0.1f, FogEnd);
 
             // The meshes face +Z; a yaw of 0 here faces -Z (north), hence Pi - yaw
             _playerView.Position = body.Position;
@@ -319,30 +255,11 @@ namespace Basic.World
 
             // Neither camera sees the thing it's in: from inside your own head (or the drone), you'd only
             // see the inside of it. Turn round in your own view, though, and the drone's there, following.
-            _terrainView.Update(GraphicsDevice, eye);
-            _terrainView.Draw(gameTime, GraphicsDevice, _basicEffect, BackgroundColor, _colorsOn);
-            foreach (var water in _waterViews)
-                Draw(water, gameTime);
-            foreach (var shell in _buildingShells)
-                Draw(shell, gameTime);
-            foreach (var fixture in _fixtures)
-                Draw(fixture, gameTime);
-            foreach (var room in _rooms)
-                room.Draw(gameTime, GraphicsDevice, _basicEffect, BackgroundColor, _colorsOn);
-            foreach (var (door, view) in _doors)
-            {
-                view.Transform = DoorMesh.Transform(door);
-                Draw(view, gameTime);
-            }
-            foreach (var (thing, view, turn) in _things)
-            {
-                view.Transform = Matrix.CreateRotationY(turn) * thing.Pose;   // upright, on its side, or part way over
-                Draw(view, gameTime);
-            }
-            if (_player.View == ViewMode.Drone)
-                Draw(_playerView, gameTime);
-            else
-                Draw(_droneView, gameTime);
+            _worldView.Update(GraphicsDevice, eye);
+            _batch.Begin(_basicEffect.View, _basicEffect.Projection);
+            _worldView.Collect(_batch, eye);
+            _batch.Add(_player.View == ViewMode.Drone ? _playerView : _droneView);
+            _batch.Draw(GraphicsDevice, _basicEffect, BackgroundColor, _colorsOn);
 
             _clock += (float)gameTime.ElapsedGameTime.TotalSeconds;
             if (_shot is { } saving && _clock >= saving.after)
@@ -352,8 +269,9 @@ namespace Basic.World
                     _lowRes.SaveAsPng(file, LowResWidth, LowResHeight);
                 // and where everything ended up, beside it
                 var report = new System.Text.StringBuilder().AppendLine($"player {_player.Body.Position}")
-                    .AppendLine($"terrain chunks: {_terrain.ChunksMade} of {_terrain.ChunksX * _terrain.ChunksZ} worked out, {_terrainView.Built} built, {_terrainView.Drawn} drawn");
-                foreach (var (thing, _, _) in _things)
+                    .AppendLine($"terrain chunks: {_built.Terrain.ChunksMade} of {_built.Terrain.ChunksX * _built.Terrain.ChunksZ} worked out, {_worldView.Terrain.Built} built in {_worldView.Terrain.BuildTime.TotalMilliseconds:F0} ms, {_worldView.Terrain.Drawn} drawn")
+                    .AppendLine($"meshes: {_batch.Drawn} drawn, {_batch.Culled} culled, {_batch.DrawCalls} draw calls");
+                foreach (var thing in _built.Things.Select(t => t.Body))
                     report.AppendLine($"{thing.Name} {thing.Position} size {thing.Size} resting {thing.Resting} on {(thing.Floating ? "water" : thing.Support?.Name ?? "ground")}");
                 System.IO.File.WriteAllText(System.IO.Path.ChangeExtension(saving.file, ".txt"), report.ToString());
                 Exit();
@@ -380,18 +298,12 @@ namespace Basic.World
             base.Draw(gameTime);
         }
 
-        private void Draw(MeshInstance instance, GameTime gameTime)
-        {
-            instance.ColorsOn = _colorsOn;
-            instance.Draw(gameTime, GraphicsDevice, _basicEffect, BackgroundColor);
-        }
-
         protected override void Dispose(bool disposing)
         {
             if (disposing)
             {
                 _meshCache.Dispose();
-                _terrainView?.Dispose();
+                _worldView?.Dispose();
                 _basicEffect?.Dispose();
                 _rasterizerState?.Dispose();
                 _lowRes?.Dispose();

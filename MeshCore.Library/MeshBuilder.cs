@@ -3,8 +3,9 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace MeshCore.Library
 {
-    // Collects position-only solid triangles (with colour-slot draw ranges) and edge lines, then
-    // turns them into a MeshData. Shared by meshes that are assembled from boxes and extra faces.
+    // Collects position-only solid triangles, each in a palette colour slot, and edge lines, then turns
+    // them into a MeshData. Every slot's triangles, in whatever order they were added, go into one
+    // unbroken run - one draw range, so one draw call - however many parts the mesh is built from.
     //
     // Boxes have three shades like the original VectorViktor box builder: Side (flanks),
     // Dim (nose + tail + optional bottom) and Top. A part's palette uses 3 consecutive slots
@@ -13,8 +14,7 @@ namespace MeshCore.Library
     {
         public const int Side = 0, Dim = 1, Top = 2;
 
-        private readonly List<VertexPosition> _solids = new();
-        private readonly List<DrawRange> _solidRanges = new();
+        private readonly List<List<VertexPosition>> _slots = new();   // each slot's triangles
         private readonly List<VertexPosition> _edges = new();
         private readonly List<(Vector3 A, Vector3 B, Vector3 C, Vector3 Inside)> _outlineTriangles = new();
 
@@ -27,8 +27,7 @@ namespace MeshCore.Library
         }
 
         // Axis-aligned box (forward = +Z, right = +X) whose position argument is the centre of its bottom face.
-        // Adds 5 quads, grouped by shade so each shade is one contiguous range: 2 flanks (Side),
-        // nose + tail (Dim), top (Top); plus its 12 edges. With sealBottom the underside is a sixth
+        // Adds 5 quads: 2 flanks (Side), nose + tail (Dim), top (Top); plus its 12 edges. With sealBottom the underside is a sixth
         // quad (Dim); leave it off where the underside is never visible.
         public void AddBox(int baseSlot, Vector3 bottomCenter, float length, float width, float height, bool sealBottom = false)
         {
@@ -45,16 +44,13 @@ namespace MeshCore.Library
             var g = c + hu;
             var h = d + hu;
 
-            AddSolidRange(4, baseSlot + Side);
-            AddQuad(a, b, f, e);   // flank (-right)
-            AddQuad(c, d, h, g);   // flank (+right)
-            AddSolidRange(sealBottom ? 6 : 4, baseSlot + Dim);
-            AddQuad(b, c, g, f);   // nose (+forward)
-            AddQuad(d, a, e, h);   // tail (-forward)
+            AddQuad(baseSlot + Side, a, b, f, e);   // flank (-right)
+            AddQuad(baseSlot + Side, c, d, h, g);   // flank (+right)
+            AddQuad(baseSlot + Dim, b, c, g, f);    // nose (+forward)
+            AddQuad(baseSlot + Dim, d, a, e, h);    // tail (-forward)
             if (sealBottom)
-                AddQuad(a, b, c, d);   // bottom
-            AddSolidRange(2, baseSlot + Top);
-            AddQuad(e, f, g, h);   // top
+                AddQuad(baseSlot + Dim, a, b, c, d);   // bottom
+            AddQuad(baseSlot + Top, e, f, g, h);    // top
 
             AddLine(a, b); AddLine(b, c); AddLine(c, d); AddLine(d, a);   // base
             AddLine(e, f); AddLine(f, g); AddLine(g, h); AddLine(h, e);   // top rim
@@ -80,19 +76,12 @@ namespace MeshCore.Library
             var bottom = Ring(bottomCentre.Y, bottomRadius);
             var top = Ring(bottomCentre.Y + height, topRadius);
 
-            AddSolidRange(sides * 2, sideSlot);
             for (var k = 0; k < sides; k++)
-                AddQuad(bottom[k], bottom[(k + 1) % sides], top[(k + 1) % sides], top[k]);
+                AddQuad(sideSlot, bottom[k], bottom[(k + 1) % sides], top[(k + 1) % sides], top[k]);
             if (bottomSlot >= 0)
-            {
-                AddSolidRange(sides - 2, bottomSlot);
-                AddPolygon(bottom);
-            }
+                AddPolygon(bottomSlot, bottom);
             if (topSlot >= 0)
-            {
-                AddSolidRange(sides - 2, topSlot);
-                AddPolygon(top);
-            }
+                AddPolygon(topSlot, top);
 
             AddLineLoop(bottom);
             AddLineLoop(top);
@@ -124,9 +113,8 @@ namespace MeshCore.Library
             var a = Ring(start, startRadius);
             var b = Ring(end, endRadius);
 
-            AddSolidRange(sides * 2, sideSlot);
             for (var k = 0; k < sides; k++)
-                AddQuad(a[k], a[(k + 1) % sides], b[(k + 1) % sides], b[k]);
+                AddQuad(sideSlot, a[k], a[(k + 1) % sides], b[(k + 1) % sides], b[k]);
 
             for (var k = 0; k < sides; k++)
                 AddLine(a[k], b[k]);
@@ -137,28 +125,28 @@ namespace MeshCore.Library
             }
         }
 
-        // Starts a draw range at the current end of the solids; add exactly `primitives` triangles after it.
-        public void AddSolidRange(int primitives, int colorSlot) =>
-            _solidRanges.Add(new DrawRange(_solids.Count, primitives, colorSlot));
-
-        public void AddTri(Vector3 a, Vector3 b, Vector3 c)
+        // A triangle, drawn in the palette's colour `slot`.
+        public void AddTri(int slot, Vector3 a, Vector3 b, Vector3 c)
         {
-            _solids.Add(new VertexPosition(a));
-            _solids.Add(new VertexPosition(b));
-            _solids.Add(new VertexPosition(c));
+            while (_slots.Count <= slot)
+                _slots.Add(new List<VertexPosition>());
+            var solids = _slots[slot];
+            solids.Add(new VertexPosition(a));
+            solids.Add(new VertexPosition(b));
+            solids.Add(new VertexPosition(c));
         }
 
-        public void AddQuad(Vector3 a, Vector3 b, Vector3 c, Vector3 d)
+        public void AddQuad(int slot, Vector3 a, Vector3 b, Vector3 c, Vector3 d)
         {
-            AddTri(a, b, c);
-            AddTri(a, c, d);
+            AddTri(slot, a, b, c);
+            AddTri(slot, a, c, d);
         }
 
         // A convex polygon (points in order round its edge) as a triangle fan: points.Length - 2 triangles.
-        public void AddPolygon(params Vector3[] points)
+        public void AddPolygon(int slot, params Vector3[] points)
         {
             for (var i = 1; i < points.Length - 1; i++)
-                AddTri(points[0], points[i], points[i + 1]);
+                AddTri(slot, points[0], points[i], points[i + 1]);
         }
 
         // A closed loop of lines round the given points, e.g. a polygon's outline.
@@ -180,9 +168,35 @@ namespace MeshCore.Library
         public void AddOutlineTri(Vector3 a, Vector3 b, Vector3 c, Vector3 inside) =>
             _outlineTriangles.Add((a, b, c, inside));
 
-        public MeshData Build(GraphicsDevice device) =>
-            new MeshData(ToBuffer(device, _solids), _solidRanges.ToArray(), ToBuffer(device, _edges),
+        // The slots' triangles one after another, lowest slot first, each slot's one draw range.
+        public MeshData Build(GraphicsDevice device)
+        {
+            var solids = new List<VertexPosition>();
+            var ranges = new List<DrawRange>();
+            for (var slot = 0; slot < _slots.Count; slot++)
+            {
+                if (_slots[slot].Count == 0)
+                    continue;
+                ranges.Add(new DrawRange(solids.Count, _slots[slot].Count / 3, slot));
+                solids.AddRange(_slots[slot]);
+            }
+            return new MeshData(ToBuffer(device, solids), ranges.ToArray(), ToBuffer(device, _edges), Bounds(solids),
                 _outlineTriangles.Count > 0 ? new OutlineData(_outlineTriangles) : null);
+        }
+
+        // Round everything added, faces and edges (the outline's triangles are faces too).
+        private BoundingBox Bounds(List<VertexPosition> solids)
+        {
+            var min = new Vector3(float.MaxValue);
+            var max = new Vector3(float.MinValue);
+            foreach (var list in new[] { solids, _edges })
+                foreach (var v in list)
+                {
+                    min = Vector3.Min(min, v.Position);
+                    max = Vector3.Max(max, v.Position);
+                }
+            return min.X <= max.X ? new BoundingBox(min, max) : new BoundingBox(Vector3.Zero, Vector3.Zero);
+        }
 
         private static VertexBuffer ToBuffer(GraphicsDevice device, List<VertexPosition> vertices)
         {

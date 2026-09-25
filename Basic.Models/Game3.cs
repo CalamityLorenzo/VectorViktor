@@ -48,7 +48,7 @@ namespace Basic.Models
 
         private readonly GraphicsDeviceManager _graphics;
         private readonly MeshCache _meshCache = new MeshCache();
-        private readonly List<MeshInstance> _instances = new List<MeshInstance>();
+        private readonly List<SpinningMeshInstance> _instances = new List<SpinningMeshInstance>();
         private BasicEffect _basicEffect;
         private RasterizerState _rasterizerState;
         private KeyboardState _previousKeyboard;
@@ -93,7 +93,7 @@ namespace Basic.Models
             {
                 var showcase = Showcases[i];
                 var mesh = _meshCache.GetOrAdd(GraphicsDevice, showcase.Key, showcase.Build);
-                _instances.Add(new MeshInstance(mesh, showcase.Palette)
+                _instances.Add(new SpinningMeshInstance(mesh, showcase.Palette)
                 {
                     // In a row along X. Their origin is the foot of the first step, so y = 0 is the ground.
                     Position = new Vector3((i - (Showcases.Length - 1) * 0.5f) * Spacing, 0f, 0f),
@@ -129,8 +129,7 @@ namespace Basic.Models
             foreach (var instance in _instances)
             {
                 instance.ColorsOn = _colorsOn;
-                instance.Yaw += instance.YawSpeed * dt;
-                instance.Update(gameTime);
+                instance.Spin(dt);
             }
 
             base.Update(gameTime);

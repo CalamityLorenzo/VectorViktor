@@ -61,12 +61,8 @@ namespace World.Buildings
             foreach (var hatch in room.CeilingHatches)
                 AddSlabEdge(mesh, room, hatch);
 
-            var wallA = new List<Vector3[]>();
-            var wallB = new List<Vector3[]>();
             for (var i = 0; i < room.Outline.Length; i++)
-                AddWall(mesh, room, i, i % 2 == 0 ? wallA : wallB);
-            AddQuads(mesh, wallA, WallA);
-            AddQuads(mesh, wallB, WallB);
+                AddWall(mesh, room, i, i % 2 == 0 ? WallA : WallB);
 
             foreach (var door in room.Doors)
                 AddDoor(mesh, room, door);
@@ -87,25 +83,12 @@ namespace World.Buildings
             return (minX, maxX, minZ, maxZ);
         }
 
-        private static void AddQuads(MeshBuilder mesh, List<Vector3[]> quads, int slot)
-        {
-            if (quads.Count == 0)
-                return;   // an empty draw range would be a zero-primitive draw call
-            mesh.AddSolidRange(quads.Count * 2, slot);
-            foreach (var q in quads)
-                mesh.AddQuad(q[0], q[1], q[2], q[3]);
-        }
-
         // Flat, at y = 0: one or more separately-triangulated pieces, since a stepped ramp can split the
         // room's floor into a piece before it and a piece after (see SplitAroundRamp).
         private static void AddFlatFloor(MeshBuilder mesh, List<Vector2[]> pieces)
         {
-            var triangles = TrianglesOf(pieces);
-            if (triangles.Count == 0)
-                return;
-            mesh.AddSolidRange(triangles.Count, Floor);
-            foreach (var (a, b, c) in triangles)
-                mesh.AddTri(new Vector3(a.X, 0f, a.Y), new Vector3(b.X, 0f, b.Y), new Vector3(c.X, 0f, c.Y));
+            foreach (var (a, b, c) in TrianglesOf(pieces))
+                mesh.AddTri(Floor, new Vector3(a.X, 0f, a.Y), new Vector3(b.X, 0f, b.Y), new Vector3(c.X, 0f, c.Y));
         }
 
         private static List<(Vector2 a, Vector2 b, Vector2 c)> TrianglesOf(List<Vector2[]> pieces)
@@ -124,13 +107,9 @@ namespace World.Buildings
         // since that seam falls where a real room would have a landing or a change of pitch anyway.
         private static void AddCeiling(MeshBuilder mesh, RoomSpec room, List<Vector2[]> pieces)
         {
-            var triangles = TrianglesOf(pieces);
-            if (triangles.Count == 0)
-                return;
             Vector3 Up(Vector2 p) => new Vector3(p.X, room.CeilingHeightAt(new Vector3(p.X, 0f, p.Y)), p.Y);
-            mesh.AddSolidRange(triangles.Count, Ceiling);
-            foreach (var (a, b, c) in triangles)
-                mesh.AddTri(Up(a), Up(b), Up(c));
+            foreach (var (a, b, c) in TrianglesOf(pieces))
+                mesh.AddTri(Ceiling, Up(a), Up(b), Up(c));
         }
 
         // The cut edge of the slab a ceiling hatch goes up through, from this room's (flat) ceiling to the
@@ -139,16 +118,14 @@ namespace World.Buildings
         {
             var bottom = room.Height;
             var top = room.Height + hatch.SlabThickness;
-            var sides = new List<Vector3[]>();
             for (var i = 0; i < hatch.Outline.Length; i++)
             {
                 var a = hatch.Outline[i];
                 var b = hatch.Outline[(i + 1) % hatch.Outline.Length];
-                sides.Add(new[] { new Vector3(a.X, bottom, a.Y), new Vector3(b.X, bottom, b.Y), new Vector3(b.X, top, b.Y), new Vector3(a.X, top, a.Y) });
+                mesh.AddQuad(Ceiling, new Vector3(a.X, bottom, a.Y), new Vector3(b.X, bottom, b.Y), new Vector3(b.X, top, b.Y), new Vector3(a.X, top, a.Y));
                 mesh.AddLine(new Vector3(a.X, bottom, a.Y), new Vector3(b.X, bottom, b.Y));
                 mesh.AddLine(new Vector3(a.X, bottom, a.Y), new Vector3(a.X, top, a.Y));
             }
-            AddQuads(mesh, sides, Ceiling);
         }
 
         // What's left of each piece outside a convex hole: for each of the hole's edges, the part beyond
@@ -405,8 +382,6 @@ namespace World.Buildings
             var count = ramp.Steps;
             var tread = length / count;
             var rise = (ramp.End.Y - ramp.Start.Y) / count;
-            var treads = new List<Vector3[]>();
-            var risers = new List<Vector3[]>();
 
             for (var i = 0; i < count; i++)
             {
@@ -415,8 +390,8 @@ namespace World.Buildings
                 var low = ramp.Start.Y + i * rise;
                 var high = ramp.Start.Y + (i + 1) * rise;
 
-                treads.Add(new[] { P(a0, -hw, high), P(a0, hw, high), P(a1, hw, high), P(a1, -hw, high) });
-                risers.Add(new[] { P(a0, -hw, low), P(a0, hw, low), P(a0, hw, high), P(a0, -hw, high) });
+                mesh.AddQuad(Floor, P(a0, -hw, high), P(a0, hw, high), P(a1, hw, high), P(a1, -hw, high));
+                mesh.AddQuad(Riser, P(a0, -hw, low), P(a0, hw, low), P(a0, hw, high), P(a0, -hw, high));
 
                 mesh.AddLine(P(a0, -hw, low), P(a0, hw, low));
                 mesh.AddLine(P(a0, -hw, high), P(a0, hw, high));
@@ -426,14 +401,12 @@ namespace World.Buildings
                     mesh.AddLine(P(a0, lateral, high), P(a1, lateral, high));
                 }
             }
-            AddQuads(mesh, treads, Floor);
-            AddQuads(mesh, risers, Riser);
         }
 
         // One wall (one edge of the room's Outline) as flat quads (up to three round its opening, if it
         // has one) and its outline. The top of a wall follows the ceiling, so the side walls of a
         // stairwell slope.
-        private static void AddWall(MeshBuilder mesh, RoomSpec room, int wallIndex, List<Vector3[]> quads)
+        private static void AddWall(MeshBuilder mesh, RoomSpec room, int wallIndex, int slot)
         {
             var half = room.WallLength(wallIndex) / 2f;
             var opening = Array.Find(room.Openings, o => o.WallIndex == wallIndex);
@@ -470,11 +443,11 @@ namespace World.Buildings
                 if (Peaks(a0, a1))
                 {
                     var r = ridge.Value;
-                    quads.Add(new[] { P(a0, bottom), P(r, bottom), P(r, Top(r)), P(a0, Top(a0)) });
-                    quads.Add(new[] { P(r, bottom), P(a1, bottom), P(a1, Top(a1)), P(r, Top(r)) });
+                    mesh.AddQuad(slot, P(a0, bottom), P(r, bottom), P(r, Top(r)), P(a0, Top(a0)));
+                    mesh.AddQuad(slot, P(r, bottom), P(a1, bottom), P(a1, Top(a1)), P(r, Top(r)));
                     return;
                 }
-                quads.Add(new[] { P(a0, bottom), P(a1, bottom), P(a1, Top(a1)), P(a0, Top(a0)) });
+                mesh.AddQuad(slot, P(a0, bottom), P(a1, bottom), P(a1, Top(a1)), P(a0, Top(a0)));
             }
 
             if (opening == null)
@@ -545,18 +518,15 @@ namespace World.Buildings
                 };
 
             var frame = Rect(RoomSpec.DoorWidth / 2f + FrameBorder, 0f, RoomSpec.DoorHeight + FrameBorder, FrameLift);
-            mesh.AddSolidRange(2, Frame);
-            mesh.AddQuad(frame[0], frame[1], frame[2], frame[3]);
+            mesh.AddQuad(Frame, frame[0], frame[1], frame[2], frame[3]);
 
             var panel = Rect(RoomSpec.DoorWidth / 2f, 0f, RoomSpec.DoorHeight, DoorLift);
-            mesh.AddSolidRange(2, Door);
-            mesh.AddQuad(panel[0], panel[1], panel[2], panel[3]);
+            mesh.AddQuad(Door, panel[0], panel[1], panel[2], panel[3]);
 
             // Handle near the +tangent edge of the door
             var handleCentre = RoomSpec.DoorWidth / 2f - 0.12f;
             var handle = Rect(0.05f, 0.95f, 1.03f, HandleLift);
-            mesh.AddSolidRange(2, Handle);
-            mesh.AddQuad(
+            mesh.AddQuad(Handle,
                 handle[0] + along * handleCentre, handle[1] + along * handleCentre,
                 handle[2] + along * handleCentre, handle[3] + along * handleCentre);
 

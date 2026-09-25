@@ -53,7 +53,7 @@ namespace Basic.Models
 
         private readonly GraphicsDeviceManager _graphics;
         private readonly MeshCache _meshCache = new MeshCache();
-        private readonly List<MeshInstance> _instances = new List<MeshInstance>();
+        private readonly List<SpinningMeshInstance> _instances = new List<SpinningMeshInstance>();
         private BasicEffect _basicEffect;
         private RasterizerState _rasterizerState;
         private KeyboardState _previousKeyboard;
@@ -100,7 +100,7 @@ namespace Basic.Models
                 var y = ((rows - 1) * 0.5f - row) * CellSize;
 
                 var mesh = _meshCache.GetOrAdd(GraphicsDevice, showcase.Key, showcase.Build);
-                _instances.Add(new MeshInstance(mesh, showcase.Palette)
+                _instances.Add(new SpinningMeshInstance(mesh, showcase.Palette)
                 {
                     Position = new Vector3(x, y - showcase.CentreY * Scale, 0f),
                     Scale = Scale,
@@ -131,8 +131,7 @@ namespace Basic.Models
             foreach (var instance in _instances)
             {
                 instance.ColorsOn = _colorsOn;
-                instance.Yaw += instance.YawSpeed * dt;
-                instance.Update(gameTime);
+                instance.Spin(dt);
             }
 
             base.Update(gameTime);

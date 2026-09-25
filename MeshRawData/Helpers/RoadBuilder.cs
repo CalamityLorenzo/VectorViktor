@@ -28,7 +28,6 @@ namespace MeshRawData.Helpers
         private const float LineWidth = 0.15f;
 
         private readonly MeshBuilder _mesh = new MeshBuilder();
-        private readonly List<Vector3>[] _solids = { new(), new(), new(), new(), new() };
 
         public static Color[] Palette(Color tarmac, Color pavement, Color paint, Color verge)
         {
@@ -225,32 +224,11 @@ namespace MeshRawData.Helpers
             }
         }
 
-        // Each slot's triangles as one draw range.
-        public MeshData Build(GraphicsDevice device)
-        {
-            for (var slot = 0; slot < _solids.Length; slot++)
-            {
-                var solids = _solids[slot];
-                if (solids.Count == 0)
-                    continue;
-                _mesh.AddSolidRange(solids.Count / 3, slot);
-                for (var i = 0; i < solids.Count; i += 3)
-                    _mesh.AddTri(solids[i], solids[i + 1], solids[i + 2]);
-            }
-            return _mesh.Build(device);
-        }
+        // Each slot's triangles as one draw range (see MeshBuilder).
+        public MeshData Build(GraphicsDevice device) => _mesh.Build(device);
 
-        private void Tri(int slot, Vector3 a, Vector3 b, Vector3 c)
-        {
-            _solids[slot].Add(a);
-            _solids[slot].Add(b);
-            _solids[slot].Add(c);
-        }
+        private void Tri(int slot, Vector3 a, Vector3 b, Vector3 c) => _mesh.AddTri(slot, a, b, c);
 
-        private void Quad(int slot, Vector3 a, Vector3 b, Vector3 c, Vector3 d)
-        {
-            Tri(slot, a, b, c);
-            Tri(slot, a, c, d);
-        }
+        private void Quad(int slot, Vector3 a, Vector3 b, Vector3 c, Vector3 d) => _mesh.AddQuad(slot, a, b, c, d);
     }
 }

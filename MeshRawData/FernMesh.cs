@@ -65,20 +65,12 @@ namespace MeshRawData
                 fronds.Add((left, right, spine));
             }
 
-            // Fronds in two passes (even, then odd) so each green is one contiguous range
-            for (var parity = 0; parity < 2; parity++)
+            // Fronds alternate between the two greens
+            for (var i = 0; i < FrondCount; i++)
             {
-                var count = 0;
-                for (var i = parity; i < FrondCount; i += 2)
-                    count++;
-                mesh.AddSolidRange(count * (Along.Length - 1) * 2, parity == 0 ? FrondA : FrondB);
-
-                for (var i = parity; i < FrondCount; i += 2)
-                {
-                    var (left, right, _) = fronds[i];
-                    for (var j = 0; j < Along.Length - 1; j++)
-                        mesh.AddQuad(left[j], left[j + 1], right[j + 1], right[j]);
-                }
+                var (left, right, _) = fronds[i];
+                for (var j = 0; j < Along.Length - 1; j++)
+                    mesh.AddQuad(i % 2 == 0 ? FrondA : FrondB, left[j], left[j + 1], right[j + 1], right[j]);
             }
 
             // Edges: each frond's outline plus its central rib

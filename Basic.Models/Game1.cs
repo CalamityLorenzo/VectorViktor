@@ -17,7 +17,7 @@ namespace Basic.Models
         private KeyboardState _previousKeyboard;
         private RasterizerState _rasterizerState;
         private MeshCache _meshCache = new MeshCache();
-        private readonly List<MeshInstance> _instances = new List<MeshInstance>();
+        private readonly List<SpinningMeshInstance> _instances = new List<SpinningMeshInstance>();
         private bool _colorsOn = true;   // off = faces drawn in the background colour (wireframe look)
 
         private static readonly Color BackgroundColor = Color.CornflowerBlue;
@@ -156,7 +156,7 @@ namespace Basic.Models
 
             // lift: how far above the floor the thing stands (for the fern on the table, the television on the sideboard)
             void Place(MeshData mesh, Color[] palette, float x, float z, float scale, float yaw, float lift = 0f) =>
-                _instances.Add(new MeshInstance(mesh, palette)
+                _instances.Add(new SpinningMeshInstance(mesh, palette)
                 {
                     Position = new Vector3(x, ground + lift, z),
                     Scale = scale,
@@ -210,7 +210,7 @@ namespace Basic.Models
                 var halfHeight = halfFovTan * distance * 0.9f;
                 var halfWidth = halfHeight * aspect;
 
-                _instances.Add(new MeshInstance(mesh, IngotMesh.Palette(scheme.Top, scheme.Side, scheme.Other))
+                _instances.Add(new SpinningMeshInstance(mesh, IngotMesh.Palette(scheme.Top, scheme.Side, scheme.Other))
                 {
                     Position = new Vector3(
                         Between(-halfWidth, halfWidth),
@@ -234,7 +234,7 @@ namespace Basic.Models
             for (var i = 0; i < PyramidCount; i++)
             {
                 var scheme = ColorSchemes[rng.Next(ColorSchemes.Length)];
-                _instances.Add(new MeshInstance(mesh, PyramidMesh.Palette(scheme.Other, scheme.Top))
+                _instances.Add(new SpinningMeshInstance(mesh, PyramidMesh.Palette(scheme.Other, scheme.Top))
                 {
                     Position = new Vector3(Between(-4f, 4f), Between(-2.5f, 2.5f), CameraPosition.Z - Between(4f, 10f)),
                     Scale = Between(0.5f, 1.2f),
@@ -257,7 +257,7 @@ namespace Basic.Models
             {
                 var scheme = HouseSchemes[rng.Next(HouseSchemes.Length)];
                 var palette = HouseMesh.Palette(scheme.Wall, scheme.Roof, Color.White, Color.Blue, new Color(80, 40, 20));
-                _instances.Add(new MeshInstance(mesh, palette)
+                _instances.Add(new SpinningMeshInstance(mesh, palette)
                 {
                     Position = new Vector3(Between(-5f, 5f), Between(-3f, 3f), CameraPosition.Z - Between(4f, 12f)),
                     Scale = Between(0.5f, 1.0f),
@@ -280,7 +280,7 @@ namespace Basic.Models
             {
                 var body = TrabantBodyColors[rng.Next(TrabantBodyColors.Length)];
                 var palette = TrabantMesh.Palette(body, TrabantCabinColor, TrabantWheelColor);
-                _instances.Add(new MeshInstance(mesh, palette)
+                _instances.Add(new SpinningMeshInstance(mesh, palette)
                 {
                     // One horizontal slot each (plus jitter) so the cars don't pile up on top of each other.
                     Position = new Vector3(
@@ -307,7 +307,7 @@ namespace Basic.Models
             {
                 var body = CarBodyColors[rng.Next(CarBodyColors.Length)];
                 var palette = CarMesh.Palette(body, CarGlassColor, CarWheelColor);
-                _instances.Add(new MeshInstance(mesh, palette)
+                _instances.Add(new SpinningMeshInstance(mesh, palette)
                 {
                     // One horizontal slot each (plus jitter) so the cars don't pile up.
                     Position = new Vector3(
@@ -333,7 +333,7 @@ namespace Basic.Models
             var palette = BarnMesh.Palette(BarnWallColor, BarnRoofColor, BarnDoorColor);
             for (var i = 0; i < BarnCount; i++)
             {
-                _instances.Add(new MeshInstance(mesh, palette)
+                _instances.Add(new SpinningMeshInstance(mesh, palette)
                 {
                     Position = new Vector3(
                         MathHelper.Lerp(-4f, 4f, (i + 0.5f) / BarnCount) + Between(-0.5f, 0.5f),
@@ -366,9 +366,7 @@ namespace Basic.Models
             foreach (var instance in _instances)
             {
                 instance.ColorsOn = _colorsOn;
-                instance.Yaw += instance.YawSpeed * dt;
-                instance.Pitch += instance.PitchSpeed * dt;
-                instance.Update(gameTime);
+                instance.Spin(dt);
             }
 
             base.Update(gameTime);

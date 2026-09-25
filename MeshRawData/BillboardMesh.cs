@@ -54,27 +54,10 @@ namespace MeshRawData
         public static MeshData Build(GraphicsDevice device)
         {
             var mesh = new MeshBuilder();
-            var faces = new List<Vector3[]>[PaletteSize];
-            for (var slot = 0; slot < PaletteSize; slot++)
-                faces[slot] = new List<Vector3[]>();
 
             // An upright box on its bottom centre: `depth` along Z, `width` along X, in a part's three shades
-            void Box(int slot, Vector3 at, float width, float depth, float height)
-            {
-                float hx = width / 2f, hz = depth / 2f;
-                Vector3 P(float dx, float dy, float dz) => at + new Vector3(dx * hx, dy * height, dz * hz);
-                Vector3 a = P(-1, 0, -1), b = P(1, 0, -1), c = P(1, 0, 1), d = P(-1, 0, 1);
-                Vector3 e = P(-1, 1, -1), f = P(1, 1, -1), g = P(1, 1, 1), h = P(-1, 1, 1);
-                faces[slot + MeshBuilder.Side].Add(new[] { b, c, g, f });
-                faces[slot + MeshBuilder.Side].Add(new[] { d, a, e, h });
-                faces[slot + MeshBuilder.Dim].Add(new[] { a, b, f, e });
-                faces[slot + MeshBuilder.Dim].Add(new[] { c, d, h, g });
-                faces[slot + MeshBuilder.Dim].Add(new[] { a, d, c, b });
-                faces[slot + MeshBuilder.Top].Add(new[] { e, f, g, h });
-                mesh.AddLineLoop(a, b, c, d);
-                mesh.AddLineLoop(e, f, g, h);
-                mesh.AddLine(a, e); mesh.AddLine(b, f); mesh.AddLine(c, g); mesh.AddLine(d, h);
-            }
+            void Box(int slot, Vector3 at, float width, float depth, float height) =>
+                mesh.AddBox(slot, at, depth, width, height, sealBottom: true);
 
             // A flat shape on the board's face, outlined
             var front = BoardDepth / 2f;
@@ -82,7 +65,7 @@ namespace MeshRawData
             void Paint(int slot, float lift, params Vector2[] points)
             {
                 var polygon = Array.ConvertAll(points, p => OnFace(p.X, p.Y, lift));
-                faces[slot].Add(polygon);
+                mesh.AddPolygon(slot, polygon);
                 mesh.AddLineLoop(polygon);
             }
 
@@ -110,7 +93,7 @@ namespace MeshRawData
                 var a0 = MathHelper.Lerp(from, to, k / (float)segments);
                 var a1 = MathHelper.Lerp(from, to, (k + 1) / (float)segments);
                 var quad = new[] { Round(inner, a0), Round(outer, a0), Round(outer, a1), Round(inner, a1) };
-                faces[Blue].Add(Array.ConvertAll(quad, p => OnFace(p.X, p.Y, 2f * Lift)));
+                mesh.AddPolygon(Blue, Array.ConvertAll(quad, p => OnFace(p.X, p.Y, 2f * Lift)));
                 mesh.AddLine(OnFace(quad[1].X, quad[1].Y, 2f * Lift), OnFace(quad[2].X, quad[2].Y, 2f * Lift));
                 mesh.AddLine(OnFace(quad[0].X, quad[0].Y, 2f * Lift), OnFace(quad[3].X, quad[3].Y, 2f * Lift));
             }
@@ -140,18 +123,6 @@ namespace MeshRawData
             }
             Write("COMMODORE", -0.3f, 2.25f, 0.5f);
             Write("64", 0.9f, 0.45f, 1.4f);
-
-            for (var slot = 0; slot < PaletteSize; slot++)
-            {
-                var triangles = 0;
-                foreach (var polygon in faces[slot])
-                    triangles += polygon.Length - 2;
-                if (triangles == 0)
-                    continue;
-                mesh.AddSolidRange(triangles, slot);
-                foreach (var polygon in faces[slot])
-                    mesh.AddPolygon(polygon);
-            }
             return mesh.Build(device);
         }
     }

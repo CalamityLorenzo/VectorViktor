@@ -1,8 +1,6 @@
-using MeshCore.Library;
 using MeshRawData;
 using MeshRawData.Helpers;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 using World.Buildings;
@@ -21,7 +19,7 @@ namespace Basic.World
     // It's all levelled out of the hills by pads (see TerrainGenerator.Pad), every one of them level with
     // the road's middle: the gardens GardenRise above it, the pool dug into one of them, and the road
     // itself last, so the front gardens' slopes run down onto it.
-    public static class Neighbourhood
+    public sealed class Neighbourhood : IDistrict
     {
         public static readonly Vector2 RoadCentre = new Vector2(80f, 30f);
         public const float RoadLength = 60f;                   // six 10 m straights
@@ -76,7 +74,21 @@ namespace Basic.World
         // Where to stand to see it all from behind: in the pool's garden, facing the pool
         public static readonly Vector2 PoolSide = new Vector2(84f, 51.5f);
 
+        public IReadOnlyDictionary<string, Start> Starts { get; } = new Dictionary<string, Start>
+        {
+            ["street"] = new(StreetStart, MathHelper.PiOver2),                  // at the west end of the street, looking down it
+            ["billboard"] = new(BillboardView, MathHelper.PiOver4),              // in front of the billboard, looking at it
+            ["pool"] = new(PoolSide, MathHelper.Pi * 0.75f),                    // in a back garden, by its swimming pool
+        };
+
         public static readonly TerrainGenerator.Pad[] Pads = MakePads();
+
+        IEnumerable<TerrainGenerator.Pad> IDistrict.Pads => Pads;
+        IEnumerable<Pool> IDistrict.Pools(Terrain terrain) => new[] { SwimmingPool(terrain) };
+        IEnumerable<Building> IDistrict.Buildings(Terrain terrain) => Buildings(terrain);
+        IEnumerable<WallSegment> IDistrict.Walls(Terrain terrain) => Walls(terrain);
+        IEnumerable<Fixture> IDistrict.Fixtures(Terrain terrain) => Fixtures(terrain);
+        bool IDistrict.Bare(float x, float z) => Paved(x, z);
 
         private static TerrainGenerator.Pad[] MakePads()
         {
@@ -170,20 +182,17 @@ namespace Basic.World
             }
         }
 
-        // Everything else to draw: the road, the fences, the pool's paving and the billboard - each a mesh, how
-        // it's coloured, and where it goes.
-        public readonly record struct Thing(string Key, Func<GraphicsDevice, MeshData> Build, Color[] Palette, Matrix Transform);
-
-        public static List<Thing> Things(Terrain terrain)
+        // Everything else to draw: the road, the fences, the pool's paving and the billboard.
+        public static List<Fixture> Fixtures(Terrain terrain)
         {
-            var things = new List<Thing>();
+            var things = new List<Fixture>();
             var road = RoadLevel(terrain);
 
             var roadPalette = RoadMesh.Palette(new Color(70, 70, 75), new Color(170, 165, 155), Color.White, new Color(60, 140, 50));
             for (var k = 0; k < (int)(RoadLength / 10f); k++)
             {
                 var x = RoadCentre.X - RoadLength / 2f + 5f + k * 10f;
-                things.Add(new Thing("road-straight", d => RoadMesh.Straight(d), roadPalette,
+                things.Add(new Fixture("road-straight", d => RoadMesh.Straight(d), roadPalette,
                     Matrix.CreateRotationY(MathHelper.PiOver2) * Matrix.CreateTranslation(x, road, RoadCentre.Y)));
             }
 
@@ -192,14 +201,14 @@ namespace Basic.World
             {
                 var n = 0;
                 foreach (var run in FenceRuns(plot))
-                    things.Add(new Thing($"fence:{plot.Id}:{n++}", d => FenceMesh.Build(d, terrain.HeightAt, run), fencePalette, Matrix.Identity));
+                    things.Add(new Fixture($"fence:{plot.Id}:{n++}", d => FenceMesh.Build(d, terrain.HeightAt, run), fencePalette, Matrix.Identity));
             }
 
-            things.Add(new Thing("poolsurround", d => PoolSurroundMesh.Build(d, PoolHalf.X, PoolHalf.Y),
+            things.Add(new Fixture("poolsurround", d => PoolSurroundMesh.Build(d, PoolHalf.X, PoolHalf.Y),
                 PoolSurroundMesh.Palette(new Color(215, 205, 185)),
                 Matrix.CreateTranslation(PoolCentre.X, road + GardenRise, PoolCentre.Y)));
 
-            things.Add(new Thing("billboard", BillboardMesh.Build, BillboardMesh.Palette(new Color(110, 110, 115), new Color(80, 80, 85)),
+            things.Add(new Fixture("billboard", BillboardMesh.Build, BillboardMesh.Palette(new Color(110, 110, 115), new Color(80, 80, 85)),
                 Matrix.CreateRotationY(BillboardYaw) * Matrix.CreateTranslation(BillboardAt.X, terrain.HeightAt(BillboardAt.X, BillboardAt.Y), BillboardAt.Y)));
             return things;
         }

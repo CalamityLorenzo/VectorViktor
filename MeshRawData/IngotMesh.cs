@@ -47,7 +47,8 @@ namespace MeshRawData
                     new DrawRange(6, 2, Other),   // bottom quad
                     new DrawRange(12, 8, Side),   // four side quads
                 },
-                edgeBuffer);
+                edgeBuffer,
+                BoundingBox.CreateFromPoints(raw));
         }
 
         private static VertexPosition[] BuildEdges(Vector3[] raw)

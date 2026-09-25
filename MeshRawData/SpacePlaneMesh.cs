@@ -107,13 +107,12 @@ namespace MeshRawData
             // A point inside the dome, used only to tell AddOutlineTri which way each triangle faces.
             var inside = new Vector3(0f, baseY - 0.15f, centreZ);
 
-            mesh.AddSolidRange(cells * cells * 2, Canopy);
             for (var i = 0; i < cells; i++)
                 for (var j = 0; j < cells; j++)
                 {
                     var a = Point(i, j); var b = Point(i + 1, j); var c = Point(i + 1, j + 1); var d = Point(i, j + 1);
-                    mesh.AddTri(a, b, c);
-                    mesh.AddTri(a, c, d);
+                    mesh.AddTri(Canopy, a, b, c);
+                    mesh.AddTri(Canopy, a, c, d);
                     // The dome's silhouette turns with the camera, so it can't be fixed edges (see AddOutlineTri).
                     mesh.AddOutlineTri(a, b, c, inside);
                     mesh.AddOutlineTri(a, c, d, inside);
@@ -148,10 +147,8 @@ namespace MeshRawData
                 var capLE = Vector3.Lerp(rootLE, tipLE, tipCapSpan);
                 var capTE = Vector3.Lerp(rootTE, tipTE, tipCapSpan);
 
-                mesh.AddSolidRange(2, Hull);
-                mesh.AddQuad(rootLE, capLE, capTE, rootTE);
-                mesh.AddSolidRange(2, Accent);
-                mesh.AddQuad(capLE, tipLE, tipTE, capTE);
+                mesh.AddQuad(Hull, rootLE, capLE, capTE, rootTE);
+                mesh.AddQuad(Accent, capLE, tipLE, tipTE, capTE);
 
                 mesh.AddLineLoop(rootLE, tipLE, tipTE, rootTE);
                 mesh.AddLine(capLE, capTE);
@@ -172,10 +169,8 @@ namespace MeshRawData
             var capLE = Vector3.Lerp(rootLE, tipLE, tipCapSpan);
             var capTE = Vector3.Lerp(rootTE, tipTE, tipCapSpan);
 
-            mesh.AddSolidRange(2, Hull);
-            mesh.AddQuad(rootLE, capLE, capTE, rootTE);
-            mesh.AddSolidRange(2, Accent);
-            mesh.AddQuad(capLE, tipLE, tipTE, capTE);
+            mesh.AddQuad(Hull, rootLE, capLE, capTE, rootTE);
+            mesh.AddQuad(Accent, capLE, tipLE, tipTE, capTE);
 
             mesh.AddLineLoop(rootLE, tipLE, tipTE, rootTE);
             mesh.AddLine(capLE, capTE);

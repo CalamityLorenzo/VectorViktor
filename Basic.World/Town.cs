@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework;
 using System.Collections.Generic;
 using World.Buildings;
 using World.Core;
+using World.Core.Physics;
 using static World.Buildings.Walls;
 
 namespace Basic.World
@@ -14,8 +15,8 @@ namespace Basic.World
     //    hatch into the bedroom above, and from there a ladder climbs through another into the attic,
     //    under its pitched roof
     //  - a barn: tall and bare, with a pair of wide doors, a ladder up onto a loft across its south end,
-    //    and a pitched roof
-    public static class Town
+    //    and a pitched roof, and two bales of straw (as wooden crates) inside the doorway, to shove about
+    public sealed class Town : IDistrict
     {
         private const float FloorLift = Houses.FloorLift;
         private const float RoofPitch = 35f;     // degrees, for every building's pitched roof
@@ -35,6 +36,25 @@ namespace Basic.World
             new(HouseCentre, new Vector2(Houses.TwoStoreySize / 2f + Wall, Houses.TwoStoreySize / 2f + Wall)),
             new(BarnCentre, new Vector2(BarnWidth / 2f + Wall, BarnDepth / 2f + Wall)),
         };
+
+        public IReadOnlyDictionary<string, Start> Starts { get; } = new Dictionary<string, Start>
+        {
+            ["town"] = new(new Vector2(22f, 6f), MathHelper.Pi),                           // north of the buildings, facing them
+            ["house"] = new(HouseCentre + new Vector2(-1.5f, -7f), MathHelper.Pi),         // outside the house's doorway
+            ["bedroom"] = new(HouseCentre + new Vector2(-2f, -2f), MathHelper.Pi, Above: 4.5f),   // in the house's bedroom, facing the ladder up to the attic
+            ["attic"] = new(HouseCentre, MathHelper.PiOver2, Above: 100f),                 // up in the house's attic, facing its east end
+            ["barn"] = new(BarnCentre + new Vector2(0f, -8f), MathHelper.Pi),              // outside the barn's
+        };
+
+        IEnumerable<TerrainGenerator.Pad> IDistrict.Pads => Pads;
+        IEnumerable<Building> IDistrict.Buildings(Terrain terrain) => Build(terrain);
+
+        public IEnumerable<Thing> Things(PhysicsWorld world, Terrain terrain)
+        {
+            var bale = new Vector3(0.8f, 0.8f, 0.8f);
+            yield return Scenery.Crate(world, terrain, "barn crate 1", CrateKind.Wood, bale, 25f, BarnCentre.X - 3f, BarnCentre.Y - 1.5f);
+            yield return Scenery.Crate(world, terrain, "barn crate 2", CrateKind.Wood, bale, 25f, BarnCentre.X - 3f, BarnCentre.Y - 1.5f, above: 1f);
+        }
 
         // The buildings, standing on the terrain made with Pads.
         public static List<Building> Build(Terrain terrain)

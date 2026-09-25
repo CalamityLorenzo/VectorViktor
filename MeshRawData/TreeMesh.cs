@@ -69,11 +69,7 @@ namespace MeshRawData
             // edges are its silhouette, so they are needed to see it in wireframe.
             mesh.AddFrustum(Vector3.Zero, 0.07f, 0.05f, 0.45f, 6, Trunk, verticalEdges: true);
 
-            // Canopy faces, split by which way they point, so each leaf shade is one contiguous range
-            var faceSets = new List<(Vector3 a, Vector3 b, Vector3 c)>[3];   // indexed by MeshBuilder.Side / Dim / Top
-            for (var s = 0; s < 3; s++)
-                faceSets[s] = new List<(Vector3, Vector3, Vector3)>();
-
+            // Canopy faces, shaded by which way they point
             foreach (var (centre, radius, yaw) in Blobs)
             {
                 var turn = Matrix.CreateRotationY(yaw);
@@ -91,18 +87,9 @@ namespace MeshRawData
                 {
                     var facing = Vector3.Normalize((local[face[0]] + local[face[1]] + local[face[2]]) / 3f).Y;
                     var shade = facing > 0.4f ? MeshBuilder.Top : facing < -0.25f ? MeshBuilder.Dim : MeshBuilder.Side;
-                    faceSets[shade].Add((world[face[0]], world[face[1]], world[face[2]]));
+                    mesh.AddTri(LeafBase + shade, world[face[0]], world[face[1]], world[face[2]]);
                     mesh.AddOutlineTri(world[face[0]], world[face[1]], world[face[2]], centre);
                 }
-            }
-
-            for (var shade = 0; shade < 3; shade++)
-            {
-                if (faceSets[shade].Count == 0)
-                    continue;
-                mesh.AddSolidRange(faceSets[shade].Count, LeafBase + shade);
-                foreach (var (a, b, c) in faceSets[shade])
-                    mesh.AddTri(a, b, c);
             }
 
             return mesh.Build(device);

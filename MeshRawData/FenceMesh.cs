@@ -10,7 +10,7 @@ namespace MeshRawData
     // rails behind them, and a post at every point. Each picket stands on the ground where it is
     // (`groundAt`), sunk a little into it, so the fence follows the lie of the land. The run's legs must
     // each go straight along X or along Z. The mesh is in world coordinates, and however many pickets
-    // there are, it's three draw ranges: every box's faces are gathered by shade (see MeshBuilder).
+    // there are, it's three draw ranges, one per shade (see MeshBuilder).
     public static class FenceMesh
     {
         public const int Paint = 0;
@@ -30,7 +30,6 @@ namespace MeshRawData
         public static MeshData Build(GraphicsDevice device, Func<float, float, float> groundAt, IReadOnlyList<Vector2> run)
         {
             var mesh = new MeshBuilder();
-            var faces = new[] { new List<Vector3[]>(), new List<Vector3[]>(), new List<Vector3[]>() };   // side, end, top
 
             // A box standing on (x, y, z), `along` long in the direction of its leg (X or Z), `across` thick
             void Box(bool alongX, float x, float y, float z, float along, float across, float height)
@@ -43,9 +42,11 @@ namespace MeshRawData
                 // The broad faces (across the leg) get the side shade, the narrow ends the dim one
                 var (broad, narrow) = alongX ? (new[] { new[] { a, b, f, e }, new[] { c, d, h, g } }, new[] { new[] { b, c, g, f }, new[] { d, a, e, h } })
                                              : (new[] { new[] { b, c, g, f }, new[] { d, a, e, h } }, new[] { new[] { a, b, f, e }, new[] { c, d, h, g } });
-                faces[MeshBuilder.Side].AddRange(broad);
-                faces[MeshBuilder.Dim].AddRange(narrow);
-                faces[MeshBuilder.Top].Add(new[] { e, f, g, h });
+                foreach (var q in broad)
+                    mesh.AddQuad(Paint + MeshBuilder.Side, q[0], q[1], q[2], q[3]);
+                foreach (var q in narrow)
+                    mesh.AddQuad(Paint + MeshBuilder.Dim, q[0], q[1], q[2], q[3]);
+                mesh.AddQuad(Paint + MeshBuilder.Top, e, f, g, h);
                 mesh.AddLineLoop(e, f, g, h);
                 mesh.AddLine(a, e); mesh.AddLine(b, f); mesh.AddLine(c, g); mesh.AddLine(d, h);
             }
@@ -75,13 +76,6 @@ namespace MeshRawData
 
             foreach (var point in run)
                 Box(true, point.X, groundAt(point.X, point.Y) - Sunk, point.Y, PostSize, PostSize, Height + Sunk + 0.08f);
-
-            for (var shade = 0; shade < faces.Length; shade++)
-            {
-                mesh.AddSolidRange(faces[shade].Count * 2, Paint + shade);
-                foreach (var quad in faces[shade])
-                    mesh.AddQuad(quad[0], quad[1], quad[2], quad[3]);
-            }
             return mesh.Build(device);
         }
     }

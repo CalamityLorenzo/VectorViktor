@@ -33,8 +33,12 @@ namespace World.Buildings
         private readonly List<Placed> _rooms = new List<Placed>();
         private readonly List<WallSegment> _walls = new List<WallSegment>();
         private readonly List<Door> _doors = new List<Door>();
+        private readonly Dictionary<Building, List<Door>> _doorsOf = new Dictionary<Building, List<Door>>();
 
         public IReadOnlyList<Door> Doors => _doors;
+
+        // The doors hung in one of its buildings.
+        public IReadOnlyList<Door> DoorsOf(Building building) => _doorsOf[building];
 
         // A room, and the box round its floor plan in the world, to rule most rooms out quickly.
         private sealed record Placed(RoomSpec Spec, Vector2 Min, Vector2 Max)
@@ -67,7 +71,9 @@ namespace World.Buildings
                     _rooms.Add(new Placed(room, min + offset, max + offset));
                 }
                 _walls.AddRange(building.Walls());
-                _doors.AddRange(building.HangDoors());
+                var doors = building.HangDoors();
+                _doorsOf[building] = doors;
+                _doors.AddRange(doors);
             }
         }
 

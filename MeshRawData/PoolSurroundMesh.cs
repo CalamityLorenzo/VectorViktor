@@ -25,18 +25,17 @@ namespace MeshRawData
         public static MeshData Build(GraphicsDevice device, float halfX, float halfZ)
         {
             var mesh = new MeshBuilder();
-            var faces = new[] { new List<Vector3[]>(), new List<Vector3[]>(), new List<Vector3[]>() };   // side, end, top
 
             void Slab(float x0, float z0, float x1, float z1)
             {
                 float y0 = Above - Thickness, y1 = Above;
                 Vector3 a = new(x0, y0, z0), b = new(x1, y0, z0), c = new(x1, y0, z1), d = new(x0, y0, z1);
                 Vector3 e = new(x0, y1, z0), f = new(x1, y1, z0), g = new(x1, y1, z1), h = new(x0, y1, z1);
-                faces[MeshBuilder.Side].Add(new[] { a, b, f, e });
-                faces[MeshBuilder.Side].Add(new[] { c, d, h, g });
-                faces[MeshBuilder.Dim].Add(new[] { b, c, g, f });
-                faces[MeshBuilder.Dim].Add(new[] { d, a, e, h });
-                faces[MeshBuilder.Top].Add(new[] { e, f, g, h });
+                mesh.AddQuad(Stone + MeshBuilder.Side, a, b, f, e);
+                mesh.AddQuad(Stone + MeshBuilder.Side, c, d, h, g);
+                mesh.AddQuad(Stone + MeshBuilder.Dim, b, c, g, f);
+                mesh.AddQuad(Stone + MeshBuilder.Dim, d, a, e, h);
+                mesh.AddQuad(Stone + MeshBuilder.Top, e, f, g, h);
                 mesh.AddLineLoop(e, f, g, h);
             }
 
@@ -45,13 +44,6 @@ namespace MeshRawData
             Slab(-ox, iz, ox, oz);     // south
             Slab(-ox, -iz, -ix, iz);   // west
             Slab(ix, -iz, ox, iz);     // east
-
-            for (var shade = 0; shade < faces.Length; shade++)
-            {
-                mesh.AddSolidRange(faces[shade].Count * 2, Stone + shade);
-                foreach (var quad in faces[shade])
-                    mesh.AddQuad(quad[0], quad[1], quad[2], quad[3]);
-            }
             return mesh.Build(device);
         }
     }
