@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <Nullable>disable</Nullable>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows7.0</TargetFramework>
     <RollForward>Major</RollForward>
     <PublishReadyToRun>false</PublishReadyToRun>
     <TieredCompilation>false</TieredCompilation>
@@ -12,8 +12,8 @@
     <ApplicationIcon>Icon.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="MonoGame.Framework.WindowsDX" Version="3.8.*" />
-    <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.*" />
-    <PackageReference Include="SharpGLTF.Core" Version="1.0.7" />
+    <PackageReference Include="MonoGame.Framework.WindowsDX" />
+    <PackageReference Include="MonoGame.Content.Builder.Task" />
+    <PackageReference Include="SharpGLTF.Core" />
   </ItemGroup>
 </Project>

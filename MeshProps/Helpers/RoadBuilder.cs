@@ -6,7 +6,7 @@ using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace MeshRawData.Helpers
+namespace MeshProps.Helpers
 {
     // Shared by RoadMesh: flat tarmac, raised pavements behind kerbs, and white paint, laid out in plan.
     // Plan points are Vector2 (X, Z) - X is the world's X, Y is the world's Z - and angles go from +X
@@ -224,8 +224,9 @@ namespace MeshRawData.Helpers
             }
         }
 
-        // Each slot's triangles as one draw range (see MeshBuilder).
-        public MeshData Build(GraphicsDevice device) => _mesh.Build(device);
+        // Each slot's triangles as one draw range (see MeshBuilder). A road keeps its footprint, so the ground under
+        // it can leave its grid lines out (see MeshData.Covers).
+        public MeshData Build(GraphicsDevice device) => _mesh.Build(device, keepFootprint: true);
 
         private void Tri(int slot, Vector3 a, Vector3 b, Vector3 c) => _mesh.AddTri(slot, a, b, c);
 

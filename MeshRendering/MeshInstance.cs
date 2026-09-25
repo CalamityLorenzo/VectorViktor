@@ -2,7 +2,7 @@ using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace MeshLoader
+namespace MeshRendering
 {
     // Borrows a MeshData from the MeshCache (must not outlive it); carries only transform + palette.
     // It stands where it's put: upright, unturned, at the origin, until told otherwise.
@@ -45,8 +45,12 @@ namespace MeshLoader
             ArgumentNullException.ThrowIfNull(palette);
             if (palette.Length < meshData.PaletteSize)
                 throw new ArgumentException($"Palette has {palette.Length} colours but the mesh needs {meshData.PaletteSize}.", nameof(palette));
-            _palette = palette;
+            _palette = (Color[])palette.Clone();   // its own: recolouring one instance never recolours another
         }
+
+        // The colour it draws a slot of its palette in.
+        public Color GetColor(int slot) => _palette[slot];
+        public void SetColor(int slot, Color color) => _palette[slot] = color;
 
         // The mesh's bounds, as placed in the world by `world` (still axis-aligned, so a turned mesh's is a
         // little bigger than it): the box's centre moved, its half-size spread over the axes it's turned onto.
@@ -96,6 +100,9 @@ namespace MeshLoader
         // the rasterizer state (FaceRasterizer) and turns the effect's vertex colours off.
         public void DrawSolids(GraphicsDevice gd, BasicEffect fx, Matrix world, Color? faces)
         {
+            ThrowIfDisposed();
+            if (Mesh.Solids == null)
+                return;
             fx.World = world;
             gd.SetVertexBuffer(Mesh.Solids);
             foreach (var range in Mesh.SolidRanges)
@@ -105,10 +112,22 @@ namespace MeshLoader
         // The edges, placed by `world`, in white, and a rounded canopy's outline as seen from the camera.
         public void DrawEdges(GraphicsDevice gd, BasicEffect fx, Matrix world)
         {
+            ThrowIfDisposed();
             fx.World = world;
-            gd.SetVertexBuffer(Mesh.Edges);
-            DrawRange(gd, fx, Color.White, PrimitiveType.LineList, 0, Mesh.Edges.VertexCount / 2);
+            if (Mesh.Edges != null)
+            {
+                gd.SetVertexBuffer(Mesh.Edges);
+                DrawRange(gd, fx, Color.White, PrimitiveType.LineList, 0, Mesh.Edges.VertexCount / 2);
+            }
             DrawOutline(gd, fx);
+        }
+
+        // An instance outliving the mesh it borrowed (its cache, or a terrain chunk thrown away) would draw
+        // freed buffers: say so plainly instead.
+        private void ThrowIfDisposed()
+        {
+            if (Mesh.IsDisposed)
+                throw new ObjectDisposedException(nameof(MeshData), "This instance's mesh has been disposed; the instance has outlived its owner.");
         }
 
         // For a rounded canopy: its outline as seen from the camera, in white like the edges. It depends on

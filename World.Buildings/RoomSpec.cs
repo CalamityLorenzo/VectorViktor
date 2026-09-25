@@ -17,7 +17,7 @@ namespace World.Buildings
     // A door in a wall. WallIndex is which edge of the room's Outline it's in (see RoomSpec.Rectangle for
     // the rectangular case's numbering). Offset is how far along that edge its centre is, measured from
     // the edge's own midpoint in the direction the edge runs (Outline[WallIndex] -> Outline[WallIndex+1]).
-    // Walking into it puts you at TargetDoor in TargetRoom.
+    // Walking into it puts you at TargetDoor in TargetRoom (in Basic.Levels: see its RoomWalking).
     public record DoorSpec(string Id, int WallIndex, float Offset, string TargetRoom, string TargetDoor);
 
     // A gap in a wall, from the floor up, that leads straight on into the neighbouring room TargetRoom.
@@ -380,50 +380,6 @@ namespace World.Buildings
         // so rooms stacked on the same footprint both contain it - see Game1.ClimbThroughHatches.
         public bool Contains(Vector3 local) => Geometry2D.InPolygon(Outline, new Vector2(local.X, local.Z));
 
-        // Pushes a walker (a circle of `radius` on the floor) back in from the room's boundary, convex or
-        // concave corners alike: finds the single closest point anywhere on the Outline and, unless that's
-        // squarely inside a door or opening's gap, pushes away from it. A concave (notch) corner falls
-        // naturally out of this - the closest point may be a vertex rather than partway along an edge,
-        // which is exactly what rounds the walker round it, the same way Geometry2D.PushOutOfBox rounds a box corner.
-        public Vector3 KeepInside(Vector3 p, float radius)
-        {
-            var q = new Vector2(p.X, p.Z);
-            var bestDist = float.MaxValue;
-            var bestPoint = Vector2.Zero;
-            var bestEdge = 0;
-            for (var i = 0; i < Outline.Length; i++)
-            {
-                var (a, b) = Edge(i);
-                var nearest = Geometry2D.NearestOnSegment(q, a, b);
-                var dist = Vector2.Distance(q, nearest);
-                if (dist < bestDist)
-                {
-                    bestDist = dist;
-                    bestPoint = nearest;
-                    bestEdge = i;
-                }
-            }
-
-            // Squarely in an opening's gap: let the walker through regardless of which side of the wall
-            // line they're on - crossing the threshold is exactly when Contains flips to false below, so
-            // this has to come first rather than being gated on still being "inside".
-            if (Array.Exists(Openings, o => o.WallIndex == bestEdge && MathF.Abs(AlongWall(bestEdge, p) - o.Offset) <= o.Width / 2f - radius))
-                return p;
-
-            var inside = Contains(p);
-            if (inside && bestDist >= radius)
-                return p;
-
-            var direction = inside && bestDist > 1e-6f
-                ? (q - bestPoint) / bestDist
-                : new Vector2(Inward(bestEdge).X, Inward(bestEdge).Z);
-            var pushed = bestPoint + direction * radius;
-            return new Vector3(pushed.X, p.Y, pushed.Y);
-        }
-
-        public DoorSpec FindDoor(string id) =>
-            Array.Find(Doors, d => d.Id == id) ?? throw new ArgumentException($"Room '{Id}' has no door '{id}'.", nameof(id));
-
         // Outline[i] -> Outline[i + 1] (wrapping round), as a start point and its far point.
         private (Vector2 a, Vector2 b) Edge(int wallIndex) => (Outline[wallIndex], Outline[(wallIndex + 1) % Outline.Length]);
 
@@ -455,21 +411,6 @@ namespace World.Buildings
             var mid = (a + b) / 2f;
             var p = mid + new Vector2(Tangent(wallIndex).X, Tangent(wallIndex).Z) * along;
             return new Vector3(p.X, 0f, p.Y);
-        }
-
-        public float DistanceToWall(int wallIndex, Vector3 p)
-        {
-            var (a, _) = Edge(wallIndex);
-            var inward = Inward(wallIndex);
-            return (p.X - a.X) * inward.X + (p.Z - a.Y) * inward.Z;
-        }
-
-        public float AlongWall(int wallIndex, Vector3 p)
-        {
-            var (a, b) = Edge(wallIndex);
-            var mid = (a + b) / 2f;
-            var t = Tangent(wallIndex);
-            return (p.X - mid.X) * t.X + (p.Z - mid.Y) * t.Z;
         }
     }
 }

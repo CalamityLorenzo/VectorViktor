@@ -2,7 +2,7 @@ using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace MeshRawData
+namespace MeshProps
 {
     // A bushy tree: a short tapered trunk carrying a canopy of six overlapping low-poly blobs (each a
     // slightly squashed icosahedron), turned by different amounts so the outline looks organic.

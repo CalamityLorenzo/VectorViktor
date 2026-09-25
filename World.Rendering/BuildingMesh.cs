@@ -4,8 +4,9 @@ using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 using World.Core;
+using World.Buildings;
 
-namespace World.Buildings
+namespace World.Rendering
 {
     // The outside of a building (see Building), as one mesh in world coordinates: the outer walls round
     // every room, a plinth colour below each floor (going down into the ground under the ground floor, and

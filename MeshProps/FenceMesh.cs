@@ -4,7 +4,7 @@ using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 
-namespace MeshRawData
+namespace MeshProps
 {
     // A white picket fence along a run of points (world X, Z): upright pickets PicketSpacing apart, two
     // rails behind them, and a post at every point. Each picket stands on the ground where it is

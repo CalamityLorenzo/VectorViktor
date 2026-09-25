@@ -1,5 +1,5 @@
 using MeshCore.Library;
-using MeshLoader;
+using MeshRendering;
 using Microsoft.Xna.Framework;
 
 namespace Basic.Models

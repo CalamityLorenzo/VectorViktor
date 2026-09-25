@@ -1,0 +1,15 @@
+<Project>
+  <!-- Every package's version, in one place (central package management): the projects name the packages they
+       use, not their versions, so a restore can't move one of them to a new version on its own. -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageVersion Include="MonoGame.Framework.WindowsDX" Version="3.8.5.1" />
+    <PackageVersion Include="MonoGame.Content.Builder.Task" Version="3.8.5.1" />
+    <PackageVersion Include="SharpGLTF.Core" Version="1.0.7" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.0.0" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
+  </ItemGroup>
+</Project>

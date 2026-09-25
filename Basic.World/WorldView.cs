@@ -1,10 +1,11 @@
 using MeshCore.Library;
-using MeshLoader;
+using MeshRendering;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 using World.Core.Physics;
+using World.Rendering;
 
 namespace Basic.World
 {

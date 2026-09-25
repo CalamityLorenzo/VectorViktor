@@ -4,7 +4,7 @@ using Microsoft.Xna.Framework.Graphics;
 using System;
 using World.Core;
 
-namespace Basic.World
+namespace World.Rendering
 {
     // A pool's surface (see Pool): a flat disc at its level, as wide as the pool's circle - the terrain
     // rising out of it hides whatever's past the shore - with a few ripple rings on it in white, so it

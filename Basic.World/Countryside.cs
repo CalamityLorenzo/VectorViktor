@@ -1,6 +1,6 @@
 using MeshCore.Library;
-using MeshRawData;
-using MeshRawData.Helpers;
+using MeshProps;
+using MeshProps.Helpers;
 using Microsoft.Xna.Framework;
 using System.Collections.Generic;
 using World.Core;

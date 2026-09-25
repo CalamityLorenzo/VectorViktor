@@ -2,7 +2,7 @@ using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace Basic.World
+namespace MeshProps
 {
     // The player character, built from boxes: legs, a body, arms and a head, 1.8 m tall, with a nose so
     // you can tell which way it's facing. Origin between its feet, facing +Z.

@@ -2,7 +2,7 @@ using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace MeshRawData
+namespace MeshProps
 {
     // A small potted fern: an eight-sided tapered pot with soil, and nine arching fronds that fan out
     // from the centre. Each frond is a flat ribbon that widens then tapers to a point. Built with the

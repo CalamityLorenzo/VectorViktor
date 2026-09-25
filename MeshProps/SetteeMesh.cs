@@ -1,9 +1,9 @@
 using MeshCore.Library;
-using MeshRawData.Helpers;
+using MeshProps.Helpers;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace MeshRawData
+namespace MeshProps
 {
     // A two-seater settee (see SeatingBuilder): 1.30 wide, slimmer arms, taller legs and a taller back than
     // the sofa, more of a 1950s feel. Together with the sofa there are five seats, enough for a family of four.

@@ -21,7 +21,7 @@ namespace World.Core.Physics
 
         // Stood on something (the ground or another body), and which body, if it's a body
         public bool Resting { get; internal set; }
-        public Body Support { get; internal set; }
+        public Body? Support { get; internal set; }
 
         // This tick's pushes, cleared once they've been applied, and how high up them they came on average
         internal Vector3 Force;
@@ -127,7 +127,7 @@ namespace World.Core.Physics
         // speeds up as it goes over, as a falling box's does.
         internal void AdvanceTopple(float dt, float acceleration)
         {
-            var (pivot, axis, toward, angle, spin) = _topple.Value;
+            var (pivot, axis, toward, angle, spin) = _topple ?? throw new InvalidOperationException("It isn't toppling.");
             spin += acceleration * dt;
             angle += spin * dt;
             if (angle < MathHelper.PiOver2)

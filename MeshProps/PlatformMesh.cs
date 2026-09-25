@@ -2,7 +2,7 @@ using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace MeshRawData
+namespace MeshProps
 {
     // A flat rectangular deck — a mezzanine or balcony floor — with no railing. Built as a single box
     // (see MeshBuilder.AddBox): length runs along Z, width along X, and the position argument is the
@@ -18,6 +18,10 @@ namespace MeshRawData
             MeshBuilder.SetBoxShades(palette, DeckBase, deck);
             return palette;
         }
+
+        // Keyed by its size, so two platforms share a mesh only if they're the same size.
+        public static MeshSource Source(float length, float width, float thickness, Color[] palette) =>
+            new MeshSource($"platform:{length:F3}x{width:F3}x{thickness:F3}", d => Build(d, length, width, thickness), palette);
 
         public static MeshData Build(GraphicsDevice device, float length, float width, float thickness)
         {

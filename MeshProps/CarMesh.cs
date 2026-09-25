@@ -3,7 +3,7 @@ using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace MeshRawData
+namespace MeshProps
 {
     // A sleek wedge sports coupé in the flat-shaded polygon style of Hard Drivin' / Race Drivin':
     // a low pointed nose, a body that widens towards the rear haunches, a raked windscreen into a

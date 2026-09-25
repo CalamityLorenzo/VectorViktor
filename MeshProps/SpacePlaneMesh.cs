@@ -2,7 +2,7 @@ using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace MeshRawData
+namespace MeshProps
 {
     // A 1960s retro-futurist space plane: a slender rocket-bodied fuselage with a needle nose, a
     // bubble cockpit canopy, swept delta wings with dihedral tips, a single swept dorsal fin and

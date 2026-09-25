@@ -3,7 +3,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System.Collections.Generic;
 
-namespace MeshRawData
+namespace MeshProps
 {
     // A free-standing sign, 4.5 wide and 2.4 tall, that reads 12939 from the front (+Z). Its number is
     // made of separate strokes floating in an open frame, with no board behind them, so it can be seen

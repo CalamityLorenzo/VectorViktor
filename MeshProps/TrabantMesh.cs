@@ -2,7 +2,7 @@ using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace MeshRawData
+namespace MeshProps
 {
     // Named for the East German Trabant it resembles. Ported from VectorViktor's BuildCarGeometry: a low chassis box on four box wheels, with a
     // shorter, narrower cabin set toward the rear. The car faces +Z (heading 0); the per-heading

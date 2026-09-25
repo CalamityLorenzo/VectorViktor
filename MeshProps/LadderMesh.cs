@@ -2,7 +2,7 @@ using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace MeshRawData
+namespace MeshProps
 {
     // A straight fixed ladder: two parallel rails and evenly spaced rungs between them, no cage or
     // hoops. Climbs from the origin (the foot, centred between the rails on y = 0) up by Height,
@@ -14,6 +14,10 @@ namespace MeshRawData
         public const int PaletteSize = 2;
 
         public static Color[] Palette(Color rail, Color rung) => new[] { rail, rung };
+
+        // Keyed by its shape, so two ladders share a mesh only if they're the same ladder.
+        public static MeshSource Source(float height, float lean, Color[] palette) =>
+            new MeshSource($"ladder:{height:F3}:{lean:F3}", d => Build(d, height, lean), palette);
 
         public static MeshData Build(
             GraphicsDevice device,

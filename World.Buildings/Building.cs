@@ -48,10 +48,10 @@ namespace World.Buildings
 
         // The room standing directly on top of this one, if any: one whose floor is over this one's
         // middle, a little above its ceiling. And the one this stands on.
-        public RoomSpec Above(RoomSpec room) => Find(room, above: true);
-        public RoomSpec Below(RoomSpec room) => Find(room, above: false);
+        public RoomSpec? Above(RoomSpec room) => Find(room, above: true);
+        public RoomSpec? Below(RoomSpec room) => Find(room, above: false);
 
-        private RoomSpec Find(RoomSpec room, bool above)
+        private RoomSpec? Find(RoomSpec room, bool above)
         {
             foreach (var other in Rooms)
             {
@@ -233,7 +233,7 @@ namespace World.Buildings
 
         // A wall from a to b, from `bottom` to `top`, less an opening's gap, if it has one: the wall either
         // side of it, and above it if the gap stops short of the top.
-        private static IEnumerable<WallSegment> Split(Vector2 a, Vector2 b, RoomSpec room, int edge, OpeningSpec opening, float bottom, float top)
+        private static IEnumerable<WallSegment> Split(Vector2 a, Vector2 b, RoomSpec room, int edge, OpeningSpec? opening, float bottom, float top)
         {
             if (opening == null)
             {

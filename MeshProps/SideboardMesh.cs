@@ -3,7 +3,7 @@ using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace MeshRawData
+namespace MeshProps
 {
     // A 1950s sideboard: a long low teak cabinet with a thin overhanging top, three flat doors with
     // upright brass pulls, on four splayed legs. 1.46 wide, 0.46 deep, 0.64 to the top. The front faces +Z,

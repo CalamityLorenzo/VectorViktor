@@ -1,12 +1,12 @@
 using MeshCore.Library;
-using MeshLoader;
+using MeshRendering;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 using World.Core;
 
-namespace Basic.World
+namespace World.Rendering
 {
     // The terrain as drawn: a mesh for each chunk (see Terrain.ChunkCellsOf), built as the camera comes
     // within DrawDistance of it - nearest first, and no more than BuildsPerFrame a frame, so walking on
@@ -18,7 +18,7 @@ namespace Basic.World
 
         private readonly Terrain _terrain;
         private readonly float _shore;
-        private readonly Func<float, float, bool> _bare;   // where the ground gets no grid lines (see TerrainMesh)
+        private readonly Func<float, float, bool>? _bare;  // where the ground gets no grid lines (see TerrainMesh)
         private readonly Color[] _palette = TerrainMesh.Palette();
         private readonly Dictionary<(int ci, int cj), (MeshData mesh, MeshInstance view)> _chunks =
             new Dictionary<(int, int), (MeshData, MeshInstance)>();
@@ -38,7 +38,7 @@ namespace Basic.World
         public TimeSpan BuildTime => _buildTime.Elapsed;
         private readonly System.Diagnostics.Stopwatch _buildTime = new System.Diagnostics.Stopwatch();
 
-        public TerrainView(Terrain terrain, float shore, float drawDistance, Func<float, float, bool> bare = null)
+        public TerrainView(Terrain terrain, float shore, float drawDistance, Func<float, float, bool>? bare = null)
         {
             _terrain = terrain;
             _shore = shore;

@@ -1,7 +1,7 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace MeshLoader
+namespace MeshRendering
 {
     // A frame's meshes, drawn together. Each is culled as it's added - left out unless its bounds are in
     // the view frustum - and then every face goes down first, then every edge, so the rasterizer state
@@ -62,7 +62,7 @@ namespace MeshLoader
                 foreach (var (instance, placed) in _items)
                 {
                     instance.DrawSolids(device, effect, placed, faces);
-                    DrawCalls += instance.Mesh.SolidRanges.Length + 1 + (instance.Mesh.Outline != null ? 1 : 0);
+                    DrawCalls += instance.Mesh.SolidRanges.Length + (instance.Mesh.Edges != null ? 1 : 0) + (instance.Mesh.Outline != null ? 1 : 0);
                 }
 
                 device.RasterizerState = rasterizer;

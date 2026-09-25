@@ -1,5 +1,5 @@
 using MeshCore.Library;
-using MeshRawData;
+using MeshProps;
 using Microsoft.Xna.Framework;
 using System.Collections.Generic;
 using World.Buildings;
@@ -129,11 +129,9 @@ namespace Basic.World
                 Openings = new[] { Doorway(0f, width: 3f, height: 3.2f) },
                 Props = new[]
                 {
-                    new PropSpec(new MeshSource("barnloft", d => PlatformMesh.Build(d, length: loftDepth, width: BarnWidth, thickness: 0.2f),
-                        PlatformMesh.Palette(new Color(150, 115, 70))),
+                    new PropSpec(PlatformMesh.Source(loftDepth, BarnWidth, 0.2f, PlatformMesh.Palette(new Color(150, 115, 70))),
                         new Vector3(0f, loft - 0.2f, loftFrom + loftDepth / 2f), 0f),
-                    new PropSpec(new MeshSource("barnladder", d => LadderMesh.Build(d, height: loft, lean: ladderLean),
-                        LadderMesh.Palette(new Color(180, 180, 185), new Color(60, 60, 65))),
+                    new PropSpec(LadderMesh.Source(loft, ladderLean, LadderMesh.Palette(new Color(180, 180, 185), new Color(60, 60, 65))),
                         ladderFoot, 0f),
                 },
                 Ramps = new[]

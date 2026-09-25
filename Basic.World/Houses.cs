@@ -1,8 +1,9 @@
 using MeshCore.Library;
-using MeshRawData;
+using MeshProps;
 using Microsoft.Xna.Framework;
 using System.Collections.Generic;
 using World.Buildings;
+using World.Rendering;
 using static World.Buildings.Walls;
 
 namespace Basic.World
@@ -60,8 +61,7 @@ namespace Basic.World
                 Ramps = stair.Ramps(),
                 Props = new[]
                 {
-                    new PropSpec(new MeshSource("housestair", stair.Build,
-                        WallStair.Palette(new Color(150, 105, 60), new Color(110, 75, 40), new Color(130, 90, 50), new Color(90, 60, 35))),
+                    new PropSpec(WallStairMesh.Source(stair, WallStairMesh.Palette(new Color(150, 105, 60), new Color(110, 75, 40), new Color(130, 90, 50), new Color(90, 60, 35))),
                         Vector3.Zero, 0f),
                     // Against the west wall, facing east: 1.30 wide, so along Z
                     new PropSpec(new MeshSource("settee", SetteeMesh.Build,
@@ -83,8 +83,7 @@ namespace Basic.World
                     new Vector3(-3.0f, 0f, -3.0f), 0f, new Vector2(0.2f, 0.2f)),
             };
             if (attic)
-                bedroomProps.Add(new PropSpec(new MeshSource("atticladder", d => LadderMesh.Build(d, height: ladderRise, lean: ladderLean),
-                    LadderMesh.Palette(new Color(180, 180, 185), new Color(60, 60, 65))), ladderFoot, 0f));
+                bedroomProps.Add(new PropSpec(LadderMesh.Source(ladderRise, ladderLean, LadderMesh.Palette(new Color(180, 180, 185), new Color(60, 60, 65))), ladderFoot, 0f));
 
             var up = new RoomSpec
             {

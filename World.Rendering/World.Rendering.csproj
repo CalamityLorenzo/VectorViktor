@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The world as drawn: meshes made from the simulation's own types - terrain, water, rooms, buildings, doors,
+       stairs - and the views that put them in a MeshBatch. The simulation (World.Core, World.Buildings) knows
+       nothing of this, so it's tested without it. -->
+  <ItemGroup>
+    <PackageReference Include="MonoGame.Framework.WindowsDX" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\World.Core\World.Core.csproj" />
+    <ProjectReference Include="..\World.Buildings\World.Buildings.csproj" />
+    <ProjectReference Include="..\MeshCore.Library\MeshCore.Library.csproj" />
+    <ProjectReference Include="..\MeshRendering\MeshRendering.csproj" />
+  </ItemGroup>
+</Project>

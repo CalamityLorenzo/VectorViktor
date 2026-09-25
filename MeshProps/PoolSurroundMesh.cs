@@ -3,7 +3,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System.Collections.Generic;
 
-namespace MeshRawData
+namespace MeshProps
 {
     // The paved edge round a swimming pool: four slabs making a frame round a rectangle `halfX` by `halfZ`
     // either side of the origin (the water's edge), reaching Outside beyond it and Inside over it, their

@@ -5,7 +5,7 @@ using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace MeshRawData.Helpers
+namespace MeshProps.Helpers
 {
     // Which way a flight turns onto the landing that follows it.
     public enum StairTurn { Left, Right }

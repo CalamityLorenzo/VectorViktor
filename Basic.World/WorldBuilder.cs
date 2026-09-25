@@ -25,6 +25,14 @@ namespace Basic.World
 
     public static class WorldBuilder
     {
+        private static void Unique(IEnumerable<string> names, string what)
+        {
+            var seen = new HashSet<string>();
+            foreach (var name in names)
+                if (!seen.Add(name))
+                    throw new InvalidOperationException($"Two of the world's buildings have a {what} called '{name}'.");
+        }
+
         // Every district's pads levelled into one terrain, in the order the districts are listed, then its water,
         // its buildings and walls as one ground, and its things in one world of bodies.
         public static BuiltWorld Build(IReadOnlyList<IDistrict> districts, int seed = 1)
@@ -33,6 +41,9 @@ namespace Basic.World
             terrain.Flood(districts.SelectMany(d => d.Pools(terrain)).ToArray());
 
             var buildings = districts.SelectMany(d => d.Buildings(terrain)).ToList();
+            // Their meshes are known by their names (see BuildingMesh.Source, RoomView), so no two may share one
+            Unique(buildings.Select(b => b.Name), "building");
+            Unique(buildings.SelectMany(b => b.Rooms).Select(r => r.Id), "room");
             var ground = new BuildingGround(terrain, buildings, districts.SelectMany(d => d.Walls(terrain)).ToList());
             var physics = new PhysicsWorld(ground);
 

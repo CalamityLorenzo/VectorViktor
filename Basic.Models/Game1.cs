@@ -1,6 +1,6 @@
 ﻿using MeshCore.Library;
-using MeshLoader;
-using MeshRawData;
+using MeshProps;
+using MeshRendering;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;

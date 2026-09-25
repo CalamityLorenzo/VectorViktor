@@ -4,7 +4,7 @@ using Microsoft.Xna.Framework.Graphics;
 using System;
 using World.Core;
 
-namespace Basic.World
+namespace World.Rendering
 {
     // The terrain as one mesh: every triangle HeightAt uses, flat-coloured by what it is - sand round the
     // lakes and ponds (up to `shore` above their water), grass in three bands of height, rock wherever
@@ -47,7 +47,7 @@ namespace Basic.World
         // Cells i0 to i0 + cellsX (not including it) along X, and j0 to j0 + cellsZ along Z. Where `bare`
         // says so (under a road, say), the ground gets no grid lines: they'd show through what's on it.
         public static MeshData Build(GraphicsDevice device, Terrain terrain, float shore, int i0, int j0, int cellsX, int cellsZ,
-                                     Func<float, float, bool> bare = null)
+                                     Func<float, float, bool>? bare = null)
         {
             // Every triangle's facing is worked out once, here, for this range's cells and the triangles the
             // lines along its north and west edges look across into - the south-west ones of the row of cells
@@ -89,7 +89,6 @@ namespace Basic.World
             // (its crest and its foot, diagonals and all). And always the terrain's own rim.
             bool? IsRock(int i, int j, bool southWest) => rock[RockIndex(i, j, southWest)] switch { -1 => null, 0 => false, _ => true };
 
-            var lines = 0;
             void Edge(Vector3 a, Vector3 b, bool? one, bool? other, bool onGrid)
             {
                 var outline = one.HasValue && other.HasValue && one.Value != other.Value;
@@ -101,7 +100,6 @@ namespace Basic.World
                 if (bare != null && bare(middle.X, middle.Z))
                     return;
                 mesh.AddLine(a, b);
-                lines++;
             }
 
             // This range's own cells' north and west edges, and its south and east edges only at the terrain's
@@ -122,9 +120,6 @@ namespace Basic.World
                         Edge(terrain.Corner(i, j), terrain.Corner(i + 1, j + 1), IsRock(i, j, false), IsRock(i, j, true), false);
                 }
 
-            // A chunk that's all cliff face has no lines of its own, and a line buffer can't be empty
-            if (lines == 0)
-                mesh.AddLine(terrain.Corner(i0, j0), terrain.Corner(i0, j0));
             return mesh.Build(device);
         }
 

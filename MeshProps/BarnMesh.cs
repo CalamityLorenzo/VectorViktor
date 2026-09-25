@@ -2,7 +2,7 @@ using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace MeshRawData
+namespace MeshProps
 {
     // A simple barn in the flat-shaded polygon style of Hard Drivin' / Race Drivin': a long
     // rectangular body, a two-pitch (gambrel) roof, and big double doors with X bracing plus a

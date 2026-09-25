@@ -2,7 +2,7 @@ using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace MeshRawData
+namespace MeshProps
 {
     // The "Spiky Bush": an umbrella-shaped tree about 1.5 times as tall as TreeMesh (1.72 against 1.15).
     // A slender trunk flares at the base and forks into branches that carry a broad, lumpy canopy, wider

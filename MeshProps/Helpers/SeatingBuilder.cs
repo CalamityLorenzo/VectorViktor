@@ -3,7 +3,7 @@ using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace MeshRawData.Helpers
+namespace MeshProps.Helpers
 {
     // Shared by SofaMesh and SetteeMesh: an upholstered mid-century seat with a low frame, slim arms, one
     // loose seat cushion and one back cushion per person, and four splayed wooden legs. The seat faces

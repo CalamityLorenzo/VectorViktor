@@ -2,7 +2,7 @@ using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace MeshRawData
+namespace MeshProps
 {
     // A big shipping crate, 3.6 wide, 2.0 deep and 2.4 tall, with COLA stencilled across its front (+Z) face
     // in letters a metre high. Built with its foot on y = 0, centred on X and Z.

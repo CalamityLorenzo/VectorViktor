@@ -2,7 +2,7 @@ using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace MeshRawData
+namespace MeshProps
 {
     // Ported from VectorViktor's BuildHouseGeometry: walls, hipped roof, door, window (with a plus
     // cross) and chimney. The house is 2 wide (X) by 1 deep (Z); the front faces -Z.

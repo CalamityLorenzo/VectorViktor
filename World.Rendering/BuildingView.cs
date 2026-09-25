@@ -1,11 +1,11 @@
-using MeshLoader;
+using MeshRendering;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 using World.Buildings;
 
-namespace Basic.World
+namespace World.Rendering
 {
     // A building as drawn: its shell (see BuildingMesh), its doors, and its rooms' insides (see RoomView) with
     // their furniture. Nothing of it is drawn when its shell is out of view. Its insides are left out when they

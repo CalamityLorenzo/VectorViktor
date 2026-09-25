@@ -2,7 +2,7 @@ using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace MeshRawData
+namespace MeshProps
 {
     // A broad oak: ONE large, thick, rounded canopy (a lumpy bulb, wider than it is tall, with a shallow
     // underside) held up by a thick trunk that splits into heavy limbs which show beneath it. Unlike

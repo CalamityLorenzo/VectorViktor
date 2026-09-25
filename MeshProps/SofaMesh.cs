@@ -1,9 +1,9 @@
 using MeshCore.Library;
-using MeshRawData.Helpers;
+using MeshProps.Helpers;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace MeshRawData
+namespace MeshProps
 {
     // A three-seater sofa (see SeatingBuilder): 1.97 wide, chunky arms, a high back. It faces +Z.
     public static class SofaMesh

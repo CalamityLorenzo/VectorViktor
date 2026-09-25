@@ -2,7 +2,7 @@ using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace Basic.World
+namespace MeshProps
 {
     public enum CrateKind { Cardboard, Wood, Steel }
 

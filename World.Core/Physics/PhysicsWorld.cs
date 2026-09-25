@@ -294,7 +294,7 @@ namespace World.Core.Physics
 
                 // The highest thing under it: the ground, or the top of a body it was above
                 var support = GroundUnder(body.Position, body.Size);
-                Body on = null;
+                Body? on = null;
                 foreach (var other in _bodies)
                 {
                     if (other == body || other.Top > was + 0.05f || !body.FootprintOverlaps(other, Touching))
@@ -415,9 +415,9 @@ namespace World.Core.Physics
         }
 
         // The body whose top a walker with its feet here is stood on, if any.
-        public Body BodyUnder(Vector3 feet)
+        public Body? BodyUnder(Vector3 feet)
         {
-            Body best = null;
+            Body? best = null;
             foreach (var body in _bodies)
                 if (body.FootprintContains(feet.X, feet.Z) && MathF.Abs(body.Top - feet.Y) < 0.02f && (best == null || body.Top > best.Top))
                     best = body;
@@ -537,11 +537,11 @@ namespace World.Core.Physics
 
         // The highest body whose top is the ground a walker here would be asking about (within a step and
         // a stride of their feet, the furthest the controller ever looks) and above the terrain.
-        private Body TopWithinReach(Vector3 feet)
+        private Body? TopWithinReach(Vector3 feet)
         {
             var reach = CharacterController.MaxStepUp + CharacterController.Radius;
             var terrain = Terrain.GroundBelow(feet, reach) ?? float.MinValue;
-            Body best = null;
+            Body? best = null;
             foreach (var body in _bodies)
                 if (body.Top > terrain && body.Top <= feet.Y + reach && body.FootprintContains(feet.X, feet.Z) && (best == null || body.Top > best.Top))
                     best = body;

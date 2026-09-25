@@ -4,7 +4,7 @@ using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 
-namespace MeshRawData
+namespace MeshProps
 {
     // A roadside billboard advertising the Commodore 64: a board Width x Height with its bottom edge
     // Clearance up, on two posts behind it, facing +Z. On its white face, the Commodore logo on the left -

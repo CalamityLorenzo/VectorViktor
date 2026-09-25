@@ -1,16 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Buildings: rooms (RoomSpec) and how they're drawn (RoomMesh, WallStair, RoomView), and placed in the
-       world as walkable ground (BuildingGround). The walking needs no GraphicsDevice, so it's testable;
-       only the meshes do. Shared by Basic.Levels (rooms on their own) and Basic.World (houses on terrain). -->
-  <PropertyGroup>
-    <TargetFramework>net9.0-windows</TargetFramework>
-  </PropertyGroup>
+  <!-- Buildings: rooms (RoomSpec), stairs (WallStair) and doors (Door), and placed in the world as walkable
+       ground (BuildingGround). None of it needs a GraphicsDevice, so it's testable; how it's drawn is
+       World.Rendering's. Shared by Basic.Levels (rooms on their own) and Basic.World (houses on terrain).
+       MeshCore.Library only for MeshSource: a prop names the mesh it's drawn with. -->
   <ItemGroup>
-    <PackageReference Include="MonoGame.Framework.WindowsDX" Version="3.8.*" />
+    <PackageReference Include="MonoGame.Framework.WindowsDX" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\World.Core\World.Core.csproj" />
     <ProjectReference Include="..\MeshCore.Library\MeshCore.Library.csproj" />
-    <ProjectReference Include="..\MeshLoader\MeshLoader.csproj" />
   </ItemGroup>
 </Project>

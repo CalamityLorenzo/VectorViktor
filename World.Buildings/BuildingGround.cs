@@ -50,7 +50,7 @@ namespace World.Buildings
 
         public IReadOnlyList<Building> Buildings { get; }
 
-        public BuildingGround(IGround terrain, IReadOnlyList<Building> buildings, IEnumerable<WallSegment> walls = null)
+        public BuildingGround(IGround terrain, IReadOnlyList<Building> buildings, IEnumerable<WallSegment>? walls = null)
         {
             _terrain = terrain;
             Buildings = buildings;
@@ -110,11 +110,11 @@ namespace World.Buildings
 
         // Opens or shuts the nearest door whose leaf is within DoorReach of a walker at `feet`, in front of
         // them as they face along `heading`, and at the height of their floor. Returns it, or null if none is.
-        public Door Interact(Vector3 feet, Vector3 heading)
+        public Door? Interact(Vector3 feet, Vector3 heading)
         {
             var p = new Vector2(feet.X, feet.Z);
             var ahead = new Vector2(heading.X, heading.Z);
-            Door best = null;
+            Door? best = null;
             var bestDistance = DoorReach;
             foreach (var door in _doors)
             {

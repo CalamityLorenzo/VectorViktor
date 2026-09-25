@@ -34,6 +34,35 @@ Done:
   - `MeshLoader/RetroStyle.Background` holds the background colour for the three games that use it.
 - **5.3** `MonoGame.Extended` is removed from `MeshRawData` and `VectorViktor`.
 - **5.4** `MeshRefactorPlan.md` and `MeshGeneralisationPlan.md` are deleted (they're still in git history).
+- **3.1 Empty buffers.** `MeshData.Solids` and `Edges` are nullable, and `MeshBuilder` leaves an empty one out. The terrain's fake-line workaround is gone.
+- **3.8** The low-res comment now gives the real 2.5 : 1 shape and its scales.
+- **3.9 Game2's depth clear is gone.**
+  - Road meshes keep their footprint (`MeshBuilder.Build(keepFootprint: true)`, `MeshData.Covers`).
+  - The ground leaves out the grid lines under them, the same approach as Basic.World.
+  - Game2 now draws through `MeshBatch`.
+  - About 90 pixels differ: grid-line stubs at the road edges, now kept or dropped whole.
+- **3.2 Mesh cache keys.**
+  - Ladders, platforms and wall stairs are keyed by their shape (`LadderMesh.Source`, `PlatformMesh.Source`, `WallStair.Key`).
+  - In debug builds, `MeshCache` throws if a key is reused with a different builder, or the same lambda holding different values.
+  - `WorldBuilder` rejects duplicate building names and room ids.
+- **3.4** `MeshInstance` copies its palette. `SetColor`/`GetColor` recolour one instance, which is how the player darkens when wet.
+- **3.6** `MeshData.IsDisposed`. Drawing an instance whose mesh has been freed throws `ObjectDisposedException`.
+- **5.2 Shared build settings.**
+  - `Directory.Build.props` sets `net9.0-windows` for every project; VectorViktor keeps its own `net10.0-windows7.0`.
+  - Nullable checks default to on. The games, the tests, LoadingModelMeshes and VectorViktor opt out.
+  - World.Core and World.Buildings had their 23 warnings fixed.
+  - `Directory.Packages.props` pins every package; MonoGame is at 3.8.5.1, the version `3.8.*` was resolving to.
+- **2.6 Basic.Levels (frozen).** Its walking helpers (`KeepInside`, `PushOutOfProps`, `FindDoor`, `DistanceToWall`, `AlongWall`) moved out of `RoomSpec` and `RoomView` into `Basic.Levels/RoomWalking.cs`.
+- **2.4 + 2.5 `World.Rendering`.**
+  - The new project holds `RoomMesh`, `BuildingMesh`, `DoorMesh`, `RoomView`, `WallStairMesh` (split from `WallStair`), `TerrainMesh`, `WaterMesh`, `TerrainView` and `BuildingView`.
+  - `PlayerMesh`, `DroneMesh` and `CrateMesh` moved to MeshRawData.
+  - World.Buildings no longer references MeshLoader, so World.Core.Tests no longer pulls in the renderer.
+- **2.3 `MeshLoader/RetroGame.cs`.**
+  - It holds the window, low-res target and integer-scale present, the F11/L/colour/Escape keys, the `BASIC_WORLD_SHOT` harness and the `MeshCache`.
+  - Basic.World's Game1 and Game2 and Basic.Levels' Game1 now derive from it.
+  - Basic.Levels gains screenshots as a result.
+- **5.1 renames.** `MeshLoader` is now `MeshRendering`, and `MeshRawData` is now `MeshProps`: folders, project files, namespaces and references. The rest of this plan still uses the old names.
+- **Framework.** Every project targets `net10.0-windows`, set once in `Directory.Build.props`; VectorViktor's own override is gone.
 
 Screenshots at all 17 starts were compared with the old build. Any differences are those interior lines disappearing.
 

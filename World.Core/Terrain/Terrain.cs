@@ -24,9 +24,9 @@ namespace World.Core
 
         public const int ChunkCells = 32;
 
-        private readonly float[] _heights;                 // all (Width + 1) x (Depth + 1) corners, row by row along X; or
-        private readonly Func<float, float, float> _height; // the function to work them out from, a chunk at a time, into
-        private readonly float[][] _chunks;                 // (ChunkCells + 1) squared corners each, row by row, or null till asked for
+        private readonly float[]? _heights;                 // all (Width + 1) x (Depth + 1) corners, row by row along X; or
+        private readonly Func<float, float, float>? _height; // the function to work them out from, a chunk at a time, into
+        private readonly float[]?[]? _chunks;               // (ChunkCells + 1) squared corners each, row by row, or null till asked for
 
         public int Width { get; }
         public int Depth { get; }
@@ -79,7 +79,7 @@ namespace World.Core
             // The last corner of a row belongs to the chunk before it (each chunk has both its edges' corners)
             var ci = Math.Min(i / ChunkCells, ChunksX - 1);
             var cj = Math.Min(j / ChunkCells, ChunksZ - 1);
-            var chunk = Volatile.Read(ref _chunks[cj * ChunksX + ci]) ?? MakeChunk(ci, cj);
+            var chunk = Volatile.Read(ref _chunks![cj * ChunksX + ci]) ?? MakeChunk(ci, cj);
             return chunk[(j - cj * ChunkCells) * (ChunkCells + 1) + (i - ci * ChunkCells)];
         }
 
@@ -87,7 +87,7 @@ namespace World.Core
         private float[] MakeChunk(int ci, int cj)
         {
             var made = FillChunk(ci, cj);
-            var kept = Interlocked.CompareExchange(ref _chunks[cj * ChunksX + ci], made, null);
+            var kept = Interlocked.CompareExchange(ref _chunks![cj * ChunksX + ci], made, null);
             if (kept != null)
                 return kept;
             Interlocked.Increment(ref _chunksMade);
@@ -102,7 +102,7 @@ namespace World.Core
                 {
                     var i = Math.Min(ci * ChunkCells + li, Width);
                     var j = Math.Min(cj * ChunkCells + lj, Depth);
-                    heights[lj * (ChunkCells + 1) + li] = _height(OriginX + i * CellSize, OriginZ + j * CellSize);
+                    heights[lj * (ChunkCells + 1) + li] = _height!(OriginX + i * CellSize, OriginZ + j * CellSize);
                 }
             return heights;
         }

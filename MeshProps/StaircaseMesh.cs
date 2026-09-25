@@ -1,9 +1,9 @@
 using MeshCore.Library;
-using MeshRawData.Helpers;
+using MeshProps.Helpers;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace MeshRawData
+namespace MeshProps
 {
     // An open-riser wooden staircase (see StaircaseBuilder): treads on two diagonal stringers, no
     // risers, no banister, with an optional carpet runner inset on each tread. Climbs from the

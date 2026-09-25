@@ -4,8 +4,9 @@ using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 using World.Core;
+using World.Buildings;
 
-namespace World.Buildings
+namespace World.Rendering
 {
     // The inside of a room as one mesh: floor (or steps), ceiling, one wall per edge of its Outline (with
     // any openings cut in them), the doors painted on the walls, and a grid on the floor so there is
@@ -330,8 +331,8 @@ namespace World.Buildings
             {
                 if (Peaks(a0, a1))
                 {
-                    Line(a0, Top(a0), ridge.Value, Top(ridge.Value));
-                    Line(ridge.Value, Top(ridge.Value), a1, Top(a1));
+                    Line(a0, Top(a0), ridge.GetValueOrDefault(), Top(ridge.GetValueOrDefault()));
+                    Line(ridge.GetValueOrDefault(), Top(ridge.GetValueOrDefault()), a1, Top(a1));
                 }
                 else
                     Line(a0, Top(a0), a1, Top(a1));
@@ -342,7 +343,7 @@ namespace World.Buildings
                     return;
                 if (Peaks(a0, a1))
                 {
-                    var r = ridge.Value;
+                    var r = ridge.GetValueOrDefault();
                     mesh.AddQuad(slot, P(a0, bottom), P(r, bottom), P(r, Top(r)), P(a0, Top(a0)));
                     mesh.AddQuad(slot, P(r, bottom), P(a1, bottom), P(a1, Top(a1)), P(r, Top(r)));
                     return;

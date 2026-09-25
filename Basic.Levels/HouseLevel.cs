@@ -1,9 +1,10 @@
 using MeshCore.Library;
-using MeshRawData;
-using MeshRawData.Helpers;
+using MeshProps;
+using MeshProps.Helpers;
 using Microsoft.Xna.Framework;
 using System.Collections.Generic;
 using World.Buildings;
+using World.Rendering;
 using static World.Buildings.Walls;
 
 namespace Basic.Levels
@@ -173,8 +174,7 @@ namespace Basic.Levels
                     // out over the hangar floor. Both the staircase (south end) and the ladder (north
                     // end) stay entirely outside the deck's own footprint, meeting it flush at its open
                     // (east) edge - a walker never has to pass underneath it to reach either one.
-                    new PropSpec(new MeshSource("balconydeck", d => PlatformMesh.Build(d, length: 10f, width: 6f, thickness: 0.2f),
-                        PlatformMesh.Palette(new Color(130, 130, 140))),
+                    new PropSpec(PlatformMesh.Source(10f, 6f, 0.2f, PlatformMesh.Palette(new Color(130, 130, 140))),
                         new Vector3(-47f, 4.3f, -40f), 0f),
                     new PropSpec(new MeshSource("balconysofa", SofaMesh.Build,
                         SofaMesh.Palette(new Color(120, 80, 50), new Color(160, 120, 80), new Color(60, 40, 25))),
@@ -194,8 +194,7 @@ namespace Basic.Levels
                         new Vector3(-39.98f, 0f, -38.83f), -90f),
                     // Non-blocking (see RampSpec below): a Half here would push a walker back off the
                     // ladder's own footprint before they could ever climb it.
-                    new PropSpec(new MeshSource("balconyladder", d => LadderMesh.Build(d, height: 4.5f, lean: 1.0f),
-                        LadderMesh.Palette(new Color(180, 180, 185), new Color(60, 60, 65))),
+                    new PropSpec(LadderMesh.Source(4.5f, 1.0f, LadderMesh.Palette(new Color(180, 180, 185), new Color(60, 60, 65))),
                         new Vector3(-43f, 0f, -43f), -90f),
                 },
                 // Lets a walker actually climb the balcony: the deck itself (flat), the staircase's two
@@ -269,8 +268,7 @@ namespace Basic.Levels
                 CeilingHatches = new[] { new HatchSpec(hatch, "octagonupper", slab) },
                 Props = new[]
                 {
-                    new PropSpec(new MeshSource("octagonstair", stair.Build,
-                        WallStair.Palette(new Color(150, 105, 60), new Color(110, 75, 40), new Color(130, 90, 50), new Color(90, 60, 35))),
+                    new PropSpec(WallStairMesh.Source(stair, WallStairMesh.Palette(new Color(150, 105, 60), new Color(110, 75, 40), new Color(130, 90, 50), new Color(90, 60, 35))),
                         Vector3.Zero, 0f),
                 },
                 Ramps = stair.Ramps(),
@@ -302,8 +300,7 @@ namespace Basic.Levels
                 // Non-blocking, like the hangar's: a Half would push you off the ladder before you could climb it
                 Props = new[]
                 {
-                    new PropSpec(new MeshSource("octagonladder", d => LadderMesh.Build(d, height: ladderRise, lean: ladderLean),
-                        LadderMesh.Palette(new Color(180, 180, 185), new Color(60, 60, 65))),
+                    new PropSpec(LadderMesh.Source(ladderRise, ladderLean, LadderMesh.Palette(new Color(180, 180, 185), new Color(60, 60, 65))),
                         ladderFoot, 0f),
                 },
                 Ramps = new[]

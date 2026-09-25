@@ -46,7 +46,7 @@ namespace World.Core
         public const float PondDepth = 1.9f;      // the hollow, below the hills round it
         public const float PondFreeboard = 0.3f;  // how far below the hills at its middle its surface is
 
-        public static Terrain Create(int seed = 1, IReadOnlyList<Pad> pads = null)
+        public static Terrain Create(int seed = 1, IReadOnlyList<Pad>? pads = null)
         {
             var random = new Random(seed);
 

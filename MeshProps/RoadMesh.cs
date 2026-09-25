@@ -3,12 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 
 using MeshCore.Library;
-using MeshRawData.Helpers;
+using MeshProps.Helpers;
 
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace MeshRawData
+namespace MeshProps
 {
     // Which ways a roundabout's roads leave it. North is -Z, the way a yaw of 0 faces; East is +X.
     [Flags]

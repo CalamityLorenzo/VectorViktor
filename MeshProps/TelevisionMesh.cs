@@ -2,7 +2,7 @@ using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace MeshRawData
+namespace MeshProps
 {
     // A 1950s television set: a deep walnut cabinet with a small, bulging (convex) screen on the left,
     // three round knobs and a speaker grille on the right, short splayed legs, and rabbit-ear aerials on

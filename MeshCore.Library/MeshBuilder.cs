@@ -168,8 +168,9 @@ namespace MeshCore.Library
         public void AddOutlineTri(Vector3 a, Vector3 b, Vector3 c, Vector3 inside) =>
             _outlineTriangles.Add((a, b, c, inside));
 
-        // The slots' triangles one after another, lowest slot first, each slot's one draw range.
-        public MeshData Build(GraphicsDevice device)
+        // The slots' triangles one after another, lowest slot first, each slot's one draw range. With
+        // keepFootprint, the mesh also remembers its faces as seen from above (see MeshData.Covers).
+        public MeshData Build(GraphicsDevice device, bool keepFootprint = false)
         {
             var solids = new List<VertexPosition>();
             var ranges = new List<DrawRange>();
@@ -180,8 +181,16 @@ namespace MeshCore.Library
                 ranges.Add(new DrawRange(solids.Count, _slots[slot].Count / 3, slot));
                 solids.AddRange(_slots[slot]);
             }
+            (Vector2, Vector2, Vector2)[]? footprint = null;
+            if (keepFootprint)
+            {
+                footprint = new (Vector2, Vector2, Vector2)[solids.Count / 3];
+                static Vector2 Plan(VertexPosition v) => new Vector2(v.Position.X, v.Position.Z);
+                for (var t = 0; t < footprint.Length; t++)
+                    footprint[t] = (Plan(solids[t * 3]), Plan(solids[t * 3 + 1]), Plan(solids[t * 3 + 2]));
+            }
             return new MeshData(ToBuffer(device, solids), ranges.ToArray(), ToBuffer(device, _edges), Bounds(solids),
-                _outlineTriangles.Count > 0 ? new OutlineData(_outlineTriangles) : null);
+                _outlineTriangles.Count > 0 ? new OutlineData(_outlineTriangles) : null, footprint);
         }
 
         // Round everything added, faces and edges (the outline's triangles are faces too).
@@ -198,8 +207,11 @@ namespace MeshCore.Library
             return min.X <= max.X ? new BoundingBox(min, max) : new BoundingBox(Vector3.Zero, Vector3.Zero);
         }
 
-        private static VertexBuffer ToBuffer(GraphicsDevice device, List<VertexPosition> vertices)
+        // Null if there's nothing to put in it: a buffer can't be empty.
+        private static VertexBuffer? ToBuffer(GraphicsDevice device, List<VertexPosition> vertices)
         {
+            if (vertices.Count == 0)
+                return null;
             var buffer = new VertexBuffer(device, typeof(VertexPosition), vertices.Count, BufferUsage.WriteOnly);
             buffer.SetData(vertices.ToArray());
             return buffer;

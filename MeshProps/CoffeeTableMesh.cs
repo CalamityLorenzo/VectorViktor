@@ -2,7 +2,7 @@ using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace MeshRawData
+namespace MeshProps
 {
     // A low coffee table: a thick top, four square legs and a lower shelf between them. The long
     // side runs along X. Built with its feet on y = 0 (not centred), as it is meant to sit on the

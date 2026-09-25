@@ -1,11 +1,12 @@
 using MeshCore.Library;
-using MeshLoader;
+using MeshRendering;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System.Collections.Generic;
 using World.Core;
+using World.Buildings;
 
-namespace World.Buildings
+namespace World.Rendering
 {
     // A room ready to draw: its shell and furniture as instances borrowing meshes from the cache
     // (so a RoomView must not outlive it).
@@ -43,19 +44,6 @@ namespace World.Buildings
                 instance.ColorsOn = colorsOn;
                 instance.Draw(gameTime, device, effect, background);
             }
-        }
-
-        // Pushes a walker (a circle of `radius` on the floor) out of any furniture it overlaps. The position is in the room's own coordinates.
-        public Vector3 PushOutOfProps(Vector3 position, float radius)
-        {
-            var p = new Vector2(position.X, position.Z);
-            foreach (var prop in Spec.Props)
-            {
-                if (!prop.Blocks)
-                    continue;
-                p = Geometry2D.PushOutOfBox(p, new Vector2(prop.Position.X, prop.Position.Z), prop.Half, radius);
-            }
-            return new Vector3(p.X, position.Y, p.Y);
         }
     }
 }

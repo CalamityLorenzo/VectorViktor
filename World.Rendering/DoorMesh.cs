@@ -1,8 +1,9 @@
 using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using World.Buildings;
 
-namespace World.Buildings
+namespace World.Rendering
 {
     // A door leaf (see Door): a slab Door.Thickness thick, from its hinge at the origin along +X for its
     // width, standing on y = 0, with a handle on each face near its far edge. Placed with Transform
@@ -22,7 +23,11 @@ namespace World.Buildings
 
         public static string Key(Door door) => $"door:{door.Width:F2}x{door.Height:F2}";
 
-        public static MeshSource Source(Door door) => new MeshSource(Key(door), d => Build(d, door.Width, door.Height), Palette(door.Color));
+        public static MeshSource Source(Door door)
+        {
+            var (width, height) = (door.Width, door.Height);   // all the mesh depends on, not the door itself
+            return new MeshSource(Key(door), d => Build(d, width, height), Palette(door.Color));
+        }
 
         public static MeshData Build(GraphicsDevice device, float width, float height)
         {
