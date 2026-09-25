@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
+using World.Core;
 
 namespace World.Buildings
 {
@@ -52,11 +53,7 @@ namespace World.Buildings
                     throw new ArgumentException("Only the first flight can be shorter than a full wall.", nameof(steps));
 
             var n = outline.Length;
-            Vector2 Inward(int wall)
-            {
-                var t = Vector2.Normalize(outline[(wall + 1) % n] - outline[wall]);
-                return new Vector2(-t.Y, t.X);   // matches RoomSpec.Inward
-            }
+            Vector2 Inward(int wall) => -Geometry2D.Outward(outline[wall], outline[(wall + 1) % n]);   // matches RoomSpec.Inward
             // Where the open sides of the flights along `wall` and the next wall meet: `width` in from both.
             Vector2 InnerCorner(int wall)
             {

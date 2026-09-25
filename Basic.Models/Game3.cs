@@ -35,11 +35,10 @@ namespace Basic.Models
 
         private static readonly Color BackgroundColor = Color.CornflowerBlue;
 
-        private record struct Showcase(string Key, Func<GraphicsDevice, MeshData> Build, Color[] Palette);
 
         private static readonly Color[] StaircasePalette = StaircaseMesh.Palette(new Color(160, 120, 75), new Color(150, 150, 155));
 
-        private static readonly Showcase[] Showcases =
+        private static readonly MeshSource[] Showcases =
         {
             new("stair-straight",   d => StaircaseMesh.BuildStraight(d, steps: 10),                     StaircasePalette),
             new("stair-turn-right", d => StaircaseMesh.BuildQuarterTurn(d, 5, 5, StairTurn.Right),       StaircasePalette),

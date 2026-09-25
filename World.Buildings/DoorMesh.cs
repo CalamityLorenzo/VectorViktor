@@ -22,6 +22,8 @@ namespace World.Buildings
 
         public static string Key(Door door) => $"door:{door.Width:F2}x{door.Height:F2}";
 
+        public static MeshSource Source(Door door) => new MeshSource(Key(door), d => Build(d, door.Width, door.Height), Palette(door.Color));
+
         public static MeshData Build(GraphicsDevice device, float width, float height)
         {
             var mesh = new MeshBuilder();

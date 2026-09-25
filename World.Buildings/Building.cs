@@ -1,6 +1,7 @@
 using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
+using World.Core;
 
 namespace World.Buildings
 {
@@ -117,19 +118,12 @@ namespace World.Buildings
             var offset = new Vector2(room.WorldOffset.X, room.WorldOffset.Z);
             for (var i = 0; i < n; i++)
             {
-                var before = Outward(outline[(i - 1 + n) % n], outline[i]);
-                var after = Outward(outline[i], outline[(i + 1) % n]);
+                var before = Geometry2D.Outward(outline[(i - 1 + n) % n], outline[i]);
+                var after = Geometry2D.Outward(outline[i], outline[(i + 1) % n]);
                 var mitre = Vector2.Normalize(before + after);
                 outer[i] = outline[i] + mitre * (WallThickness / Vector2.Dot(mitre, before)) + offset;
             }
             return outer;
-        }
-
-        // The outward normal of an edge from a to b (RoomSpec.Inward, the other way).
-        public static Vector2 Outward(Vector2 a, Vector2 b)
-        {
-            var t = Vector2.Normalize(b - a);
-            return new Vector2(t.Y, -t.X);
         }
 
         // Whether a room's edge is shared with another of the building's rooms, through an opening: then
@@ -185,7 +179,7 @@ namespace World.Buildings
                         yield return new WallSegment(oa, ob, shellBottom, shellTop);
                         continue;
                     }
-                    var push = Outward(room.Outline[edge], room.Outline[(edge + 1) % n]) * WallThickness;
+                    var push = Geometry2D.Outward(room.Outline[edge], room.Outline[(edge + 1) % n]) * WallThickness;
                     var (left, right) = Gap(room, opening);
                     var gapLeft = WallPoint(room, edge, left) + push;
                     var gapRight = WallPoint(room, edge, right) + push;

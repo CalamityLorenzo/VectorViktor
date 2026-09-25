@@ -42,7 +42,7 @@ namespace World.Core.Physics
     // It's also the ground walkers walk on: the terrain, with the tops of the bodies on it (see IGround).
     public sealed class PhysicsWorld : IGround
     {
-        public const float Gravity = 9.81f;
+        public const float Gravity = WorldConstants.Gravity;
         public const float Friction = 0.5f;       // grip, as a fraction of weight
         public const float Restitution = 0.1f;    // how much of their closing speed two bodies bounce apart with
         public const float StepUp = 0.15f;        // how much higher ground a pushed box rides up onto
@@ -440,7 +440,7 @@ namespace World.Core.Physics
                     continue;
 
                 var p = new Vector2(walker.Position.X, walker.Position.Z);
-                var pushed = PushOutOfBox(p, body.Footprint, body.Half, CharacterController.Radius);
+                var pushed = Geometry2D.PushOutOfBox(p, body.Footprint, body.Half, CharacterController.Radius);
                 if (pushed == p)
                     continue;
 
@@ -509,26 +509,6 @@ namespace World.Core.Physics
         // GroundBelow), nor one overhead.
         private static bool BesideWalker(Body body, CharacterController walker, float height) =>
             body.Top > walker.Position.Y + CharacterController.MaxStepUp && body.Bottom < walker.Position.Y + height;
-
-        // A circle of `radius` at p pushed clear of a box (centre, half-extent) by the shortest route; from
-        // inside the box, out through whichever side is nearest. The same rule as RoomSpec.PushOutOfBox.
-        public static Vector2 PushOutOfBox(Vector2 p, Vector2 centre, Vector2 half, float radius)
-        {
-            var d = p - centre;
-            var nearest = Vector2.Clamp(d, -half, half);
-            var gap = d - nearest;
-            var distance = gap.Length();
-            if (distance >= radius)
-                return p;
-            if (distance > 1e-6f)
-                return centre + nearest + gap / distance * radius;
-
-            var toX = half.X - MathF.Abs(d.X);
-            var toZ = half.Y - MathF.Abs(d.Y);
-            if (toX < toZ)
-                return new Vector2(centre.X + (d.X < 0f ? -1f : 1f) * (half.X + radius), p.Y);
-            return new Vector2(p.X, centre.Y + (d.Y < 0f ? -1f : 1f) * (half.Y + radius));
-        }
 
         // As ground: the terrain, raised wherever a body's top is under the feet and within reach of them.
         public float? GroundBelow(Vector3 feet, float reach)

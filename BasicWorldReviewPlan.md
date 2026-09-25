@@ -23,6 +23,17 @@ Done:
     - MeshRawData: `FenceMesh`, `BillboardMesh`, `PoolSurroundMesh`, `OakMesh`, `SpikyBushMesh`, `TreeMesh`, `RoadBuilder`, `StaircaseBuilder`, and `CarMesh`'s wheel passes
   - Draw calls per mesh: player 22 → 10, drone 22 → 9, door leaf 10 → 7.
   - `MeshBatch.DrawCalls` goes in the screenshot report. For example, the town start now makes 409 calls for 64 meshes.
+- **4.1 `MeshSource`.**
+  - `MeshCore.Library/MeshSource.cs` holds the mesh key, builder and palette together. `MeshCache.CreateInstance(device, source)` gets or builds the mesh and returns an instance of it.
+  - `PropSpec`, `Thing`, `Fixture`, Game2's `Piece` and Basic.Models' two `Showcase` records now hold a `MeshSource` instead of repeating its three fields.
+  - `CrateMesh`, `DoorMesh` and `BuildingMesh` each have a `Source(...)` method.
+  - `RoomSpec` no longer depends on `GraphicsDevice`.
+- **4.2 `World.Core/Geometry2D.cs`.** One copy each of `PushOutOfBox`, `NearestOnSegment`, `SegmentHitsBox`, `Cross`, `Outward`, `InPolygon`, `SignedArea`, `ClipToHalfPlane`, `Triangulate` and `PointInTriangle`. Their duplicates in `PhysicsWorld`, `RoomSpec`, `RoomMesh`, `Building`, `BuildingGround` and `WallStair` are gone.
+- **4.3 Shared constants.**
+  - `World.Core/WorldConstants.cs` holds gravity and the walker's height, radius, eye height, step height and speeds. `CharacterController`, `PhysicsWorld`, `Player`, `RoomSpec` and Basic.Levels refer to it.
+  - `MeshLoader/RetroStyle.Background` holds the background colour for the three games that use it.
+- **5.3** `MonoGame.Extended` is removed from `MeshRawData` and `VectorViktor`.
+- **5.4** `MeshRefactorPlan.md` and `MeshGeneralisationPlan.md` are deleted (they're still in git history).
 
 Screenshots at all 17 starts were compared with the old build. Any differences are those interior lines disappearing.
 

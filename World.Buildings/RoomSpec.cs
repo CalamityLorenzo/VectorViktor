@@ -1,8 +1,8 @@
 using MeshCore.Library;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
+using World.Core;
 
 namespace World.Buildings
 {
@@ -42,7 +42,7 @@ namespace World.Buildings
     // and the hatch is lined with the slab's cut edge. See RoomSpec.CeilingHatches for why it can't be zero.
     public record HatchSpec(Vector2[] Outline, string TargetRoom, float SlabThickness = 0f)
     {
-        public bool Contains(Vector3 local) => RoomSpec.InPolygon(Outline, local);
+        public bool Contains(Vector3 local) => Geometry2D.InPolygon(Outline, new Vector2(local.X, local.Z));
     }
 
     // A climbable strip in the room's own coordinates: a corridor Width wide down the line from Start to
@@ -189,11 +189,10 @@ namespace World.Buildings
         public Vector2 Across => AlongX ? Vector2.UnitY : Vector2.UnitX;
     }
 
-    // A piece of furniture standing in a room. Position is where the mesh's origin goes, YawDegrees turns
-    // its front (+Z) round the vertical. Half is the half-extent (X, Z) of the floor area it blocks,
-    // already turned to the room's axes; leave it at zero for something you can't walk into (a TV on a sideboard).
-    public record PropSpec(string Key, Func<GraphicsDevice, MeshData> Build, Color[] Palette,
-                           Vector3 Position, float YawDegrees, Vector2 Half = default)
+    // A piece of furniture standing in a room: its mesh, and where. Position is where the mesh's origin goes,
+    // YawDegrees turns its front (+Z) round the vertical. Half is the half-extent (X, Z) of the floor area it
+    // blocks, already turned to the room's axes; leave it at zero for something you can't walk into (a TV on a sideboard).
+    public record PropSpec(MeshSource Mesh, Vector3 Position, float YawDegrees, Vector2 Half = default)
     {
         public bool Blocks => Half != Vector2.Zero;
     }
@@ -305,7 +304,7 @@ namespace World.Buildings
 
         // Default RampSpec.MaxStepUp: generous enough for a shallow staircase's per-frame rise, but see
         // RampSpec for why a steep ramp (a ladder) needs to override it with something much larger.
-        public const float DefaultMaxStepUp = 0.3f;
+        public const float DefaultMaxStepUp = WorldConstants.MaxStepUp;
 
         // How high the floor is under a walker already standing `currentHeight` above this room's own
         // floor level, at this local (x, z): the room's own (flat) floor, or the highest ramp whose
@@ -379,29 +378,13 @@ namespace World.Buildings
 
         // Whether a point (in the room's own coordinates) is over the room's floor. Only (X, Z) counts,
         // so rooms stacked on the same footprint both contain it - see Game1.ClimbThroughHatches.
-        public bool Contains(Vector3 local) => InPolygon(Outline, local);
-
-        // Whether (local.X, local.Z) is inside a polygon, convex or concave: the standard even-odd,
-        // ray-casting test.
-        public static bool InPolygon(Vector2[] polygon, Vector3 local)
-        {
-            var p = new Vector2(local.X, local.Z);
-            var inside = false;
-            for (int i = 0, j = polygon.Length - 1; i < polygon.Length; j = i++)
-            {
-                var a = polygon[i];
-                var b = polygon[j];
-                if ((a.Y > p.Y) != (b.Y > p.Y) && p.X < (b.X - a.X) * (p.Y - a.Y) / (b.Y - a.Y) + a.X)
-                    inside = !inside;
-            }
-            return inside;
-        }
+        public bool Contains(Vector3 local) => Geometry2D.InPolygon(Outline, new Vector2(local.X, local.Z));
 
         // Pushes a walker (a circle of `radius` on the floor) back in from the room's boundary, convex or
         // concave corners alike: finds the single closest point anywhere on the Outline and, unless that's
         // squarely inside a door or opening's gap, pushes away from it. A concave (notch) corner falls
         // naturally out of this - the closest point may be a vertex rather than partway along an edge,
-        // which is exactly what rounds the walker round it, the same way PushOutOfBox rounds a box corner.
+        // which is exactly what rounds the walker round it, the same way Geometry2D.PushOutOfBox rounds a box corner.
         public Vector3 KeepInside(Vector3 p, float radius)
         {
             var q = new Vector2(p.X, p.Z);
@@ -411,7 +394,7 @@ namespace World.Buildings
             for (var i = 0; i < Outline.Length; i++)
             {
                 var (a, b) = Edge(i);
-                var nearest = NearestOnSegment(q, a, b);
+                var nearest = Geometry2D.NearestOnSegment(q, a, b);
                 var dist = Vector2.Distance(q, nearest);
                 if (dist < bestDist)
                 {
@@ -436,39 +419,6 @@ namespace World.Buildings
                 : new Vector2(Inward(bestEdge).X, Inward(bestEdge).Z);
             var pushed = bestPoint + direction * radius;
             return new Vector3(pushed.X, p.Y, pushed.Y);
-        }
-
-        private static Vector2 NearestOnSegment(Vector2 p, Vector2 a, Vector2 b)
-        {
-            var ab = b - a;
-            var lenSq = ab.LengthSquared();
-            if (lenSq < 1e-9f)
-                return a;
-            var t = MathHelper.Clamp(Vector2.Dot(p - a, ab) / lenSq, 0f, 1f);
-            return a + ab * t;
-        }
-
-        // A circle of `radius` pushed clear of an axis-aligned box (centre, half-extent), by the shortest
-        // route; if its centre is already inside the box, out through whichever side is nearest. Used for
-        // furniture collision (see RoomView.PushOutOfProps) - a room's own boundary uses KeepInside instead.
-        public static Vector2 PushOutOfBox(Vector2 p, Vector2 centre, Vector2 half, float radius)
-        {
-            var d = p - centre;
-            var nearest = Vector2.Clamp(d, -half, half);
-            var gap = d - nearest;
-            var distance = gap.Length();
-            if (distance >= radius)
-                return p;
-
-            if (distance > 1e-6f)
-                return centre + nearest + gap / distance * radius;
-
-            // The circle's centre is inside the box: leave by whichever side is nearest
-            var toX = half.X - MathF.Abs(d.X);
-            var toZ = half.Y - MathF.Abs(d.Y);
-            if (toX < toZ)
-                return new Vector2(centre.X + (d.X < 0f ? -1f : 1f) * (half.X + radius), p.Y);
-            return new Vector2(p.X, centre.Y + (d.Y < 0f ? -1f : 1f) * (half.Y + radius));
         }
 
         public DoorSpec FindDoor(string id) =>

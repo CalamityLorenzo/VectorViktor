@@ -28,7 +28,7 @@ namespace Basic.World
         private const int LowResWidth = 640;
         private const int LowResHeight = 256;
 
-        private static readonly Color BackgroundColor = new Color(27, 13, 120);
+        private static readonly Color BackgroundColor = RetroStyle.Background;
 
         private const int GroundCells = 40;
         private const float GroundCellSize = 5f;   // grid lines every other cell: every 10 m, on the road grid
@@ -47,31 +47,33 @@ namespace Basic.World
             RoadMesh.Palette(new Color(70, 70, 75), new Color(170, 165, 155), Color.White, new Color(60, 140, 50));
 
         // Each piece: its mesh, where its centre goes, and how far it's turned (quarter turns, from +Z towards +X)
-        private record struct Piece(string Key, Func<GraphicsDevice, MeshData> Build, float X, float Z, float Turn);
+        private record struct Piece(MeshSource Mesh, float X, float Z, float Turn);
+
+        private static MeshSource Road(string key, Func<GraphicsDevice, MeshData> build) => new MeshSource(key, build, RoadPalette);
 
         private static Piece Straight(float x, float z, bool alongX) =>
-            new("road-straight", d => RoadMesh.Straight(d), x, z, alongX ? MathHelper.PiOver2 : 0f);
+            new(Road("road-straight", d => RoadMesh.Straight(d)), x, z, alongX ? MathHelper.PiOver2 : 0f);
 
         private static readonly Piece[] Layout =
         {
             // The roundabout, 40 x 40, its roads leaving at (±20, 0) and (0, ±20)
-            new("road-roundabout", d => RoadMesh.Roundabout(d), 0f, 0f, 0f),
+            new(Road("road-roundabout", d => RoadMesh.Roundabout(d)), 0f, 0f, 0f),
 
             // East, round a bend (in from the west, out to the south) and south to the T-junction
             Straight(25f, 0f, alongX: true),
             Straight(35f, 0f, alongX: true),
-            new("road-corner", d => RoadMesh.Corner(d), 50f, 0f, MathHelper.Pi),
+            new(Road("road-corner", d => RoadMesh.Corner(d)), 50f, 0f, MathHelper.Pi),
             Straight(50f, 15f, alongX: false),
             Straight(50f, 25f, alongX: false),
 
             // The T-junction: through road north-south, its side road off to the west
-            new("road-tjunction", d => RoadMesh.TJunction(d), 50f, 40f, MathHelper.Pi),
+            new(Road("road-tjunction", d => RoadMesh.TJunction(d)), 50f, 40f, MathHelper.Pi),
 
             // West along the side road, round a bend (in from the east, out to the north) back to the roundabout
             Straight(35f, 40f, alongX: true),
             Straight(25f, 40f, alongX: true),
             Straight(15f, 40f, alongX: true),
-            new("road-corner", d => RoadMesh.Corner(d), 0f, 40f, 0f),
+            new(Road("road-corner", d => RoadMesh.Corner(d)), 0f, 40f, 0f),
             Straight(0f, 25f, alongX: false),
 
             // A spur on south from the T-junction
@@ -82,12 +84,12 @@ namespace Basic.World
             // bending north, past a pedestrian island, bending east, and bending south into its north road
             Straight(-25f, 0f, alongX: true),
             Straight(-35f, 0f, alongX: true),
-            new("road-corner-wide", d => RoadMesh.Corner(d, radius: 20f), -60f, 0f, 0f),
-            new("road-island", d => RoadMesh.StraightWithIsland(d), -60f, -30f, 0f),
-            new("road-corner-wide", d => RoadMesh.Corner(d, radius: 20f), -60f, -60f, -MathHelper.PiOver2),
+            new(Road("road-corner-wide", d => RoadMesh.Corner(d, radius: 20f)), -60f, 0f, 0f),
+            new(Road("road-island", d => RoadMesh.StraightWithIsland(d)), -60f, -30f, 0f),
+            new(Road("road-corner-wide", d => RoadMesh.Corner(d, radius: 20f)), -60f, -60f, -MathHelper.PiOver2),
             Straight(-35f, -60f, alongX: true),
             Straight(-25f, -60f, alongX: true),
-            new("road-corner-wide", d => RoadMesh.Corner(d, radius: 20f), 0f, -60f, MathHelper.Pi),
+            new(Road("road-corner-wide", d => RoadMesh.Corner(d, radius: 20f)), 0f, -60f, MathHelper.Pi),
             Straight(0f, -25f, alongX: false),
             Straight(0f, -35f, alongX: false),
         };
@@ -150,11 +152,9 @@ namespace Basic.World
 
             foreach (var piece in Layout)
             {
-                var mesh = _meshCache.GetOrAdd(GraphicsDevice, piece.Key, piece.Build);
-                _instances.Add(new MeshInstance(mesh, RoadPalette)
-                {
-                    Transform = Matrix.CreateRotationY(piece.Turn) * Matrix.CreateTranslation(piece.X, 0f, piece.Z),
-                });
+                var view = _meshCache.CreateInstance(GraphicsDevice, piece.Mesh);
+                view.Transform = Matrix.CreateRotationY(piece.Turn) * Matrix.CreateTranslation(piece.X, 0f, piece.Z);
+                _instances.Add(view);
             }
             UpdateCamera();
         }

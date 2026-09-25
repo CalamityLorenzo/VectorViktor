@@ -1,3 +1,4 @@
+using MeshCore.Library;
 using MeshRawData;
 using MeshRawData.Helpers;
 using Microsoft.Xna.Framework;
@@ -78,12 +79,12 @@ namespace Basic.World
             // Also on the plateau, a few metres south of its middle, turned to face you as you come up
             // onto it or stand in the middle: the COLA crate (3.6 wide, 2.0 deep, 2.4 tall - far too heavy
             // to shift) and, beside it, an armchair light enough to push about and climb onto.
-            yield return Prop(world, terrain, "cola crate", "colacrate", ColaCrateMesh.Build,
-                ColaCrateMesh.Palette(new Color(170, 120, 60), new Color(240, 240, 240)),
+            yield return Prop(world, terrain, "cola crate", new MeshSource("colacrate", ColaCrateMesh.Build,
+                ColaCrateMesh.Palette(new Color(170, 120, 60), new Color(240, 240, 240))),
                 new Vector3(3.6f, 2.4f, 2.0f), 1000f, plateau.X - 2f, plateau.Y + 6f, turn: MathHelper.Pi);
-            yield return Prop(world, terrain, "chair", "armchair",
+            yield return Prop(world, terrain, "chair", new MeshSource("armchair",
                 d => SeatingBuilder.Build(d, seats: 1, armWidth: 0.10f, armRise: 0.12f, legHeight: 0.16f, backCushionHeight: 0.40f),
-                SeatingBuilder.Palette(new Color(120, 80, 50), new Color(160, 120, 80), new Color(60, 40, 25)),
+                SeatingBuilder.Palette(new Color(120, 80, 50), new Color(160, 120, 80), new Color(60, 40, 25))),
                 new Vector3(0.75f, 0.8f, 0.75f), 12f, plateau.X + 2f, plateau.Y + 5f, turn: MathHelper.Pi);
         }
     }

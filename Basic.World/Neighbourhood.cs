@@ -1,3 +1,4 @@
+using MeshCore.Library;
 using MeshRawData;
 using MeshRawData.Helpers;
 using Microsoft.Xna.Framework;
@@ -192,7 +193,7 @@ namespace Basic.World
             for (var k = 0; k < (int)(RoadLength / 10f); k++)
             {
                 var x = RoadCentre.X - RoadLength / 2f + 5f + k * 10f;
-                things.Add(new Fixture("road-straight", d => RoadMesh.Straight(d), roadPalette,
+                things.Add(new Fixture(new MeshSource("road-straight", d => RoadMesh.Straight(d), roadPalette),
                     Matrix.CreateRotationY(MathHelper.PiOver2) * Matrix.CreateTranslation(x, road, RoadCentre.Y)));
             }
 
@@ -201,14 +202,14 @@ namespace Basic.World
             {
                 var n = 0;
                 foreach (var run in FenceRuns(plot))
-                    things.Add(new Fixture($"fence:{plot.Id}:{n++}", d => FenceMesh.Build(d, terrain.HeightAt, run), fencePalette, Matrix.Identity));
+                    things.Add(new Fixture(new MeshSource($"fence:{plot.Id}:{n++}", d => FenceMesh.Build(d, terrain.HeightAt, run), fencePalette), Matrix.Identity));
             }
 
-            things.Add(new Fixture("poolsurround", d => PoolSurroundMesh.Build(d, PoolHalf.X, PoolHalf.Y),
-                PoolSurroundMesh.Palette(new Color(215, 205, 185)),
+            things.Add(new Fixture(new MeshSource("poolsurround", d => PoolSurroundMesh.Build(d, PoolHalf.X, PoolHalf.Y),
+                PoolSurroundMesh.Palette(new Color(215, 205, 185))),
                 Matrix.CreateTranslation(PoolCentre.X, road + GardenRise, PoolCentre.Y)));
 
-            things.Add(new Fixture("billboard", BillboardMesh.Build, BillboardMesh.Palette(new Color(110, 110, 115), new Color(80, 80, 85)),
+            things.Add(new Fixture(new MeshSource("billboard", BillboardMesh.Build, BillboardMesh.Palette(new Color(110, 110, 115), new Color(80, 80, 85))),
                 Matrix.CreateRotationY(BillboardYaw) * Matrix.CreateTranslation(BillboardAt.X, terrain.HeightAt(BillboardAt.X, BillboardAt.Y), BillboardAt.Y)));
             return things;
         }

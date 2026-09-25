@@ -1,7 +1,5 @@
 using MeshCore.Library;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
-using System;
 using World.Core;
 using World.Core.Physics;
 
@@ -17,12 +15,11 @@ namespace Basic.World
         // A crate of any size, dressed as what it's made of (see CrateMesh). `above` stacks it on another.
         public static Thing Crate(PhysicsWorld world, Terrain terrain, string name, CrateKind kind, Vector3 size, float mass,
                                   float x, float z, float above = 0f) =>
-            new Thing(Drop(world, terrain, name, size, mass, x, z, above), CrateMesh.Key(kind, size),
-                d => CrateMesh.Build(d, kind, size), CrateMesh.Palette(kind));
+            new Thing(Drop(world, terrain, name, size, mass, x, z, above), CrateMesh.Source(kind, size));
 
         // Something from MeshRawData, in a box that fits round it (its foot on y = 0, centred, like a Body).
-        public static Thing Prop(PhysicsWorld world, Terrain terrain, string name, string key, Func<GraphicsDevice, MeshData> build,
-                                 Color[] palette, Vector3 size, float mass, float x, float z, float turn = 0f) =>
-            new Thing(Drop(world, terrain, name, size, mass, x, z, 0f), key, build, palette, turn);
+        public static Thing Prop(PhysicsWorld world, Terrain terrain, string name, MeshSource mesh,
+                                 Vector3 size, float mass, float x, float z, float turn = 0f) =>
+            new Thing(Drop(world, terrain, name, size, mass, x, z, 0f), mesh, turn);
     }
 }

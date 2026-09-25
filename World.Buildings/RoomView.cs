@@ -1,7 +1,9 @@
+using MeshCore.Library;
 using MeshLoader;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System.Collections.Generic;
+using World.Core;
 
 namespace World.Buildings
 {
@@ -20,18 +22,17 @@ namespace World.Buildings
         {
             Spec = spec;
 
-            var shell = cache.GetOrAdd(device, "room:" + spec.Id, d => RoomMesh.Build(d, spec));
-            _instances.Add(new MeshInstance(shell, RoomMesh.Palette(spec)) { Position = spec.WorldOffset });
+            var shell = cache.CreateInstance(device, new MeshSource("room:" + spec.Id, d => RoomMesh.Build(d, spec), RoomMesh.Palette(spec)));
+            shell.Position = spec.WorldOffset;
+            _instances.Add(shell);
 
             // Nothing here moves: just a fixed position and heading.
             foreach (var prop in spec.Props)
             {
-                var mesh = cache.GetOrAdd(device, prop.Key, prop.Build);
-                _instances.Add(new MeshInstance(mesh, prop.Palette)
-                {
-                    Position = spec.WorldOffset + prop.Position,
-                    Yaw = MathHelper.ToRadians(prop.YawDegrees),
-                });
+                var instance = cache.CreateInstance(device, prop.Mesh);
+                instance.Position = spec.WorldOffset + prop.Position;
+                instance.Yaw = MathHelper.ToRadians(prop.YawDegrees);
+                _instances.Add(instance);
             }
         }
 
@@ -52,7 +53,7 @@ namespace World.Buildings
             {
                 if (!prop.Blocks)
                     continue;
-                p = RoomSpec.PushOutOfBox(p, new Vector2(prop.Position.X, prop.Position.Z), prop.Half, radius);
+                p = Geometry2D.PushOutOfBox(p, new Vector2(prop.Position.X, prop.Position.Z), prop.Half, radius);
             }
             return new Vector3(p.X, position.Y, p.Y);
         }

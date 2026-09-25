@@ -1,3 +1,4 @@
+using MeshCore.Library;
 using MeshRawData;
 using MeshRawData.Helpers;
 using Microsoft.Xna.Framework;
@@ -105,8 +106,8 @@ namespace Basic.Levels
                 Props = new[]
                 {
                     // 1.0 along X, 0.5 along Z
-                    new PropSpec("coffeetable", CoffeeTableMesh.Build,
-                        CoffeeTableMesh.Palette(new Color(200, 150, 80), new Color(120, 80, 40)),
+                    new PropSpec(new MeshSource("coffeetable", CoffeeTableMesh.Build,
+                        CoffeeTableMesh.Palette(new Color(200, 150, 80), new Color(120, 80, 40))),
                         new Vector3(-1.2f, 0f, 0.6f), 0f, new Vector2(0.5f, 0.25f)),
                 },
             };
@@ -121,12 +122,12 @@ namespace Basic.Levels
                 Props = new[]
                 {
                     // 1.46 wide, 0.46 deep, 0.64 tall; turned to face west, so it is 0.46 along X and 1.46 along Z
-                    new PropSpec("sideboard", SideboardMesh.Build,
-                        SideboardMesh.Palette(new Color(150, 90, 40), new Color(190, 120, 50), new Color(100, 60, 30), new Color(255, 220, 0)),
+                    new PropSpec(new MeshSource("sideboard", SideboardMesh.Build,
+                        SideboardMesh.Palette(new Color(150, 90, 40), new Color(190, 120, 50), new Color(100, 60, 30), new Color(255, 220, 0))),
                         new Vector3(1.51f, 0f, 0f), -90f, new Vector2(0.23f, 0.73f)),
-                    new PropSpec("television", TelevisionMesh.Build,
+                    new PropSpec(new MeshSource("television", TelevisionMesh.Build,
                         TelevisionMesh.Palette(new Color(130, 80, 40), new Color(0, 200, 200), new Color(220, 220, 220),
-                            new Color(90, 90, 90), new Color(60, 40, 20), new Color(200, 200, 200)),
+                            new Color(90, 90, 90), new Color(60, 40, 20), new Color(200, 200, 200))),
                         new Vector3(1.51f, 0.64f, 0f), -90f),
                 },
             };
@@ -153,18 +154,18 @@ namespace Basic.Levels
                 Props = new[]
                 {
                     // 3.6 wide, 2.0 deep
-                    new PropSpec("colacrate", ColaCrateMesh.Build,
-                        ColaCrateMesh.Palette(new Color(170, 120, 60), new Color(240, 240, 240)),
+                    new PropSpec(new MeshSource("colacrate", ColaCrateMesh.Build,
+                        ColaCrateMesh.Palette(new Color(170, 120, 60), new Color(240, 240, 240))),
                         new Vector3(0f, 0f, 50f), 0f, new Vector2(1.8f, 1.0f)),
                     // 4.5 wide: 12939 from the door side; walk round behind it and it reads PEPSI. Its frame stands
                     // clear of the crate, and blocks like a solid slab, so you look at it rather than through it.
-                    new PropSpec("numbersign", NumberSignMesh.Build,
-                        NumberSignMesh.Palette(new Color(150, 150, 150), new Color(240, 240, 240)),
+                    new PropSpec(new MeshSource("numbersign", NumberSignMesh.Build,
+                        NumberSignMesh.Palette(new Color(150, 150, 150), new Color(240, 240, 240))),
                         new Vector3(11f, 0f, 50f), 0f, new Vector2(2.25f, 0.1f)),
                     // Parked broadside off to the west, well clear of the crate: 6.9 long, 5 across the
                     // wingtips. A 1960s retro-futurist space plane, wireframe-built like everything else here.
-                    new PropSpec("spaceplane", SpacePlaneMesh.Build,
-                        SpacePlaneMesh.Palette(new Color(200, 205, 210), new Color(220, 60, 40), new Color(120, 220, 220), new Color(40, 40, 45)),
+                    new PropSpec(new MeshSource("spaceplane", SpacePlaneMesh.Build,
+                        SpacePlaneMesh.Palette(new Color(200, 205, 210), new Color(220, 60, 40), new Color(120, 220, 220), new Color(40, 40, 45))),
                         new Vector3(-30f, 0f, 10f), 90f, new Vector2(3.5f, 2.7f)),
 
                     // A break room mezzanine bolted to the west wall, well clear of the crate and the
@@ -172,29 +173,29 @@ namespace Basic.Levels
                     // out over the hangar floor. Both the staircase (south end) and the ladder (north
                     // end) stay entirely outside the deck's own footprint, meeting it flush at its open
                     // (east) edge - a walker never has to pass underneath it to reach either one.
-                    new PropSpec("balconydeck", d => PlatformMesh.Build(d, length: 10f, width: 6f, thickness: 0.2f),
-                        PlatformMesh.Palette(new Color(130, 130, 140)),
+                    new PropSpec(new MeshSource("balconydeck", d => PlatformMesh.Build(d, length: 10f, width: 6f, thickness: 0.2f),
+                        PlatformMesh.Palette(new Color(130, 130, 140))),
                         new Vector3(-47f, 4.3f, -40f), 0f),
-                    new PropSpec("balconysofa", SofaMesh.Build,
-                        SofaMesh.Palette(new Color(120, 80, 50), new Color(160, 120, 80), new Color(60, 40, 25)),
+                    new PropSpec(new MeshSource("balconysofa", SofaMesh.Build,
+                        SofaMesh.Palette(new Color(120, 80, 50), new Color(160, 120, 80), new Color(60, 40, 25))),
                         new Vector3(-48.8f, 4.5f, -40f), 90f),
-                    new PropSpec("balconytable", CoffeeTableMesh.Build,
-                        CoffeeTableMesh.Palette(new Color(200, 150, 80), new Color(120, 80, 40)),
+                    new PropSpec(new MeshSource("balconytable", CoffeeTableMesh.Build,
+                        CoffeeTableMesh.Palette(new Color(200, 150, 80), new Color(120, 80, 40))),
                         new Vector3(-47.6f, 4.5f, -40f), 90f),
-                    new PropSpec("balconyfern", FernMesh.Build,
-                        FernMesh.Palette(new Color(150, 90, 40), new Color(70, 150, 60)),
+                    new PropSpec(new MeshSource("balconyfern", FernMesh.Build,
+                        FernMesh.Palette(new Color(150, 90, 40), new Color(70, 150, 60))),
                         new Vector3(-47.6f, 4.78f, -40f), 0f),
                     // Rises flush against the open (east) edge of the deck from its south (door-side)
                     // corner - never passing under the deck itself - then halfway down turns 90 degrees
                     // onto a landing and faces into the hangar for the rest of the descent to the floor.
-                    new PropSpec("balconystairs",
+                    new PropSpec(new MeshSource("balconystairs",
                         d => StaircaseMesh.BuildQuarterTurn(d, stepsBeforeTurn: 12, stepsAfterTurn: 13, turn: StairTurn.Right, carpet: false),
-                        StaircaseMesh.Palette(new Color(120, 120, 125), new Color(90, 90, 95)),
+                        StaircaseMesh.Palette(new Color(120, 120, 125), new Color(90, 90, 95))),
                         new Vector3(-39.98f, 0f, -38.83f), -90f),
                     // Non-blocking (see RampSpec below): a Half here would push a walker back off the
                     // ladder's own footprint before they could ever climb it.
-                    new PropSpec("balconyladder", d => LadderMesh.Build(d, height: 4.5f, lean: 1.0f),
-                        LadderMesh.Palette(new Color(180, 180, 185), new Color(60, 60, 65)),
+                    new PropSpec(new MeshSource("balconyladder", d => LadderMesh.Build(d, height: 4.5f, lean: 1.0f),
+                        LadderMesh.Palette(new Color(180, 180, 185), new Color(60, 60, 65))),
                         new Vector3(-43f, 0f, -43f), -90f),
                 },
                 // Lets a walker actually climb the balcony: the deck itself (flat), the staircase's two
@@ -268,8 +269,8 @@ namespace Basic.Levels
                 CeilingHatches = new[] { new HatchSpec(hatch, "octagonupper", slab) },
                 Props = new[]
                 {
-                    new PropSpec("octagonstair", stair.Build,
-                        WallStair.Palette(new Color(150, 105, 60), new Color(110, 75, 40), new Color(130, 90, 50), new Color(90, 60, 35)),
+                    new PropSpec(new MeshSource("octagonstair", stair.Build,
+                        WallStair.Palette(new Color(150, 105, 60), new Color(110, 75, 40), new Color(130, 90, 50), new Color(90, 60, 35))),
                         Vector3.Zero, 0f),
                 },
                 Ramps = stair.Ramps(),
@@ -301,8 +302,8 @@ namespace Basic.Levels
                 // Non-blocking, like the hangar's: a Half would push you off the ladder before you could climb it
                 Props = new[]
                 {
-                    new PropSpec("octagonladder", d => LadderMesh.Build(d, height: ladderRise, lean: ladderLean),
-                        LadderMesh.Palette(new Color(180, 180, 185), new Color(60, 60, 65)),
+                    new PropSpec(new MeshSource("octagonladder", d => LadderMesh.Build(d, height: ladderRise, lean: ladderLean),
+                        LadderMesh.Palette(new Color(180, 180, 185), new Color(60, 60, 65))),
                         ladderFoot, 0f),
                 },
                 Ramps = new[]

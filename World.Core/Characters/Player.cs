@@ -14,7 +14,7 @@ namespace World.Core.Characters
     // soaked to dry in DryingTime.
     public sealed class Player
     {
-        public const float EyeHeight = 1.6f;
+        public const float EyeHeight = WorldConstants.EyeHeight;
         public const float Height = CharacterController.Height;
         public const float DryingTime = 90f;   // seconds
 

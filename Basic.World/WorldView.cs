@@ -1,3 +1,4 @@
+using MeshCore.Library;
 using MeshLoader;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -27,14 +28,18 @@ namespace Basic.World
             for (var i = 0; i < pools.Count; i++)
             {
                 var pool = pools[i];
-                _fixed.Add(new MeshInstance(cache.GetOrAdd(device, "water" + i, d => WaterMesh.Build(d, pool)), WaterMesh.Palette()));
+                _fixed.Add(cache.CreateInstance(device, new MeshSource("water" + i, d => WaterMesh.Build(d, pool), WaterMesh.Palette())));
             }
             foreach (var fixture in world.Fixtures)
-                _fixed.Add(new MeshInstance(cache.GetOrAdd(device, fixture.Key, fixture.Build), fixture.Palette) { Transform = fixture.Transform });
+            {
+                var view = cache.CreateInstance(device, fixture.Mesh);
+                view.Transform = fixture.Transform;
+                _fixed.Add(view);
+            }
             foreach (var building in world.Buildings)
                 _buildings.Add(new BuildingView(building, world.Ground.DoorsOf(building), device, cache));
             foreach (var thing in world.Things)
-                _things.Add((thing.Body, new MeshInstance(cache.GetOrAdd(device, thing.Key, thing.Build), thing.Palette), thing.Turn));
+                _things.Add((thing.Body, cache.CreateInstance(device, thing.Mesh), thing.Turn));
         }
 
         // Builds the terrain that's come within reach of the camera (all of it at once, if `all`).

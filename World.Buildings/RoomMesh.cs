@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
+using World.Core;
 
 namespace World.Buildings
 {
@@ -95,7 +96,7 @@ namespace World.Buildings
         {
             var triangles = new List<(Vector2 a, Vector2 b, Vector2 c)>();
             foreach (var piece in pieces)
-                foreach (var (ia, ib, ic) in Triangulate(piece))
+                foreach (var (ia, ib, ic) in Geometry2D.Triangulate(piece))
                     triangles.Add((piece[ia], piece[ib], piece[ic]));
             return triangles;
         }
@@ -152,29 +153,17 @@ namespace World.Buildings
                 for (var i = 0; i < hole.Length; i++)
                 {
                     var (point, outward) = Edge(i);
-                    var part = ClipToHalfPlane(piece, point, outward);
+                    var part = Geometry2D.ClipToHalfPlane(piece, point, outward);
                     for (var j = 0; j < i && part.Count >= 3; j++)
                     {
                         var (earlier, earlierOutward) = Edge(j);
-                        part = ClipToHalfPlane(part.ToArray(), earlier, -earlierOutward);
+                        part = Geometry2D.ClipToHalfPlane(part.ToArray(), earlier, -earlierOutward);
                     }
                     // A hole flush against a wall leaves a zero-width sliver along it
-                    if (part.Count >= 3 && MathF.Abs(SignedArea(part)) > 1e-6f)
+                    if (part.Count >= 3 && MathF.Abs(Geometry2D.SignedArea(part)) > 1e-6f)
                         result.Add(part.ToArray());
                 }
             return result;
-        }
-
-        private static float SignedArea(IReadOnlyList<Vector2> polygon)
-        {
-            var area = 0f;
-            for (var i = 0; i < polygon.Count; i++)
-            {
-                var a = polygon[i];
-                var b = polygon[(i + 1) % polygon.Count];
-                area += a.X * b.Y - b.X * a.Y;
-            }
-            return area / 2f;
         }
 
         // Cuts the strip a stepped ramp runs through out of each floor piece, by slicing it at two lines
@@ -193,10 +182,10 @@ namespace World.Buildings
             var result = new List<Vector2[]>();
             foreach (var piece in pieces)
             {
-                var before = ClipToHalfPlane(piece, start, -dir);
+                var before = Geometry2D.ClipToHalfPlane(piece, start, -dir);
                 if (before.Count >= 3)
                     result.Add(before.ToArray());
-                var after = ClipToHalfPlane(piece, end, dir);
+                var after = Geometry2D.ClipToHalfPlane(piece, end, dir);
                 if (after.Count >= 3)
                     result.Add(after.ToArray());
             }
@@ -210,100 +199,11 @@ namespace World.Buildings
             foreach (var piece in pieces)
                 foreach (var side in new[] { gable.Across, -gable.Across })
                 {
-                    var half = ClipToHalfPlane(piece, Vector2.Zero, side);
+                    var half = Geometry2D.ClipToHalfPlane(piece, Vector2.Zero, side);
                     if (half.Count >= 3)
                         result.Add(half.ToArray());
                 }
             return result;
-        }
-
-        // Sutherland-Hodgman: the part of a polygon (convex or concave) on the side of the line through
-        // planePoint that planeNormal points into.
-        private static List<Vector2> ClipToHalfPlane(Vector2[] polygon, Vector2 planePoint, Vector2 planeNormal)
-        {
-            var output = new List<Vector2>();
-            for (var i = 0; i < polygon.Length; i++)
-            {
-                var curr = polygon[i];
-                var prev = polygon[(i - 1 + polygon.Length) % polygon.Length];
-                var currIn = Vector2.Dot(curr - planePoint, planeNormal) >= 0f;
-                var prevIn = Vector2.Dot(prev - planePoint, planeNormal) >= 0f;
-                if (currIn != prevIn)
-                {
-                    var denom = Vector2.Dot(curr - prev, planeNormal);
-                    var t = MathF.Abs(denom) > 1e-9f ? Vector2.Dot(planePoint - prev, planeNormal) / denom : 0f;
-                    output.Add(prev + (curr - prev) * t);
-                }
-                if (currIn)
-                    output.Add(curr);
-            }
-            return output;
-        }
-
-        // Splits a simple polygon (convex or concave, wound either way) into triangles by ear clipping:
-        // repeatedly cut off a "convex and empty" corner until three vertices are left. O(n^2) worst case,
-        // which is fine for room footprints (a handful of vertices, built once and cached by MeshCache).
-        internal static List<(int a, int b, int c)> Triangulate(Vector2[] polygon)
-        {
-            var n = polygon.Length;
-            var indices = new List<int>(n);
-            for (var i = 0; i < n; i++)
-                indices.Add(i);
-
-            var sign = SignedArea(polygon) >= 0f ? 1f : -1f;
-
-            var triangles = new List<(int, int, int)>();
-            var guard = 0;
-            while (indices.Count > 3 && guard++ < n * n + 8)
-            {
-                var earFound = false;
-                for (var k = 0; k < indices.Count; k++)
-                {
-                    var iPrev = indices[(k - 1 + indices.Count) % indices.Count];
-                    var iCurr = indices[k];
-                    var iNext = indices[(k + 1) % indices.Count];
-                    var prev = polygon[iPrev]; var curr = polygon[iCurr]; var next = polygon[iNext];
-
-                    var cross = (curr.X - prev.X) * (next.Y - prev.Y) - (curr.Y - prev.Y) * (next.X - prev.X);
-                    if (cross * sign <= 0f)
-                        continue;   // reflex at this vertex, not an ear
-
-                    var isEar = true;
-                    foreach (var iOther in indices)
-                    {
-                        if (iOther == iPrev || iOther == iCurr || iOther == iNext)
-                            continue;
-                        if (PointInTriangle(polygon[iOther], prev, curr, next))
-                        {
-                            isEar = false;
-                            break;
-                        }
-                    }
-                    if (!isEar)
-                        continue;
-
-                    triangles.Add((iPrev, iCurr, iNext));
-                    indices.RemoveAt(k);
-                    earFound = true;
-                    break;
-                }
-                if (!earFound)
-                    break;   // degenerate input; use what's clipped so far rather than loop forever
-            }
-            if (indices.Count == 3)
-                triangles.Add((indices[0], indices[1], indices[2]));
-            return triangles;
-        }
-
-        private static bool PointInTriangle(Vector2 p, Vector2 a, Vector2 b, Vector2 c)
-        {
-            float Sign(Vector2 p1, Vector2 p2, Vector2 p3) => (p1.X - p3.X) * (p2.Y - p3.Y) - (p2.X - p3.X) * (p1.Y - p3.Y);
-            var d1 = Sign(p, a, b);
-            var d2 = Sign(p, b, c);
-            var d3 = Sign(p, c, a);
-            var hasNeg = d1 < 0f || d2 < 0f || d3 < 0f;
-            var hasPos = d1 > 0f || d2 > 0f || d3 > 0f;
-            return !(hasNeg && hasPos);
         }
 
         // Where a vertical line (fixed X) or horizontal line (fixed Z) crosses the edges of the Outline and

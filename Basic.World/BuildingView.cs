@@ -25,18 +25,14 @@ namespace Basic.World
 
         public BuildingView(Building building, IReadOnlyList<Door> doors, GraphicsDevice device, MeshCache cache)
         {
-            var shell = cache.GetOrAdd(device, "building:" + building.Name, d => BuildingMesh.Build(d, building));
-            _shell = new MeshInstance(shell, BuildingMesh.Palette(building));
+            _shell = cache.CreateInstance(device, BuildingMesh.Source(building));
             foreach (var room in building.Rooms)
             {
                 _insides.AddRange(new RoomView(room, device, cache).Instances);
                 _doorless |= Array.Exists(room.Openings, o => o.LeadsOutside && !o.Door);
             }
             foreach (var door in doors)
-            {
-                var leaf = cache.GetOrAdd(device, DoorMesh.Key(door), d => DoorMesh.Build(d, door.Width, door.Height));
-                _doors.Add((door, new MeshInstance(leaf, DoorMesh.Palette(door.Color))));
-            }
+                _doors.Add((door, cache.CreateInstance(device, DoorMesh.Source(door))));
         }
 
         public void Collect(MeshBatch batch, Vector3 eye)

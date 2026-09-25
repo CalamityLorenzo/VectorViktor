@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
+using World.Core;
 
 namespace World.Buildings
 {
@@ -26,6 +27,8 @@ namespace World.Buildings
             Color.Lerp(building.WallColor, Color.Black, 0.3f),
             Color.Lerp(building.RoofColor, Color.Black, 0.35f),
         };
+
+        public static MeshSource Source(Building building) => new MeshSource("building:" + building.Name, d => Build(d, building), Palette(building));
 
         public static MeshData Build(GraphicsDevice device, Building building)
         {
@@ -101,7 +104,7 @@ namespace World.Buildings
                 }
 
                 // A doorway: wall either side, over it, and the plinth under its threshold
-                var push = Building.Outward(room.Outline[edge], room.Outline[(edge + 1) % n]) * building.WallThickness;
+                var push = Geometry2D.Outward(room.Outline[edge], room.Outline[(edge + 1) % n]) * building.WallThickness;
                 var (left, right) = Building.Gap(room, opening);
                 var innerLeft = Building.WallPoint(room, edge, left);
                 var innerRight = Building.WallPoint(room, edge, right);
@@ -136,7 +139,7 @@ namespace World.Buildings
                 AddPitchedRoof(mesh, building, room, pitched);
                 return;
             }
-            foreach (var (i, j, k) in RoomMesh.Triangulate(outer))
+            foreach (var (i, j, k) in Geometry2D.Triangulate(outer))
                 mesh.AddPolygon(Roof, At(outer[i], top), At(outer[j], top), At(outer[k], top));
         }
 

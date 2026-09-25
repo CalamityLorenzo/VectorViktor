@@ -23,20 +23,20 @@ namespace World.Core.Movement
     // and you stand. Fall or jump into deep water and you stop sinking at the same depth.
     public sealed class CharacterController
     {
-        public const float WalkSpeed = 2.5f;          // metres per second
-        public const float RunMultiplier = 2.5f;
-        public const float TurnSpeed = 2.0f;          // radians per second
-        public const float MaxStepUp = 0.3f;          // the same as RoomSpec.DefaultMaxStepUp
+        public const float WalkSpeed = WorldConstants.WalkSpeed;
+        public const float RunMultiplier = WorldConstants.RunMultiplier;
+        public const float TurnSpeed = WorldConstants.TurnSpeed;
+        public const float MaxStepUp = WorldConstants.MaxStepUp;
         public const float SnapDown = 0.3f;
-        public const float Gravity = 9.81f;
+        public const float Gravity = WorldConstants.Gravity;
         public const float TerminalSpeed = 50f;
         public const float JumpSpeed = 4.5f;          // clears about a metre
         public const float GroundAcceleration = 30f;  // how quickly you reach the speed asked for, or stop
         public const float AirAcceleration = 4f;      // a little steering in the air, no more
         public const float SlideAcceleration = 12f;   // down a slope too steep to stand on
-        public const float Radius = 0.3f;             // how far ahead a blocking slope is felt, so the eye stays clear of it
+        public const float Radius = WorldConstants.WalkerRadius;   // how far ahead a blocking slope is felt, so the eye stays clear of it
         public const float MaxSubStep = 0.1f;         // metres
-        public const float Height = 1.8f;             // feet to the top of the head, for walls and ceilings
+        public const float Height = WorldConstants.WalkerHeight;   // feet to the top of the head, for walls and ceilings
         public const float SwimDepth = 1.3f;          // water deeper than this over the bottom and you float, feet this far down
         public const float WadeSlowing = 0.6f;        // how much slower you wade in water SwimDepth deep (less, shallower)
         public const float SwimSpeed = 1.2f;          // metres per second

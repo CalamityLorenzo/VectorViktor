@@ -1,6 +1,5 @@
 using MeshCore.Library;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 using World.Buildings;
@@ -45,10 +44,10 @@ namespace Basic.World
     // on the highest floor below that: to start up in a building rather than on the ground under it.
     public readonly record struct Start(Vector2 At, float Yaw, float Above = 0f);
 
-    // Something built into the world: a mesh (built once per key), how it's coloured, and where it goes.
-    public readonly record struct Fixture(string Key, Func<GraphicsDevice, MeshData> Build, Color[] Palette, Matrix Transform);
+    // Something built into the world: its mesh, and where it goes.
+    public readonly record struct Fixture(MeshSource Mesh, Matrix Transform);
 
-    // A body and how it's drawn: the mesh (built once per key), its palette, and how far it's turned about the
-    // vertical inside its box - only by a half turn, so the box it fills is the same.
-    public record Thing(Body Body, string Key, Func<GraphicsDevice, MeshData> Build, Color[] Palette, float Turn = 0f);
+    // A body and how it's drawn: its mesh, and how far it's turned about the vertical inside its box - only by a
+    // half turn, so the box it fills is the same.
+    public record Thing(Body Body, MeshSource Mesh, float Turn = 0f);
 }

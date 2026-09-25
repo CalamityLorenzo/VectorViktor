@@ -1,3 +1,4 @@
+using MeshCore.Library;
 using MeshLoader;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -42,7 +43,7 @@ namespace Basic.World
         private const float StepTime = 1f / 60f;      // the world always moves on in steps of this
         private const float MaxFrame = 0.25f;     // after a stall, catch up no more than this, rather than fall through the world
 
-        private static readonly Color BackgroundColor = new Color(27, 13, 120);
+        private static readonly Color BackgroundColor = RetroStyle.Background;
         private const float FogStart = 20f, FogEnd = 95f;   // metres
 
         // The world's parts, in the order they're put together (see WorldBuilder): each district's pads are
@@ -127,12 +128,10 @@ namespace Basic.World
             _worldView.Update(GraphicsDevice, _player.Eye, all: true);
             _playerColors = PlayerMesh.Palette(new Color(50, 60, 120), new Color(200, 60, 40), new Color(230, 180, 140));
             _playerPalette = (Color[])_playerColors.Clone();
-            _playerView = new MeshInstance(_meshCache.GetOrAdd(GraphicsDevice, "player", PlayerMesh.Build), _playerPalette);
-            _droneView = new MeshInstance(_meshCache.GetOrAdd(GraphicsDevice, "drone", DroneMesh.Build),
-                DroneMesh.Palette(new Color(90, 90, 100), new Color(60, 60, 65), new Color(40, 40, 45), new Color(120, 220, 230)))
-            {
-                Scale = 1.5f,   // so it reads at low resolution, even a few metres off
-            };
+            _playerView = _meshCache.CreateInstance(GraphicsDevice, new MeshSource("player", PlayerMesh.Build, _playerPalette));
+            _droneView = _meshCache.CreateInstance(GraphicsDevice, new MeshSource("drone", DroneMesh.Build,
+                DroneMesh.Palette(new Color(90, 90, 100), new Color(60, 60, 65), new Color(40, 40, 45), new Color(120, 220, 230))));
+            _droneView.Scale = 1.5f;   // so it reads at low resolution, even a few metres off
             if (_shot?.keys.Contains('v') == true)
                 _player.ToggleView();
             UpdateTitle();

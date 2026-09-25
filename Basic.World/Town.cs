@@ -1,3 +1,4 @@
+using MeshCore.Library;
 using MeshRawData;
 using Microsoft.Xna.Framework;
 using System.Collections.Generic;
@@ -83,22 +84,22 @@ namespace Basic.World
                 Props = new[]
                 {
                     // Against the east wall facing west: 0.46 along X, 1.46 along Z; the television on top of it
-                    new PropSpec("sideboard", SideboardMesh.Build,
-                        SideboardMesh.Palette(new Color(150, 90, 40), new Color(190, 120, 50), new Color(100, 60, 30), new Color(255, 220, 0)),
+                    new PropSpec(new MeshSource("sideboard", SideboardMesh.Build,
+                        SideboardMesh.Palette(new Color(150, 90, 40), new Color(190, 120, 50), new Color(100, 60, 30), new Color(255, 220, 0))),
                         new Vector3(3.7f, 0f, 0f), -90f, new Vector2(0.23f, 0.73f)),
-                    new PropSpec("television", TelevisionMesh.Build,
+                    new PropSpec(new MeshSource("television", TelevisionMesh.Build,
                         TelevisionMesh.Palette(new Color(130, 80, 40), new Color(0, 200, 200), new Color(220, 220, 220),
-                            new Color(90, 90, 90), new Color(60, 40, 20), new Color(200, 200, 200)),
+                            new Color(90, 90, 90), new Color(60, 40, 20), new Color(200, 200, 200))),
                         new Vector3(3.7f, 0.64f, 0f), -90f),
                     // Facing it across a coffee table: 1.97 wide, turned to face east, so along Z
-                    new PropSpec("sofa", SofaMesh.Build,
-                        SofaMesh.Palette(new Color(60, 125, 125), new Color(100, 170, 160), new Color(150, 100, 60)),
+                    new PropSpec(new MeshSource("sofa", SofaMesh.Build,
+                        SofaMesh.Palette(new Color(60, 125, 125), new Color(100, 170, 160), new Color(150, 100, 60))),
                         new Vector3(0.6f, 0f, 0f), 90f, new Vector2(0.4f, 0.99f)),
-                    new PropSpec("coffeetable", CoffeeTableMesh.Build,
-                        CoffeeTableMesh.Palette(new Color(200, 150, 80), new Color(120, 80, 40)),
+                    new PropSpec(new MeshSource("coffeetable", CoffeeTableMesh.Build,
+                        CoffeeTableMesh.Palette(new Color(200, 150, 80), new Color(120, 80, 40))),
                         new Vector3(2.1f, 0f, 0f), 90f, new Vector2(0.25f, 0.5f)),
-                    new PropSpec("fern", FernMesh.Build,
-                        FernMesh.Palette(new Color(190, 95, 60), new Color(50, 150, 60)),
+                    new PropSpec(new MeshSource("fern", FernMesh.Build,
+                        FernMesh.Palette(new Color(190, 95, 60), new Color(50, 150, 60))),
                         new Vector3(-3.5f, 0f, 2.5f), 0f, new Vector2(0.2f, 0.2f)),
                 },
             };
@@ -128,11 +129,11 @@ namespace Basic.World
                 Openings = new[] { Doorway(0f, width: 3f, height: 3.2f) },
                 Props = new[]
                 {
-                    new PropSpec("barnloft", d => PlatformMesh.Build(d, length: loftDepth, width: BarnWidth, thickness: 0.2f),
-                        PlatformMesh.Palette(new Color(150, 115, 70)),
+                    new PropSpec(new MeshSource("barnloft", d => PlatformMesh.Build(d, length: loftDepth, width: BarnWidth, thickness: 0.2f),
+                        PlatformMesh.Palette(new Color(150, 115, 70))),
                         new Vector3(0f, loft - 0.2f, loftFrom + loftDepth / 2f), 0f),
-                    new PropSpec("barnladder", d => LadderMesh.Build(d, height: loft, lean: ladderLean),
-                        LadderMesh.Palette(new Color(180, 180, 185), new Color(60, 60, 65)),
+                    new PropSpec(new MeshSource("barnladder", d => LadderMesh.Build(d, height: loft, lean: ladderLean),
+                        LadderMesh.Palette(new Color(180, 180, 185), new Color(60, 60, 65))),
                         ladderFoot, 0f),
                 },
                 Ramps = new[]

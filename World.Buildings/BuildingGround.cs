@@ -97,11 +97,11 @@ namespace World.Buildings
                 {
                     foreach (var body in bodies)
                         if (body.Bottom < top && body.Top > bottom + 0.01f &&
-                            SegmentHitsBox(hinge, tip, body.Footprint - body.Half, body.Footprint + body.Half))
+                            Geometry2D.SegmentHitsBox(hinge, tip, body.Footprint - body.Half, body.Footprint + body.Half))
                             return true;
                     foreach (var (feet, radius, height) in walkers)
                         if (feet.Y < top && feet.Y + height > bottom &&
-                            Vector2.Distance(new Vector2(feet.X, feet.Z), Nearest(new Vector2(feet.X, feet.Z), hinge, tip)) < radius)
+                            Vector2.Distance(new Vector2(feet.X, feet.Z), Geometry2D.NearestOnSegment(new Vector2(feet.X, feet.Z), hinge, tip)) < radius)
                             return true;
                     return false;
                 });
@@ -120,7 +120,7 @@ namespace World.Buildings
             {
                 if (MathF.Abs(feet.Y - door.Bottom) > 0.5f)
                     continue;
-                var nearest = Nearest(p, door.Hinge, door.Tip);
+                var nearest = Geometry2D.NearestOnSegment(p, door.Hinge, door.Tip);
                 var distance = Vector2.Distance(p, nearest);
                 if (distance > bestDistance || (distance > CharacterController.Radius + 0.05f && Vector2.Dot(nearest - p, ahead) <= 0f))
                     continue;
@@ -190,12 +190,12 @@ namespace World.Buildings
                     if (wall.Bottom >= p.Y + height || wall.Top <= p.Y + 0.01f)
                         continue;
                     var q = new Vector2(p.X, p.Z);
-                    var nearest = Nearest(q, wall.A, wall.B);
+                    var nearest = Geometry2D.NearestOnSegment(q, wall.A, wall.B);
                     var gap = q - nearest;
                     var distance = gap.Length();
                     if (distance >= radius)
                         continue;
-                    var away = distance > 1e-6f ? gap / distance : Building.Outward(wall.A, wall.B);
+                    var away = distance > 1e-6f ? gap / distance : Geometry2D.Outward(wall.A, wall.B);
                     var pushed = nearest + away * radius;
                     p = new Vector3(pushed.X, p.Y, pushed.Y);
                 }
@@ -210,7 +210,7 @@ namespace World.Buildings
                         var q = new Vector2(local.X, local.Z);
                         foreach (var prop in room.Spec.Props)
                             if (prop.Blocks)
-                                q = RoomSpec.PushOutOfBox(q, new Vector2(prop.Position.X, prop.Position.Z), prop.Half, radius);
+                                q = Geometry2D.PushOutOfBox(q, new Vector2(prop.Position.X, prop.Position.Z), prop.Half, radius);
                         local = new Vector3(q.X, local.Y, q.Y);
                     }
                     p = local + room.Offset;
@@ -245,7 +245,7 @@ namespace World.Buildings
             var min = new Vector2(bottomCentre.X - size.X / 2f + shrink, bottomCentre.Z - size.Z / 2f + shrink);
             var max = new Vector2(bottomCentre.X + size.X / 2f - shrink, bottomCentre.Z + size.Z / 2f - shrink);
             foreach (var wall in AllWalls())
-                if (wall.Bottom < bottomCentre.Y + size.Y && wall.Top > bottomCentre.Y + shrink && SegmentHitsBox(wall.A, wall.B, min, max))
+                if (wall.Bottom < bottomCentre.Y + size.Y && wall.Top > bottomCentre.Y + shrink && Geometry2D.SegmentHitsBox(wall.A, wall.B, min, max))
                     return true;
             return _terrain.Obstructs(bottomCentre, size);
         }
@@ -262,11 +262,11 @@ namespace World.Buildings
             foreach (var wall in AllWalls())
             {
                 var s = wall.B - wall.A;
-                var denominator = Cross(r, s);
+                var denominator = Geometry2D.Cross(r, s);
                 if (MathF.Abs(denominator) < 1e-9f)
                     continue;
-                var t = Cross(wall.A - p, s) / denominator;
-                var u = Cross(wall.A - p, r) / denominator;
+                var t = Geometry2D.Cross(wall.A - p, s) / denominator;
+                var u = Geometry2D.Cross(wall.A - p, r) / denominator;
                 if (t < 0f || t >= hit || u < 0f || u > 1f)
                     continue;
                 var y = from.Y + d.Y * t;
@@ -323,40 +323,5 @@ namespace World.Buildings
         // The terrain's lakes and ponds; buildings keep dry, standing clear of them.
         public float? WaterAt(Vector3 point) => _terrain.WaterAt(point);
 
-        private static float Cross(Vector2 a, Vector2 b) => a.X * b.Y - a.Y * b.X;
-
-        private static Vector2 Nearest(Vector2 p, Vector2 a, Vector2 b)
-        {
-            var ab = b - a;
-            var lengthSq = ab.LengthSquared();
-            if (lengthSq < 1e-12f)
-                return a;
-            return a + ab * MathHelper.Clamp(Vector2.Dot(p - a, ab) / lengthSq, 0f, 1f);
-        }
-
-        // Whether the segment a-b passes through the box: clipped to it one axis at a time (Liang-Barsky).
-        private static bool SegmentHitsBox(Vector2 a, Vector2 b, Vector2 min, Vector2 max)
-        {
-            var d = b - a;
-            float t0 = 0f, t1 = 1f;
-            bool Clip(float p, float q)
-            {
-                if (MathF.Abs(p) < 1e-12f)
-                    return q >= 0f;
-                var t = q / p;
-                if (p < 0f)
-                {
-                    if (t > t1) return false;
-                    if (t > t0) t0 = t;
-                }
-                else
-                {
-                    if (t < t0) return false;
-                    if (t < t1) t1 = t;
-                }
-                return true;
-            }
-            return Clip(-d.X, a.X - min.X) && Clip(d.X, max.X - a.X) && Clip(-d.Y, a.Y - min.Y) && Clip(d.Y, max.Y - a.Y);
-        }
     }
 }

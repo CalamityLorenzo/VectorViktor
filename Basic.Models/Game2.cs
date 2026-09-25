@@ -28,27 +28,27 @@ namespace Basic.Models
         // CentreY is the height of the mesh's middle above its own origin, so it can be centred in its cell:
         // the meshes that stand on the floor (oak, sofa...) have their origin at the bottom, the ones built to
         // tumble (ingot, house...) have it in the middle. Measured from the mesh data; update if a mesh changes.
-        private record struct Showcase(string Key, Func<GraphicsDevice, MeshData> Build, Color[] Palette, float CentreY);
+        private record struct Showcase(MeshSource Mesh, float CentreY);
 
         private static readonly Showcase[] Showcases =
         {
-            new("ingot",       IngotMesh.Build,       IngotMesh.Palette(Color.Gold, Color.DarkGoldenrod, Color.Silver), 0f),
-            new("pyramid",     PyramidMesh.Build,     PyramidMesh.Palette(Color.SaddleBrown, Color.OrangeRed), 0.1f),
-            new("house",       HouseMesh.Build,       HouseMesh.Palette(new Color(210, 140, 80), new Color(150, 80, 200), Color.White, Color.Blue, new Color(80, 40, 20)), 0f),
-            new("trabant",     TrabantMesh.Build,     TrabantMesh.Palette(new Color(34, 85, 34), new Color(120, 200, 230), new Color(40, 40, 40)), 0f),
-            new("car",         CarMesh.Build,         CarMesh.Palette(new Color(200, 30, 30), new Color(70, 110, 160), new Color(30, 30, 30)), 0f),
+            new(new MeshSource("ingot",       IngotMesh.Build,       IngotMesh.Palette(Color.Gold, Color.DarkGoldenrod, Color.Silver)), 0f),
+            new(new MeshSource("pyramid",     PyramidMesh.Build,     PyramidMesh.Palette(Color.SaddleBrown, Color.OrangeRed)), 0.1f),
+            new(new MeshSource("house",       HouseMesh.Build,       HouseMesh.Palette(new Color(210, 140, 80), new Color(150, 80, 200), Color.White, Color.Blue, new Color(80, 40, 20))), 0f),
+            new(new MeshSource("trabant",     TrabantMesh.Build,     TrabantMesh.Palette(new Color(34, 85, 34), new Color(120, 200, 230), new Color(40, 40, 40))), 0f),
+            new(new MeshSource("car",         CarMesh.Build,         CarMesh.Palette(new Color(200, 30, 30), new Color(70, 110, 160), new Color(30, 30, 30))), 0f),
 
-            new("barn",        BarnMesh.Build,        BarnMesh.Palette(new Color(170, 40, 35), new Color(110, 110, 120), new Color(235, 225, 200)), 0f),
-            new("coffeetable", CoffeeTableMesh.Build, CoffeeTableMesh.Palette(new Color(205, 155, 95), new Color(120, 80, 50)), 0.14f),
-            new("sofa",        SofaMesh.Build,        SofaMesh.Palette(new Color(60, 125, 125), new Color(100, 170, 160), new Color(150, 100, 60)), 0.34f),
-            new("settee",      SetteeMesh.Build,      SetteeMesh.Palette(new Color(195, 145, 45), new Color(225, 180, 85), new Color(150, 100, 60)), 0.40f),
-            new("sideboard",   SideboardMesh.Build,   SideboardMesh.Palette(new Color(130, 80, 45), new Color(170, 115, 65), new Color(90, 55, 30), new Color(205, 175, 90)), 0.32f),
+            new(new MeshSource("barn",        BarnMesh.Build,        BarnMesh.Palette(new Color(170, 40, 35), new Color(110, 110, 120), new Color(235, 225, 200))), 0f),
+            new(new MeshSource("coffeetable", CoffeeTableMesh.Build, CoffeeTableMesh.Palette(new Color(205, 155, 95), new Color(120, 80, 50))), 0.14f),
+            new(new MeshSource("sofa",        SofaMesh.Build,        SofaMesh.Palette(new Color(60, 125, 125), new Color(100, 170, 160), new Color(150, 100, 60))), 0.34f),
+            new(new MeshSource("settee",      SetteeMesh.Build,      SetteeMesh.Palette(new Color(195, 145, 45), new Color(225, 180, 85), new Color(150, 100, 60))), 0.40f),
+            new(new MeshSource("sideboard",   SideboardMesh.Build,   SideboardMesh.Palette(new Color(130, 80, 45), new Color(170, 115, 65), new Color(90, 55, 30), new Color(205, 175, 90))), 0.32f),
 
-            new("television",  TelevisionMesh.Build,  TelevisionMesh.Palette(new Color(110, 70, 40), new Color(120, 140, 130), new Color(235, 225, 200), new Color(60, 45, 35), new Color(90, 55, 30), new Color(190, 190, 195)), 0.37f),
-            new("fern",        FernMesh.Build,        FernMesh.Palette(new Color(190, 95, 60), new Color(50, 150, 60)), 0.16f),
-            new("tree",        TreeMesh.Build,        TreeMesh.Palette(new Color(110, 75, 45), new Color(60, 140, 60)), 0.56f),
-            new("oak",         OakMesh.Build,         OakMesh.Palette(new Color(100, 70, 45), new Color(70, 145, 55)), 1.17f),
-            new("spikybush",   SpikyBushMesh.Build,   SpikyBushMesh.Palette(new Color(95, 65, 40), new Color(90, 130, 50)), 0.86f),
+            new(new MeshSource("television",  TelevisionMesh.Build,  TelevisionMesh.Palette(new Color(110, 70, 40), new Color(120, 140, 130), new Color(235, 225, 200), new Color(60, 45, 35), new Color(90, 55, 30), new Color(190, 190, 195))), 0.37f),
+            new(new MeshSource("fern",        FernMesh.Build,        FernMesh.Palette(new Color(190, 95, 60), new Color(50, 150, 60))), 0.16f),
+            new(new MeshSource("tree",        TreeMesh.Build,        TreeMesh.Palette(new Color(110, 75, 45), new Color(60, 140, 60))), 0.56f),
+            new(new MeshSource("oak",         OakMesh.Build,         OakMesh.Palette(new Color(100, 70, 45), new Color(70, 145, 55))), 1.17f),
+            new(new MeshSource("spikybush",   SpikyBushMesh.Build,   SpikyBushMesh.Palette(new Color(95, 65, 40), new Color(90, 130, 50))), 0.86f),
         };
 
         private readonly GraphicsDeviceManager _graphics;
@@ -99,8 +99,8 @@ namespace Basic.Models
                 var x = (column - (Columns - 1) * 0.5f) * CellSize;
                 var y = ((rows - 1) * 0.5f - row) * CellSize;
 
-                var mesh = _meshCache.GetOrAdd(GraphicsDevice, showcase.Key, showcase.Build);
-                _instances.Add(new SpinningMeshInstance(mesh, showcase.Palette)
+                var mesh = _meshCache.GetOrAdd(GraphicsDevice, showcase.Mesh.Key, showcase.Mesh.Build);
+                _instances.Add(new SpinningMeshInstance(mesh, showcase.Mesh.Palette)
                 {
                     Position = new Vector3(x, y - showcase.CentreY * Scale, 0f),
                     Scale = Scale,

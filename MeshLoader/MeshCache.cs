@@ -19,6 +19,10 @@ namespace MeshLoader
             return meshData;
         }
 
+        // A new instance of the source's mesh (built if it's not been asked for before), in the source's colours.
+        public MeshInstance CreateInstance(GraphicsDevice device, MeshSource source) =>
+            new MeshInstance(GetOrAdd(device, source.Key, source.Build), source.Palette);
+
         public void Dispose()
         {
             foreach (var meshData in _meshDataCache.Values)

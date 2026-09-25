@@ -25,6 +25,8 @@ namespace Basic.World
 
         public static string Key(CrateKind kind, Vector3 size) => $"crate:{kind}:{size.X:F2}x{size.Y:F2}x{size.Z:F2}";
 
+        public static MeshSource Source(CrateKind kind, Vector3 size) => new MeshSource(Key(kind, size), d => Build(d, kind, size), Palette(kind));
+
         public static MeshData Build(GraphicsDevice device, CrateKind kind, Vector3 size)
         {
             var mesh = new MeshBuilder();
