@@ -107,24 +107,28 @@ namespace MeshProps.Helpers
         // A pavement behind the kerb line `kerb`, on the (dz, -dx) side of the way the path runs: the +X side
         // of a kerb running +Z, the outside of one running anticlockwise (+X towards +Z) round a curve.
         // Its ends are left open, where they meet the next piece's.
-        public void AddPavement(IReadOnlyList<Vector2> kerb, bool closed = false)
+        // `startHeading` and `endHeading`, if given, are the way the kerb runs at its two ends - for a kerb that's
+        // a curve cut into chords (see Arc), whose end chords run a little off it: its ends are then square to the
+        // curve, and meet the next piece's pavement without a gap.
+        public void AddPavement(IReadOnlyList<Vector2> kerb, bool closed = false, Vector2? startHeading = null, Vector2? endHeading = null)
         {
             var n = kerb.Count;
             var back = new Vector2[n];
-            static Vector2 Side(Vector2 from, Vector2 to)
+            static Vector2 Across(Vector2 heading)
             {
-                var t = Vector2.Normalize(to - from);
+                var t = Vector2.Normalize(heading);
                 return new Vector2(t.Y, -t.X);
             }
+            static Vector2 Side(Vector2 from, Vector2 to) => Across(to - from);
             for (var i = 0; i < n; i++)
             {
                 var hasPrev = closed || i > 0;
                 var hasNext = closed || i < n - 1;
                 Vector2 normal;
                 if (!hasPrev)
-                    normal = Side(kerb[i], kerb[i + 1]);
+                    normal = startHeading is { } start ? Across(start) : Side(kerb[i], kerb[i + 1]);
                 else if (!hasNext)
-                    normal = Side(kerb[i - 1], kerb[i]);
+                    normal = endHeading is { } end ? Across(end) : Side(kerb[i - 1], kerb[i]);
                 else
                 {
                     // mitred, so the pavement keeps its width round a bend

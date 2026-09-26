@@ -1,6 +1,5 @@
 using MeshCore.Library;
 using MeshProps;
-using MeshProps.Helpers;
 using Microsoft.Xna.Framework;
 using System.Collections.Generic;
 using World.Core;
@@ -82,9 +81,8 @@ namespace Basic.World
             yield return Prop(world, terrain, "cola crate", new MeshSource("colacrate", ColaCrateMesh.Build,
                 ColaCrateMesh.Palette(new Color(170, 120, 60), new Color(240, 240, 240))),
                 new Vector3(3.6f, 2.4f, 2.0f), 1000f, plateau.X - 2f, plateau.Y + 6f, turn: MathHelper.Pi);
-            yield return Prop(world, terrain, "chair", new MeshSource("armchair",
-                d => SeatingBuilder.Build(d, seats: 1, armWidth: 0.10f, armRise: 0.12f, legHeight: 0.16f, backCushionHeight: 0.40f),
-                SeatingBuilder.Palette(new Color(120, 80, 50), new Color(160, 120, 80), new Color(60, 40, 25))),
+            yield return Prop(world, terrain, "chair", new MeshSource("armchair", ArmchairMesh.Build,
+                ArmchairMesh.Palette(new Color(120, 80, 50), new Color(160, 120, 80), new Color(60, 40, 25))),
                 new Vector3(0.75f, 0.8f, 0.75f), 12f, plateau.X + 2f, plateau.Y + 5f, turn: MathHelper.Pi);
         }
     }

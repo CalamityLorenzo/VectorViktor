@@ -19,9 +19,17 @@ namespace World.Core
         //
         // `LevelWith` levels it with the hills somewhere else instead, and `Raise` puts it that much higher
         // (or, below zero, lower): so a row of pads can be made level with each other, a house's garden a
-        // little above the road in front of it, or a swimming pool dug into the garden. Later pads are
-        // levelled over earlier ones, and their blends run into what those made.
-        public readonly record struct Pad(Vector2 Centre, Vector2 Half, float Apron = 2f, float Blend = 6f, float Raise = 0f, Vector2? LevelWith = null);
+        // little above the road in front of it, or a swimming pool dug into the garden. Where two pads' level
+        // ground overlaps, the later one's wins; a pad's blend runs into the hills and into other pads' blends,
+        // but never into another pad's level ground, so pads laid end to end (a road's pieces) meet cleanly.
+        //
+        // `Slope` tilts it: level as above at Slope.From, rising or falling in a straight line to Slope.To,
+        // where it's level with the hills at Slope.ToLevelWith (and Slope.ToRaise above them) - for a road
+        // down a hillside, say.
+        public readonly record struct Pad(Vector2 Centre, Vector2 Half, float Apron = 2f, float Blend = 6f, float Raise = 0f, Vector2? LevelWith = null,
+                                          PadSlope? Slope = null);
+
+        public readonly record struct PadSlope(Vector2 From, Vector2 To, Vector2 ToLevelWith, float ToRaise = 0f);
 
         public const int Size = 1024;         // cells each way
         public const float CellSize = 1f;
@@ -89,27 +97,57 @@ namespace World.Core
 
             var pondRim = Hills(PondCentre.X, PondCentre.Y);
 
-            var levels = new List<(Pad pad, float height)>();
+            // Each pad's height at its Slope's two ends (the same at both, for a level one)
+            var levels = new List<(Pad pad, float from, float to)>();
             foreach (var pad in pads ?? Array.Empty<Pad>())
             {
                 var at = pad.LevelWith ?? pad.Centre;
-                levels.Add((pad, Hills(at.X, at.Y) + pad.Raise));
+                var from = Hills(at.X, at.Y) + pad.Raise;
+                var to = pad.Slope is { } slope ? Hills(slope.ToLevelWith.X, slope.ToLevelWith.Y) + slope.ToRaise : from;
+                levels.Add((pad, from, to));
             }
+
+            // How high a pad is at (x, z): along its slope, if it has one, held level past either end
+            static float PadHeight(Pad pad, float from, float to, float x, float z)
+            {
+                if (pad.Slope is not { } slope)
+                    return from;
+                var run = slope.To - slope.From;
+                var t = MathHelper.Clamp(Vector2.Dot(new Vector2(x, z) - slope.From, run) / run.LengthSquared(), 0f, 1f);
+                return MathHelper.Lerp(from, to, t);
+            }
+
+            // How far (x, z) is outside a pad's level ground (the pad and its apron); 0 on it
+            static float Outside(Pad pad, float x, float z) =>
+                new Vector2(MathF.Max(0f, MathF.Abs(x - pad.Centre.X) - pad.Half.X - pad.Apron),
+                            MathF.Max(0f, MathF.Abs(z - pad.Centre.Y) - pad.Half.Y - pad.Apron)).Length();
 
             return Terrain.FromFunction(Size, Size, CellSize, (x, z) =>
             {
                 var h = Hills(x, z);
 
-                // Levelled for building on: flat over the pad and its apron, easing back into the hills beyond
-                foreach (var (pad, height) in levels)
+                // Levelled for building on: flat (or evenly sloped) over the pad and its apron - the last pad's,
+                // where they overlap - and easing back into the hills beyond
+                var onPad = -1;
+                for (var k = levels.Count - 1; k >= 0 && onPad < 0; k--)
+                    if (Outside(levels[k].pad, x, z) <= 0f)
+                        onPad = k;
+                if (onPad >= 0)
                 {
-                    var outside = new Vector2(MathF.Max(0f, MathF.Abs(x - pad.Centre.X) - pad.Half.X - pad.Apron),
-                                              MathF.Max(0f, MathF.Abs(z - pad.Centre.Y) - pad.Half.Y - pad.Apron)).Length();
-                    if (outside < pad.Blend)
-                        h = MathHelper.Lerp(height, h, SmoothStep(outside / pad.Blend));
-                    else if (pad.Blend <= 0f && outside <= 0f)
-                        h = height;   // sheer-sided: a hole dug straight down
+                    var (pad, from, to) = levels[onPad];
+                    h = PadHeight(pad, from, to, x, z);
                 }
+                else
+                    foreach (var (pad, from, to) in levels)
+                    {
+                        // Most pads are nowhere near: out of reach of their blend along either axis
+                        var reach = pad.Apron + pad.Blend;
+                        if (MathF.Abs(x - pad.Centre.X) >= pad.Half.X + reach || MathF.Abs(z - pad.Centre.Y) >= pad.Half.Y + reach)
+                            continue;
+                        var outside = Outside(pad, x, z);
+                        if (outside < pad.Blend)
+                            h = MathHelper.Lerp(PadHeight(pad, from, to, x, z), h, SmoothStep(outside / pad.Blend));
+                    }
 
                 // The basin: a smooth bowl pressed into the hills, and a bank round its rim, raised only where
                 // the hills are lower than the lake, so its water can't spill out there

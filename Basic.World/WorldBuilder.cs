@@ -16,6 +16,9 @@ namespace Basic.World
         public required PhysicsWorld Physics { get; init; }
         public required IReadOnlyList<Building> Buildings { get; init; }
         public required IReadOnlyList<Fixture> Fixtures { get; init; }
+        public required IReadOnlyList<Window> Windows { get; init; }
+        public required IReadOnlyList<ScenePart> Moving { get; init; }
+        public required IReadOnlyList<Portal> Portals { get; init; }
         public required IReadOnlyList<Thing> Things { get; init; }
         public required IReadOnlyDictionary<string, Start> Starts { get; init; }
 
@@ -69,6 +72,9 @@ namespace Basic.World
                 Physics = physics,
                 Buildings = buildings,
                 Fixtures = districts.SelectMany(d => d.Fixtures(terrain)).ToList(),
+                Windows = districts.SelectMany(d => d.Windows(terrain)).ToList(),
+                Moving = districts.SelectMany(d => d.Moving(terrain)).ToList(),
+                Portals = districts.SelectMany(d => d.Portals(terrain)).ToList(),
                 Things = districts.SelectMany(d => d.Things(physics, terrain)).ToList(),
                 Starts = starts,
                 Bare = Bare,

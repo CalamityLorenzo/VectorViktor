@@ -46,6 +46,7 @@ namespace MeshRendering
                 PreferredBackBufferHeight = windowHeight,
                 // Exclusive fullscreen leaves the process running (window gone, exe alive) after exit; use borderless.
                 HardwareModeSwitch = false,
+                PreferredDepthStencilFormat = DepthFormat.Depth24Stencil8,
             };
             Content.RootDirectory = "Content";
             IsMouseVisible = true;
@@ -64,7 +65,7 @@ namespace MeshRendering
         protected sealed override void LoadContent()
         {
             _rasterizerState = new RasterizerState { CullMode = CullMode.None };
-            _lowRes = new RenderTarget2D(GraphicsDevice, _lowResWidth, _lowResHeight, false, SurfaceFormat.Color, DepthFormat.Depth24);
+            _lowRes = new RenderTarget2D(GraphicsDevice, _lowResWidth, _lowResHeight, false, SurfaceFormat.Color, DepthFormat.Depth24Stencil8);   // the stencil for windows (see WindowPortals)
             _spriteBatch = new SpriteBatch(GraphicsDevice);
             LoadWorld();
         }

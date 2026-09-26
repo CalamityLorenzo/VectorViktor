@@ -11,7 +11,9 @@ namespace World.Rendering
     // The terrain as drawn: a mesh for each chunk (see Terrain.ChunkCellsOf), built as the camera comes
     // within DrawDistance of it - nearest first, and no more than BuildsPerFrame a frame, so walking on
     // doesn't stutter - drawn only if it's in view (see MeshBatch), and thrown away once the camera's more
-    // than DropDistance off. So only the country round you is ever built or drawn, however big the world.
+    // than DropDistance off. So only the country round you is ever built or drawn, however big the world. There
+    // can be more than one camera: one looking through a window onto somewhere else in the world, too. There
+    // can be more than one camera: one looking through a window onto somewhere else in the world, too.
     public sealed class TerrainView : IDisposable
     {
         public const int BuildsPerFrame = 4;
@@ -46,7 +48,15 @@ namespace World.Rendering
             _bare = bare;
         }
 
-        // How far a chunk's patch of ground is from the camera, across the ground (0 if it's over it).
+        // How far a chunk's patch of ground is from the nearest camera, across the ground (0 if it's over it).
+        private float Distance(int ci, int cj, IReadOnlyList<Vector3> cameras)
+        {
+            var nearest = float.MaxValue;
+            foreach (var camera in cameras)
+                nearest = MathF.Min(nearest, Distance(ci, cj, camera));
+            return nearest;
+        }
+
         private float Distance(int ci, int cj, Vector3 camera)
         {
             var (i0, j0, cellsX, cellsZ) = _terrain.ChunkCellsOf(ci, cj);
@@ -59,27 +69,32 @@ namespace World.Rendering
         }
 
         // Builds what's come within reach of the camera (all of it at once, if `all`) and drops what's gone out.
-        public void Update(GraphicsDevice device, Vector3 camera, bool all = false)
+        public void Update(GraphicsDevice device, Vector3 camera, bool all = false) => Update(device, new[] { camera }, all);
+
+        // The same, for what's within reach of any of the cameras.
+        public void Update(GraphicsDevice device, IReadOnlyList<Vector3> cameras, bool all = false)
         {
             var reach = (int)MathF.Ceiling(DrawDistance / (Terrain.ChunkCells * _terrain.CellSize)) + 1;
-            var ci0 = (int)MathF.Floor((camera.X - _terrain.OriginX) / (Terrain.ChunkCells * _terrain.CellSize));
-            var cj0 = (int)MathF.Floor((camera.Z - _terrain.OriginZ) / (Terrain.ChunkCells * _terrain.CellSize));
-
             _wanted.Clear();
-            for (var cj = Math.Max(0, cj0 - reach); cj <= Math.Min(_terrain.ChunksZ - 1, cj0 + reach); cj++)
-                for (var ci = Math.Max(0, ci0 - reach); ci <= Math.Min(_terrain.ChunksX - 1, ci0 + reach); ci++)
-                {
-                    var distance = Distance(ci, cj, camera);
-                    if (distance <= DrawDistance && !_chunks.ContainsKey((ci, cj)))
-                        _wanted.Add((distance, ci, cj));
-                }
+            foreach (var camera in cameras)
+            {
+                var ci0 = (int)MathF.Floor((camera.X - _terrain.OriginX) / (Terrain.ChunkCells * _terrain.CellSize));
+                var cj0 = (int)MathF.Floor((camera.Z - _terrain.OriginZ) / (Terrain.ChunkCells * _terrain.CellSize));
+                for (var cj = Math.Max(0, cj0 - reach); cj <= Math.Min(_terrain.ChunksZ - 1, cj0 + reach); cj++)
+                    for (var ci = Math.Max(0, ci0 - reach); ci <= Math.Min(_terrain.ChunksX - 1, ci0 + reach); ci++)
+                    {
+                        var distance = Distance(ci, cj, camera);
+                        if (distance <= DrawDistance && !_chunks.ContainsKey((ci, cj)) && !_wanted.Exists(w => w.ci == ci && w.cj == cj))
+                            _wanted.Add((distance, ci, cj));
+                    }
+            }
             _wanted.Sort((a, b) => a.distance.CompareTo(b.distance));
             for (var k = 0; k < _wanted.Count && (all || k < BuildsPerFrame); k++)
                 Build(device, _wanted[k].ci, _wanted[k].cj);
 
             _gone.Clear();
             foreach (var key in _chunks.Keys)
-                if (Distance(key.ci, key.cj, camera) > DropDistance)
+                if (Distance(key.ci, key.cj, cameras) > DropDistance)
                     _gone.Add(key);
             foreach (var key in _gone)
             {

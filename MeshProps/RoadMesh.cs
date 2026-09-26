@@ -64,8 +64,11 @@ namespace MeshProps
             var inner = RoadBuilder.Arc(centre, radius - Half, MathHelper.Pi, MathHelper.Pi - turn, segments);
             var outer = RoadBuilder.Arc(centre, radius + Half, MathHelper.Pi, MathHelper.Pi - turn, segments);
             road.AddTarmacStrip(inner, outer);
-            road.AddPavement(inner);
-            road.AddPavement(Enumerable.Reverse(outer).ToList());
+            // In heading +Z, out heading `turn` round from it towards +X: the pavements square to both
+            var entry = Vector2.UnitY;
+            var exit = new Vector2(MathF.Sin(turn), MathF.Cos(turn));
+            road.AddPavement(inner, startHeading: entry, endHeading: exit);
+            road.AddPavement(Enumerable.Reverse(outer).ToList(), startHeading: -exit, endHeading: -entry);
             road.AddCentreLine(RoadBuilder.Circle(centre, radius, MathHelper.Pi, -1f), radius * turn);
             return road.Build(device);
         }

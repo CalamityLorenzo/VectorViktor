@@ -24,8 +24,9 @@ namespace Basic.World
     // water comes up you (the title says how wet, and you darken from the feet up), and dry off out of it.
     // Light things float. East of the town, a street (see Neighbourhood): houses either side of a road,
     // front gardens sloping down to it, picket fences round the back gardens, a swimming pool in one of
-    // them, and a billboard for the Commodore 64. See the world through your own eyes, or from your camera
-    // drone as it flies after you. Drawn to a small render target and scaled up with hard pixels (see RetroGame).
+    // them, and a billboard for the Commodore 64; down a lane from it, an old cottage whose front door, walked
+    // into, takes you to a long corridor, and back, and next door another, whose window shows a hangar. See the
+    // world through your own eyes, or from your camera drone as it flies after you. Drawn to a small render target and scaled up with hard pixels (see RetroGame).
     // Up / W and Down / S walk (hold Shift to run), Left / Right turn, A / D sidestep, Space jumps, E opens or shuts a door.
     // V switches between your own view and the drone's. C toggles colours / wireframe, L the low-resolution
     // look, F11 full screen, Escape exits.
@@ -91,7 +92,7 @@ namespace Basic.World
 
             // The terrain's built a chunk at a time round the camera, out to where the fog has hidden it all
             _worldView = new WorldView(_built, GraphicsDevice, MeshCache, FogEnd + 15f);
-            _worldView.Update(GraphicsDevice, _player.Eye, all: true);
+            _worldView.Update(GraphicsDevice, _player.Eye, _player.Body.Position, all: true);
             _playerColors = PlayerMesh.Palette(new Color(50, 60, 120), new Color(200, 60, 40), new Color(230, 180, 140));
             _playerView = MeshCache.CreateInstance(GraphicsDevice, new MeshSource("player", PlayerMesh.Build, _playerColors));
             _droneView = MeshCache.CreateInstance(GraphicsDevice, new MeshSource("drone", DroneMesh.Build,
@@ -150,10 +151,22 @@ namespace Basic.World
             {
                 _ground.StepDoors(StepTime, _world.Bodies, new[] { (_player.Body.Position, CharacterController.Radius, Player.Height) });
                 _player.Step(input with { Jump = _jumpPressed }, StepTime, _world);
+                GoThroughPortals();
                 _world.Step(StepTime);
                 _jumpPressed = false;   // a jump happens on one tick, not every tick this frame
                 _pending -= StepTime;
             }
+        }
+
+        // Walked into a door that leads elsewhere: through it
+        private void GoThroughPortals()
+        {
+            foreach (var portal in _built.Portals)
+                if (portal.WalkedInto(_player.Body.Position, CharacterController.Radius))
+                {
+                    _player.Teleport(portal.To, portal.Yaw, _world);
+                    return;
+                }
         }
 
         private static MoveInput ReadInput(KeyboardState keyboard)
@@ -197,10 +210,11 @@ namespace Basic.World
 
             // Neither camera sees the thing it's in: from inside your own head (or the drone), you'd only
             // see the inside of it. Turn round in your own view, though, and the drone's there, following.
-            _worldView.Update(GraphicsDevice, eye);
+            _worldView.Update(GraphicsDevice, eye, body.Position);
             _batch.Begin(_basicEffect.View, _basicEffect.Projection);
-            _worldView.Collect(_batch, eye);
+            _worldView.Collect(_batch, eye, body.Position, Clock);
             _batch.Add(_player.View == ViewMode.Drone ? _playerView : _droneView);
+            _worldView.DrawWindows(GraphicsDevice, _basicEffect, eye, body.Position, Clock, BackgroundColor, ColorsOn);
             _batch.Draw(GraphicsDevice, _basicEffect, BackgroundColor, ColorsOn);
         }
 

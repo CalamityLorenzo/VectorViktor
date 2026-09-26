@@ -139,6 +139,28 @@ namespace World.Core.Tests
         }
 
         [Fact]
+        public void APadCanSlopeAndPadsLaidEndToEndMeetCleanly()
+        {
+            // A road down a hillside, clear of the plateau, the lake and the pond: a level square at each end, the
+            // far one raised 2 m, and a strip sloping between them. The squares come after the strip, so their
+            // blends would cut into it if they could.
+            var near = new Vector2(80f, -80f);
+            var far = new Vector2(80f, -40f);
+            var terrain = TerrainGenerator.Create(pads: new[]
+            {
+                new TerrainGenerator.Pad(new Vector2(80f, -60f), new Vector2(3f, 15f), Apron: 0.5f, LevelWith: near,
+                    Slope: new TerrainGenerator.PadSlope(new Vector2(80f, -75f), new Vector2(80f, -45f), ToLevelWith: far, ToRaise: 2f)),
+                new TerrainGenerator.Pad(near, new Vector2(5f, 5f), Apron: 0.5f),
+                new TerrainGenerator.Pad(far, new Vector2(5f, 5f), Apron: 0.5f, Raise: 2f),
+            });
+            var low = terrain.HeightAt(near.X, near.Y);
+            var high = terrain.HeightAt(far.X, far.Y);
+            Assert.Equal(low + (high - low) * 0.5f, terrain.HeightAt(80f, -60f), 3);            // halfway up
+            Assert.Equal(low + (high - low) * (28f / 30f), terrain.HeightAt(80f, -47f), 3);     // beside the far square: still on the slope
+            Assert.Equal(low + (high - low) * (28f / 30f), terrain.HeightAt(82f, -47f), 3);     // level across it
+        }
+
+        [Fact]
         public void OffTheEdgeIsNotContained()
         {
             var flat = Grounds.Flat();

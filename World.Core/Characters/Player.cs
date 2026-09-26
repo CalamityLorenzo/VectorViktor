@@ -35,6 +35,16 @@ namespace World.Core.Characters
             Drone.Reset(Body.Position, yaw, ground);
         }
 
+        // Puts you somewhere else at once, at rest, facing `yaw` - through a door that leads elsewhere, say - and
+        // the drone straight to its station behind you.
+        public void Teleport(Vector3 feet, float yaw, IGround ground)
+        {
+            Body.Position = feet;
+            Body.Yaw = yaw;
+            Body.SnapToGround(ground);
+            Drone.Reset(Body.Position, yaw, ground);
+        }
+
         public void ToggleView() => View = View == ViewMode.FirstPerson ? ViewMode.Drone : ViewMode.FirstPerson;
 
         public void Step(in MoveInput input, float dt, IGround ground)
