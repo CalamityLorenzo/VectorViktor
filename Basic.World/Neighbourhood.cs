@@ -18,7 +18,8 @@ namespace Basic.World
     // the road, its front garden sloping gently down to the pavement, and behind it a back garden with a
     // white picket fence round it and a gateway in its west side. The second house on the south side has
     // a swimming pool in its back garden, deep enough to swim in, with a shallow end to walk out at. On
-    // the empty lot at the north-east end, a billboard for the Commodore 64 looks out over the road. Down the
+    // the empty lots at the north-east end, a billboard for the Commodore 64 on the north side of the road and
+    // one for Atari opposite it, on the south, look out over it, down the street. Down the
     // lane, on its west side, an old cottage (VectorViktor's house, see HouseMesh) looks out over it. Walk into
     // its front door and you're in a long corridor, off in a scene of its own the way Basic.Levels' rooms are;
     // walk into the door you came in by and you're back outside the cottage; walk up it to the door at its far end
@@ -69,18 +70,24 @@ namespace Basic.World
         private const float PoolDepth = 1.6f, ShallowDepth = 0.7f;   // below the garden
         private const float PoolFreeboard = 0.1f;                     // water below the garden
 
-        // On the empty lot at the north-east end, turned to face down the street, towards the town: its face
-        // (the mesh's +Z) looking west-south-west
-        private static readonly Vector2 BillboardAt = new Vector2(106f, 20f);
-        private static readonly float BillboardYaw = MathF.Atan2(-0.9f, 0.45f);
-        private static Vector2 OnBillboard(float x, float z)
+        // The billboards on the empty lots at the north-east end, each turned to face down the street, towards the
+        // town, and across the road: its face (the mesh's +Z) looking west and a little towards the road. Commodore's
+        // is on the north side, Atari's opposite it on the south, its mirror image.
+        private sealed record Billboard(string Id, BillboardDesign Design, Vector2 At, float Yaw, Vector2 View, float ViewHeading)
         {
-            var turned = Vector3.Transform(new Vector3(x, 0f, z), Matrix.CreateRotationY(BillboardYaw));
-            return BillboardAt + new Vector2(turned.X, turned.Z);
+            // A point in its own (X, Z), in the world
+            public Vector2 InWorld(float x, float z)
+            {
+                var turned = Vector3.Transform(new Vector3(x, 0f, z), Matrix.CreateRotationY(Yaw));
+                return At + new Vector2(turned.X, turned.Z);
+            }
         }
 
-        // Where to stand to see it: in front of it, down the street
-        public static readonly Vector2 BillboardView = new Vector2(101f, 25f);
+        private static readonly Billboard[] Billboards =
+        {
+            new("billboard", BillboardDesign.Commodore64, new Vector2(106f, 20f), MathF.Atan2(-0.9f, 0.45f), new Vector2(101f, 25f), MathHelper.PiOver4),
+            new("atari", BillboardDesign.Atari, new Vector2(106f, 40f), MathF.Atan2(-0.9f, -0.45f), new Vector2(101f, 35f), MathHelper.Pi * 0.75f),
+        };
 
         // The old cottage by the lane, and another next door to it, south down the lane: HouseMesh scaled up to 9 m
         // along its front, which faces east, onto the lane, a small front garden back from the pavement. Each has a
@@ -170,7 +177,8 @@ namespace Basic.World
         public IReadOnlyDictionary<string, Start> Starts { get; } = new Dictionary<string, Start>
         {
             ["street"] = new(StreetStart, MathHelper.PiOver2),                  // at the west end of the street, looking down it
-            ["billboard"] = new(BillboardView, MathHelper.PiOver4),              // in front of the billboard, looking at it
+            ["billboard"] = new(Billboards[0].View, Billboards[0].ViewHeading),  // in front of the Commodore billboard, looking at it
+            ["atari"] = new(Billboards[1].View, Billboards[1].ViewHeading),      // in front of the Atari one, across the road
             ["pool"] = new(PoolSide, MathHelper.Pi * 0.75f),                    // in a back garden, by its swimming pool
             ["junction"] = new(new Vector2(76f, 36f), 0f),                       // on the street, looking up the lane
             ["lane"] = new(new Vector2(40f, -65f), -MathHelper.PiOver2),         // on the lane behind the plateau, heading west
@@ -207,9 +215,10 @@ namespace Basic.World
                 Apron: 0f, Blend: 0f, Raise: GardenRise - PoolDepth, LevelWith: RoadCentre));
             pads.Add(new TerrainGenerator.Pad(new Vector2(PoolCentre.X + PoolHalf.X - 1.5f, PoolCentre.Y), new Vector2(0.5f, PoolHalf.Y - 1f),
                 Apron: 0f, Blend: 0f, Raise: GardenRise - ShallowDepth, LevelWith: RoadCentre));
-            // Level ground under the billboard, so both its posts stand in it alike - level with the road, since
+            // Level ground under each billboard, so both its posts stand in it alike - level with the road, since
             // the road's slope reaches it, and would tip one end of it otherwise
-            pads.Add(new TerrainGenerator.Pad(BillboardAt, new Vector2(4f, 2.5f), Apron: 1f, Blend: 4f, LevelWith: RoadCentre));
+            foreach (var billboard in Billboards)
+                pads.Add(new TerrainGenerator.Pad(billboard.At, new Vector2(4f, 2.5f), Apron: 1f, Blend: 4f, LevelWith: RoadCentre));
             // The cottages' plots, a metre round each, both level with the hills where the old one stands - which
             // is as high as the lane out in front of the next one, where the hills are lower
             foreach (var cottage in Cottages)
@@ -471,7 +480,7 @@ namespace Basic.World
             };
         }
 
-        // The fences, the billboard's posts and the cottage's walls, to walk into (see BuildingGround)
+        // The fences, the billboards' posts and the cottage's walls, to walk into (see BuildingGround)
         public static IEnumerable<WallSegment> Walls(Terrain terrain)
         {
             foreach (var plot in Plots)
@@ -483,18 +492,21 @@ namespace Basic.World
                         yield return new WallSegment(run[k], run[k + 1], ground - 0.2f, ground + FenceMesh.Height);
                     }
 
-            var foot = terrain.HeightAt(BillboardAt.X, BillboardAt.Y);
-            foreach (var x in BillboardMesh.PostsAt)
+            foreach (var billboard in Billboards)
             {
-                // Each post, as its four sides
-                var half = BillboardMesh.PostSize / 2f;
-                var corners = new[]
+                var foot = terrain.HeightAt(billboard.At.X, billboard.At.Y);
+                foreach (var x in BillboardMesh.PostsAt)
                 {
-                    OnBillboard(x - half, BillboardMesh.PostZ - half), OnBillboard(x + half, BillboardMesh.PostZ - half),
-                    OnBillboard(x + half, BillboardMesh.PostZ + half), OnBillboard(x - half, BillboardMesh.PostZ + half),
-                };
-                for (var k = 0; k < 4; k++)
-                    yield return new WallSegment(corners[k], corners[(k + 1) % 4], foot - 1f, foot + BillboardMesh.Clearance + BillboardMesh.Height);
+                    // Each post, as its four sides
+                    var half = BillboardMesh.PostSize / 2f;
+                    var corners = new[]
+                    {
+                        billboard.InWorld(x - half, BillboardMesh.PostZ - half), billboard.InWorld(x + half, BillboardMesh.PostZ - half),
+                        billboard.InWorld(x + half, BillboardMesh.PostZ + half), billboard.InWorld(x - half, BillboardMesh.PostZ + half),
+                    };
+                    for (var k = 0; k < 4; k++)
+                        yield return new WallSegment(corners[k], corners[(k + 1) % 4], foot - 1f, foot + BillboardMesh.Clearance + BillboardMesh.Height);
+                }
             }
 
             // The hangar's trees' trunks, as a square round each
@@ -523,7 +535,7 @@ namespace Basic.World
             }
         }
 
-        // Everything else to draw: the roads, the fences, the pool's paving, the billboard and the cottages.
+        // Everything else to draw: the roads, the fences, the pool's paving, the billboards and the cottages.
         public static List<Fixture> Fixtures(Terrain terrain)
         {
             var things = new List<Fixture>(RoadFixtures(terrain));
@@ -541,8 +553,9 @@ namespace Basic.World
                 PoolSurroundMesh.Palette(new Color(215, 205, 185))),
                 Matrix.CreateTranslation(PoolCentre.X, road + GardenRise, PoolCentre.Y)));
 
-            things.Add(new Fixture(new MeshSource("billboard", BillboardMesh.Build, BillboardMesh.Palette(new Color(110, 110, 115), new Color(80, 80, 85))),
-                Matrix.CreateRotationY(BillboardYaw) * Matrix.CreateTranslation(BillboardAt.X, terrain.HeightAt(BillboardAt.X, BillboardAt.Y), BillboardAt.Y)));
+            foreach (var billboard in Billboards)
+                things.Add(new Fixture(BillboardMesh.Source(billboard.Design, new Color(110, 110, 115), new Color(80, 80, 85)),
+                    Matrix.CreateRotationY(billboard.Yaw) * Matrix.CreateTranslation(billboard.At.X, terrain.HeightAt(billboard.At.X, billboard.At.Y), billboard.At.Y)));
 
             // Each its front (the mesh's -Z) turned to face east, and stood on its floor (the mesh is centred on its
             // height). Near its window, one with a hole for the window, to see through (see Windows).
