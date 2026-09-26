@@ -22,16 +22,16 @@ namespace Basic.World
         private const float FloorLift = Houses.FloorLift;
         private const float RoofPitch = 35f;     // degrees, for every building's pitched roof
 
-        public static readonly Vector2 CottageCentre = new Vector2(14f, 16f);
-        public static readonly Vector2 HouseCentre = new Vector2(32f, 18f);
-        public static readonly Vector2 BarnCentre = new Vector2(22f, 36f);
+        private static readonly Vector2 CottageCentre = new Vector2(14f, 16f);
+        private static readonly Vector2 HouseCentre = new Vector2(32f, 18f);
+        private static readonly Vector2 BarnCentre = new Vector2(22f, 36f);
 
         private const float CottageWidth = 8f, CottageDepth = 6f;
         private const float BarnWidth = 10f, BarnDepth = 8f, BarnHeight = 5.5f;
         private const float Wall = 0.3f;         // the outer wall's thickness, and a little to spare
 
-        // The ground to level for them (see TerrainGenerator.Pad) - pass these to TerrainGenerator.Create
-        public static readonly TerrainGenerator.Pad[] Pads =
+        // The ground to level for them (see TerrainGenerator.Pad)
+        public IEnumerable<TerrainGenerator.Pad> Pads { get; } = new TerrainGenerator.Pad[]
         {
             new(CottageCentre, new Vector2(CottageWidth / 2f + Wall, CottageDepth / 2f + Wall)),
             new(HouseCentre, new Vector2(Houses.TwoStoreySize / 2f + Wall, Houses.TwoStoreySize / 2f + Wall)),
@@ -47,9 +47,6 @@ namespace Basic.World
             ["barn"] = new(BarnCentre + new Vector2(0f, -8f), MathHelper.Pi),              // outside the barn's
         };
 
-        IEnumerable<TerrainGenerator.Pad> IDistrict.Pads => Pads;
-        IEnumerable<Building> IDistrict.Buildings(Terrain terrain) => Build(terrain);
-
         public IEnumerable<Thing> Things(PhysicsWorld world, Terrain terrain)
         {
             var bale = new Vector3(0.8f, 0.8f, 0.8f);
@@ -58,16 +55,13 @@ namespace Basic.World
         }
 
         // The buildings, standing on the terrain made with Pads.
-        public static List<Building> Build(Terrain terrain)
+        public IEnumerable<Building> Buildings(Terrain terrain)
         {
             Vector3 On(Vector2 centre) => new Vector3(centre.X, terrain.HeightAt(centre.X, centre.Y) + FloorLift, centre.Y);
-            return new List<Building>
-            {
-                Cottage(On(CottageCentre)),
-                Houses.TwoStorey("house", "House", On(HouseCentre), new Color(215, 190, 120), new Color(80, 85, 95),
-                    pitched: Gable.Pitched(RoofPitch, alongX: true), attic: true),
-                Barn(On(BarnCentre)),
-            };
+            yield return Cottage(On(CottageCentre));
+            yield return Houses.TwoStorey("house", "House", On(HouseCentre), new Color(215, 190, 120), new Color(80, 85, 95),
+                pitched: Gable.Pitched(RoofPitch, alongX: true), attic: true);
+            yield return Barn(On(BarnCentre));
         }
 
         // Every doorway has a door, shut to begin with (see Door): E opens it

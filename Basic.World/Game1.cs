@@ -22,10 +22,10 @@ namespace Basic.World
     // or shuts the one in front of you (see BuildingGround.Interact). There's a lake in the basin and a
     // pond west of the cottage: wade in and it slows you, deeper and you swim; you get wet as high as the
     // water comes up you (the title says how wet, and you darken from the feet up), and dry off out of it.
-    // Light things float. East of the town, a street (see Neighbourhood): houses either side of a road,
+    // Light things float. East of the town, a street (see Street): houses either side of a road,
     // front gardens sloping down to it, picket fences round the back gardens, a swimming pool in one of
-    // them, and billboards for the Commodore 64 and Atari either side of the road; down a lane from it, an old cottage whose front door, walked
-    // into, takes you to a long corridor, and back, and next door another, whose window shows a hangar. See the
+    // them, and billboards for the Commodore 64 and Atari either side of the road; down a lane from it (see Lane), an old
+    // cottage whose front door, walked into, takes you to a long corridor, and back, and next door another, whose window shows a hangar. See the
     // world through your own eyes, or from your camera drone as it flies after you. Drawn to a small render target and scaled up with hard pixels (see RetroGame).
     // Up / W and Down / S walk (hold Shift to run), Left / Right turn, A / D sidestep, Space jumps, E opens or shuts a door.
     // V switches between your own view and the drone's. C toggles colours / wireframe, L the low-resolution
@@ -48,7 +48,7 @@ namespace Basic.World
 
         // The world's parts, in the order they're put together (see WorldBuilder): each district's pads are
         // levelled over the ones before it. Where you can start (the optional command-line argument) is theirs.
-        private static IDistrict[] Districts() => new IDistrict[] { new Countryside(), new Town(), new Neighbourhood() };
+        private static IDistrict[] Districts() => new IDistrict[] { new Countryside(), new Town(), new Street(), new Lane() };
         private const string DefaultStart = "hills";
 
         private readonly string _start;

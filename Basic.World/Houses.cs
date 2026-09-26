@@ -8,7 +8,7 @@ using static World.Buildings.Walls;
 
 namespace Basic.World
 {
-    // House designs, to put up anywhere (see Town and Neighbourhood). `at` is the middle of the ground
+    // House designs, to put up anywhere (see Town and Street). `at` is the middle of the ground
     // floor, a step (FloorLift) up from the levelled ground round it; `id` names the rooms, so every house
     // needs its own. Every doorway has a door, shut to begin with (see Door).
     public static class Houses

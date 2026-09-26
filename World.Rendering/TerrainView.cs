@@ -12,7 +12,6 @@ namespace World.Rendering
     // within DrawDistance of it - nearest first, and no more than BuildsPerFrame a frame, so walking on
     // doesn't stutter - drawn only if it's in view (see MeshBatch), and thrown away once the camera's more
     // than DropDistance off. So only the country round you is ever built or drawn, however big the world. There
-    // can be more than one camera: one looking through a window onto somewhere else in the world, too. There
     // can be more than one camera: one looking through a window onto somewhere else in the world, too.
     public sealed class TerrainView : IDisposable
     {
