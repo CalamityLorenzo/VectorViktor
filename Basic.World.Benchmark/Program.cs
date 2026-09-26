@@ -64,19 +64,20 @@ var totals = (calls: 0, cpu: 0.0, frame: 0.0, frameGarbage: 0L, sim: 0.0, simGar
 foreach (var (name, start) in built.Starts.OrderBy(s => s.Key, StringComparer.Ordinal))
 {
     var player = NewPlayer(start);
+    var bird = new Bird(start.At, built.Ground.SkylineAt, start.Yaw);
     for (var tick = 0; tick < 120; tick++)   // settle: land, and let the bodies come to rest
-        Tick(player, MoveInput.None);
+        Tick(player, bird, MoveInput.None);
     renderer.BuildTerrain(player);
 
     // Drawing: what the frame costs the CPU to submit, then all of them through to the GPU finishing
-    Frame(player, 0);
+    Frame(player, bird, 0);
     for (var i = 0; i < WarmUpFrames; i++)
-        Frame(player, i);
+        Frame(player, bird, i);
     var cpu = 0.0;
     var garbage = GC.GetAllocatedBytesForCurrentThread();
     var total = Stopwatch.StartNew();
     for (var i = 0; i < frames; i++)
-        cpu += Frame(player, i);
+        cpu += Frame(player, bird, i);
     var pixel = new Color[1];
     target.GetData(0, new Rectangle(0, 0, 1, 1), pixel, 0, 1);   // waits for the GPU
     total.Stop();
@@ -87,11 +88,11 @@ foreach (var (name, start) in built.Starts.OrderBy(s => s.Key, StringComparer.Or
     // Stepping: walking straight ahead, which is the collision code's worst case (a walker moving among the walls)
     var walker = NewPlayer(start);
     for (var tick = 0; tick < 120; tick++)
-        Tick(walker, MoveInput.None);
+        Tick(walker, bird, MoveInput.None);
     var simGarbage = GC.GetAllocatedBytesForCurrentThread();
     var sim = Stopwatch.StartNew();
     for (var tick = 0; tick < SimTicks; tick++)
-        Tick(walker, new MoveInput(new Vector2(0f, 1f)));
+        Tick(walker, bird, new MoveInput(new Vector2(0f, 1f)));
     sim.Stop();
     simGarbage = GC.GetAllocatedBytesForCurrentThread() - simGarbage;
 
@@ -113,15 +114,16 @@ Player NewPlayer(Start start)
 }
 
 // One tick of the world, as the game steps it
-void Tick(Player player, MoveInput input)
+void Tick(Player player, Bird bird, MoveInput input)
 {
     built.Ground.StepDoors(StepTime, built.Physics.Bodies, new[] { (player.Body.Position, CharacterController.Radius, Player.Height) });
     player.Step(input, StepTime, built.Physics);
     built.Physics.Step(StepTime);
+    bird.Step(StepTime);
 }
 
 // One frame, drawn as the game draws it; how long the CPU took, in ms
-double Frame(Player player, int index)
+double Frame(Player player, Bird bird, int index)
 {
     device.SetRenderTarget(target);
     device.Clear(RetroStyle.Background);
@@ -129,6 +131,6 @@ double Frame(Player player, int index)
     device.DepthStencilState = DepthStencilState.Default;
     device.RasterizerState = RasterizerState.CullNone;
     var time = Stopwatch.GetTimestamp();
-    renderer.Draw(player, index * StepTime, colorsOn: true);
+    renderer.Draw(player, index * StepTime, colorsOn: true, bird);
     return Stopwatch.GetElapsedTime(time).TotalMilliseconds;
 }

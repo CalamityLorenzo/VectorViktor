@@ -35,6 +35,20 @@ namespace World.Core.Tests
 
         private static BuildingGround On(params Building[] buildings) => new BuildingGround(Grounds.Flat(), buildings);
 
+        // Over a building, what flies over must clear its roof and eaves; off it, only the ground (see Bird)
+        [Fact]
+        public void The_skyline_is_a_buildings_roof_over_it_and_its_eaves_and_the_ground_elsewhere()
+        {
+            var hut = new Building("hut", Hut());
+            var ground = On(hut);
+            var roof = Floor + Height + hut.RoofThickness;   // flat
+            Assert.Equal(roof, ground.SkylineAt(0f, 0f, 0f), 3);
+            Assert.Equal(roof, ground.SkylineAt(3f + hut.WallThickness + hut.RoofOverhang - 0.05f, 0f, 0f), 3);
+            Assert.Equal(0f, ground.SkylineAt(5f, 0f, 0f), 3);
+            Assert.Equal(roof, ground.SkylineAt(5f, 0f, 2f), 3);   // within the margin of its eaves
+            Assert.Equal(0f, ground.SkylineAt(20f, 20f, 2f), 3);
+        }
+
         private static CharacterController Walker(IGround ground, Vector3 at, float yaw)
         {
             var walker = new CharacterController(at, yaw);
