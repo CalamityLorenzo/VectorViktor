@@ -43,7 +43,7 @@ What that needs that the game doesn't have today, in one place (see 4): a game s
 - Today: one walker (`CharacterController`, fixed height, radius and speeds from `WorldConstants`), drawn as a seven-box mesh (`PlayerMesh`) that darkens when wet. Its body sizes are constants, so a component changing its height or width means making them values of the droid.
 
 ### 3.2 The drone camera
-- A separate camera machine, with its own control scheme in drone mode and a distance limit from the droid: at the limit the picture and the link degrade, and past it the link drops. It suits the premise (a second thing sending pictures) and can itself be something to repair or find.
+- A separate camera machine, with its own control scheme in drone mode and a distance limit from the droid: at the limit the picture and the link degrade, and past it the link drops. In fact, a possibility is the drone drops and has to be collected again. It suits the premise (a second thing sending pictures) and can itself be something to repair or find.
 - Today: it follows the player on a spring (3 m behind, 2 m up), keeps in sight, and stays clear of the ground and walls; you can't steer it and there is no range.
 
 ### 3.3 Restoring the colour: the central mechanic
@@ -62,12 +62,15 @@ The world's colour is missing; putting it back is the game's progress, and the m
 
 ### 3.5 Puzzles and interaction
 - **Find X to do Y**: things to pick up, carry and use; places that open when the droid can do something; things to push, stack, knock over or reach.
+Find a raw chicken and heat it. Find sticky tape to attach something together.
+Find a wrench to undo a bolt.
+Break wood to uncover hole.
 - Today: you press E to open or shut a door (`BuildingGround.Interact`), and bodies (crates, lockers, boxes) can be pushed, stacked, toppled and floated, so physical puzzles are possible. There is nothing to pick up, carry or use, and no state that a puzzle can set and something else read (a door that stays locked until a switch is thrown, say).
 - **Switches** are one such thing, and the natural way to do the room lights in 3.7.
 
 ### 3.6 Action and violence
-- **Implements that are weapons**, in a progression that follows the droid's recovery and the worlds' technology:
-  1. **Simple tools**: a bat, a shovel and the like, swung in melee.
+- **Implements that can be weapons**, in a progression that follows the droid's recovery and the worlds' technology:
+  1. **Simple tools**: a bat, a shovel and the like, swung in melee. Tools can _also be tools_. 
   2. **Pistols.**
   3. **A rifle.**
   4. **A sci-fi laser gun**: it really damages enemies, and **can bore holes in certain items**, which makes it a puzzle tool as well as a weapon (a way through a wall or a door, something to cut open).
