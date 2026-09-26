@@ -120,9 +120,9 @@ namespace Basic.World
             var wall = Room.WorldOffset + new Vector3(WindowAcross, 0f, -HangarMesh.Depth / 2f + 0.02f);
             var outOf = cottage.FrontWindow(terrain);
             return new Window(Matrix.CreateRotationY(MathHelper.Pi) * Matrix.CreateTranslation(wall),   // looking north, out of the front wall
-                outOf.Width, outOf.Sill, outOf.Height, outOf.Pane, Array.Empty<ScenePart>())
+                outOf.Width, outOf.Sill, outOf.Height, outOf.Pane, Array.Empty<ScenePart>(),
+                Onto: Matrix.CreateRotationY(MathHelper.Pi) * outOf.Frame)   // the cottage's window, turned to look out of it
             {
-                Onto = Matrix.CreateRotationY(MathHelper.Pi) * outOf.Frame,   // the cottage's window, turned to look out of it
                 Reach = LaneCottage.Half.X * 2f - 0.3f,
             };
         }

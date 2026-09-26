@@ -20,38 +20,18 @@ namespace MeshProps
             var b3 = new Vector3(-0.5f, -0.4f, 0.5f);
             var apex = new Vector3(0f, 0.6f, 0f);
 
-            var solid = new[]
-            {
-                // base quad (2 triangles)
-                b0, b1, b2,  b0, b2, b3,
-                // four sloped sides
-                b0, b1, apex,  b1, b2, apex,  b2, b3, apex,  b3, b0, apex,
-            };
-            var edges = new[]
-            {
-                b0, b1,  b1, b2,  b2, b3,  b3, b0,       // base loop
-                b0, apex,  b1, apex,  b2, apex,  b3, apex, // apex edges
-            };
-
-            return new MeshData(
-                ToBuffer(device, solid),
-                new[]
-                {
-                    new DrawRange(0, 2, Base),
-                    new DrawRange(6, 4, Side),
-                },
-                ToBuffer(device, edges),
-                BoundingBox.CreateFromPoints(solid));
-        }
-
-        private static VertexBuffer ToBuffer(GraphicsDevice device, Vector3[] positions)
-        {
-            var vertices = new VertexPosition[positions.Length];
-            for (var i = 0; i < positions.Length; i++)
-                vertices[i] = new VertexPosition(positions[i]);
-            var buffer = new VertexBuffer(device, typeof(VertexPosition), vertices.Length, BufferUsage.WriteOnly);
-            buffer.SetData(vertices);
-            return buffer;
+            var mesh = new MeshBuilder();
+            mesh.AddQuad(Base, b0, b1, b2, b3);   // the base (2 triangles)
+            mesh.AddTri(Side, b0, b1, apex);      // four sloped sides
+            mesh.AddTri(Side, b1, b2, apex);
+            mesh.AddTri(Side, b2, b3, apex);
+            mesh.AddTri(Side, b3, b0, apex);
+            mesh.AddLineLoop(b0, b1, b2, b3);     // base loop
+            mesh.AddLine(b0, apex);               // apex edges
+            mesh.AddLine(b1, apex);
+            mesh.AddLine(b2, apex);
+            mesh.AddLine(b3, apex);
+            return mesh.Build(device);
         }
     }
 }

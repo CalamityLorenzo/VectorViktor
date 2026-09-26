@@ -213,7 +213,7 @@ namespace World.Core
         public float? WaterLevelAt(float x, float z)
         {
             float? level = null;
-            foreach (var pool in Pools)
+            foreach (var pool in _pools)   // the list itself: through the interface, foreach makes garbage of its enumerator
                 if (pool.Covers(x, z) && (!level.HasValue || pool.Level > level.Value) && HeightAt(x, z) < pool.Level)
                     level = pool.Level;
             return level;

@@ -32,6 +32,7 @@ namespace World.Buildings
         private readonly IGround _terrain;
         private readonly List<Placed> _rooms = new List<Placed>();
         private readonly List<WallSegment> _walls = new List<WallSegment>();
+        private readonly WallGrid _grid;   // the walls (not the doors, which swing), sorted by where they are
         private readonly List<Door> _doors = new List<Door>();
         private readonly Dictionary<Building, List<Door>> _doorsOf = new Dictionary<Building, List<Door>>();
 
@@ -75,37 +76,33 @@ namespace World.Buildings
                 _doorsOf[building] = doors;
                 _doors.AddRange(doors);
             }
-        }
-
-        // The walls, and every door's leaf where it is now.
-        private IEnumerable<WallSegment> AllWalls()
-        {
-            foreach (var wall in _walls)
-                yield return wall;
-            foreach (var door in _doors)
-                yield return door.Panel;
+            _grid = new WallGrid(_walls);
         }
 
         // Swings the doors on, each stopping short of any body in its way, or any walker (feet, radius, height).
         public void StepDoors(float dt, IEnumerable<Body> bodies, IEnumerable<(Vector3 feet, float radius, float height)> walkers)
         {
             foreach (var door in _doors)
+                if (!door.AtRest)   // nearly always: and so nothing to make a closure of, or to enumerate the bodies for
+                    StepDoor(door, dt, bodies, walkers);
+        }
+
+        private static void StepDoor(Door door, float dt, IEnumerable<Body> bodies, IEnumerable<(Vector3 feet, float radius, float height)> walkers)
+        {
+            var bottom = door.Bottom;
+            var top = door.Bottom + door.Height;
+            door.Step(dt, (hinge, tip) =>
             {
-                var bottom = door.Bottom;
-                var top = door.Bottom + door.Height;
-                door.Step(dt, (hinge, tip) =>
-                {
-                    foreach (var body in bodies)
-                        if (body.Bottom < top && body.Top > bottom + 0.01f &&
-                            Geometry2D.SegmentHitsBox(hinge, tip, body.Footprint - body.Half, body.Footprint + body.Half))
-                            return true;
-                    foreach (var (feet, radius, height) in walkers)
-                        if (feet.Y < top && feet.Y + height > bottom &&
-                            Vector2.Distance(new Vector2(feet.X, feet.Z), Geometry2D.NearestOnSegment(new Vector2(feet.X, feet.Z), hinge, tip)) < radius)
-                            return true;
-                    return false;
-                });
-            }
+                foreach (var body in bodies)
+                    if (body.Bottom < top && body.Top > bottom + 0.01f &&
+                        Geometry2D.SegmentHitsBox(hinge, tip, body.Footprint - body.Half, body.Footprint + body.Half))
+                        return true;
+                foreach (var (feet, radius, height) in walkers)
+                    if (feet.Y < top && feet.Y + height > bottom &&
+                        Vector2.Distance(new Vector2(feet.X, feet.Z), Geometry2D.NearestOnSegment(new Vector2(feet.X, feet.Z), hinge, tip)) < radius)
+                        return true;
+                return false;
+            });
         }
 
         // Opens or shuts the nearest door whose leaf is within DoorReach of a walker at `feet`, in front of
@@ -179,26 +176,37 @@ namespace World.Buildings
             return step;
         }
 
+        // How far past a walker's radius to look for walls that might push it: once pushed out of one, it can be up against another
+        private const float PushMargin = 2f;
+
+        // `p`, pushed out of `wall` if it's within `radius` of it and within its height.
+        private static Vector3 PushOutOfWall(Vector3 p, WallSegment wall, float radius, float height)
+        {
+            if (wall.Bottom >= p.Y + height || wall.Top <= p.Y + 0.01f)
+                return p;
+            var q = new Vector2(p.X, p.Z);
+            var nearest = Geometry2D.NearestOnSegment(q, wall.A, wall.B);
+            var gap = q - nearest;
+            var distance = gap.Length();
+            if (distance >= radius)
+                return p;
+            var away = distance > 1e-6f ? gap / distance : Geometry2D.Outward(wall.A, wall.B);
+            var pushed = nearest + away * radius;
+            return new Vector3(pushed.X, p.Y, pushed.Y);
+        }
+
         public Vector3 KeepOut(Vector3 feet, float radius, float height)
         {
             var p = feet;
             // Twice round, so being pushed out of one wall into another (in a corner) settles
             for (var pass = 0; pass < 2; pass++)
             {
-                foreach (var wall in AllWalls())
-                {
-                    if (wall.Bottom >= p.Y + height || wall.Top <= p.Y + 0.01f)
-                        continue;
-                    var q = new Vector2(p.X, p.Z);
-                    var nearest = Geometry2D.NearestOnSegment(q, wall.A, wall.B);
-                    var gap = q - nearest;
-                    var distance = gap.Length();
-                    if (distance >= radius)
-                        continue;
-                    var away = distance > 1e-6f ? gap / distance : Geometry2D.Outward(wall.A, wall.B);
-                    var pushed = nearest + away * radius;
-                    p = new Vector3(pushed.X, p.Y, pushed.Y);
-                }
+                // The walls near it (a push moves it by less than a radius, and it's pushed only by walls within one), then the doors
+                var reach = radius + PushMargin;
+                foreach (var index in _grid.Near(new Vector2(p.X - reach, p.Z - reach), new Vector2(p.X + reach, p.Z + reach)))
+                    p = PushOutOfWall(p, _grid[index], radius, height);
+                foreach (var door in _doors)
+                    p = PushOutOfWall(p, door.Panel, radius, height);
 
                 foreach (var room in _rooms)
                 {
@@ -228,7 +236,7 @@ namespace World.Buildings
                 if (!room.Near(feet, 0f))
                     continue;
                 var local = feet - room.Offset;
-                if (!room.Spec.Contains(local) || local.Y < -0.05f || Array.Exists(room.Spec.CeilingHatches, h => h.Contains(local)))
+                if (!room.Spec.Contains(local) || local.Y < -0.05f || HatchSpec.AnyContain(room.Spec.CeilingHatches, local))
                     continue;
                 var ceiling = room.Spec.CeilingHeightAt(local);
                 if (local.Y >= ceiling)
@@ -244,8 +252,13 @@ namespace World.Buildings
             const float shrink = 0.01f;   // touching a wall isn't being in it
             var min = new Vector2(bottomCentre.X - size.X / 2f + shrink, bottomCentre.Z - size.Z / 2f + shrink);
             var max = new Vector2(bottomCentre.X + size.X / 2f - shrink, bottomCentre.Z + size.Z / 2f - shrink);
-            foreach (var wall in AllWalls())
-                if (wall.Bottom < bottomCentre.Y + size.Y && wall.Top > bottomCentre.Y + shrink && Geometry2D.SegmentHitsBox(wall.A, wall.B, min, max))
+            bool Blocks(WallSegment wall) =>
+                wall.Bottom < bottomCentre.Y + size.Y && wall.Top > bottomCentre.Y + shrink && Geometry2D.SegmentHitsBox(wall.A, wall.B, min, max);
+            foreach (var index in _grid.Near(min, max))
+                if (Blocks(_grid[index]))
+                    return true;
+            foreach (var door in _doors)
+                if (Blocks(door.Panel))
                     return true;
             return _terrain.Obstructs(bottomCentre, size);
         }
@@ -259,20 +272,25 @@ namespace World.Buildings
             // Walls it passes through, at a height where there's wall
             var p = new Vector2(from.X, from.Z);
             var r = new Vector2(d.X, d.Z);
-            foreach (var wall in AllWalls())
+            void Cross(WallSegment wall)
             {
                 var s = wall.B - wall.A;
                 var denominator = Geometry2D.Cross(r, s);
                 if (MathF.Abs(denominator) < 1e-9f)
-                    continue;
+                    return;
                 var t = Geometry2D.Cross(wall.A - p, s) / denominator;
                 var u = Geometry2D.Cross(wall.A - p, r) / denominator;
                 if (t < 0f || t >= hit || u < 0f || u > 1f)
-                    continue;
+                    return;
                 var y = from.Y + d.Y * t;
                 if (y >= wall.Bottom && y <= wall.Top)
                     hit = t;
             }
+            var end = p + r;
+            foreach (var index in _grid.Near(Vector2.Min(p, end), Vector2.Max(p, end)))
+                Cross(_grid[index]);
+            foreach (var door in _doors)
+                Cross(door.Panel);
 
             // Floors it passes through, where there's no hatch
             foreach (var room in _rooms)
@@ -284,7 +302,7 @@ namespace World.Buildings
                 if (t >= hit)
                     continue;
                 var local = from + d * t - room.Offset;
-                if (room.Spec.Contains(local) && !Array.Exists(room.Spec.FloorHatches, h => h.Contains(local)))
+                if (room.Spec.Contains(local) && !HatchSpec.AnyContain(room.Spec.FloorHatches, local))
                     hit = t;
             }
 
@@ -296,7 +314,7 @@ namespace World.Buildings
                 float? Above(float t)
                 {
                     var local = from + d * t - room.Offset;
-                    if (!room.Spec.Contains(local) || local.Y < 0f || Array.Exists(room.Spec.CeilingHatches, h => h.Contains(local)))
+                    if (!room.Spec.Contains(local) || local.Y < 0f || HatchSpec.AnyContain(room.Spec.CeilingHatches, local))
                         return null;
                     return local.Y - room.Spec.CeilingHeightAt(local);
                 }

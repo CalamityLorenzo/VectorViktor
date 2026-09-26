@@ -1,5 +1,6 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using System.Diagnostics;
 
 namespace MeshCore.Library
 {
@@ -136,17 +137,40 @@ namespace MeshCore.Library
             solids.Add(new VertexPosition(c));
         }
 
+        // A quad, a-b-c-d in order round its edge: two triangles, so it must be convex (see AddPolygon).
         public void AddQuad(int slot, Vector3 a, Vector3 b, Vector3 c, Vector3 d)
         {
+            CheckFan(a, b, c, d);
             AddTri(slot, a, b, c);
             AddTri(slot, a, c, d);
         }
 
-        // A convex polygon (points in order round its edge) as a triangle fan: points.Length - 2 triangles.
+        // A polygon (points in order round its edge) as a triangle fan from the first point: points.Length - 2
+        // triangles. That covers it only if it's convex - or at least if every point can be seen from the first, which
+        // a debug build checks: a fan that folds back draws over itself and leaves holes, with no error otherwise.
         public void AddPolygon(int slot, params Vector3[] points)
         {
+            CheckFan(points);
             for (var i = 1; i < points.Length - 1; i++)
                 AddTri(slot, points[0], points[i], points[i + 1]);
+        }
+
+        // Every triangle of the fan from points[0] must face the same way (a triangle with no area doesn't count).
+        [Conditional("DEBUG")]
+        private static void CheckFan(params Vector3[] points)
+        {
+            Vector3? first = null;
+            for (var i = 1; i < points.Length - 1; i++)
+            {
+                var facing = Vector3.Cross(points[i] - points[0], points[i + 1] - points[0]);
+                if (facing.LengthSquared() < 1e-12f)
+                    continue;
+                if (first is null)
+                    first = facing;
+                else if (Vector3.Dot(first.Value, facing) < 0f)
+                    throw new ArgumentException($"A polygon of {points.Length} points isn't convex from its first point ({points[0]}): " +
+                        $"the fan folds back at point {i + 1}. Split it into convex pieces.", nameof(points));
+            }
         }
 
         // A closed loop of lines round the given points, e.g. a polygon's outline.
@@ -170,7 +194,8 @@ namespace MeshCore.Library
 
         // The slots' triangles one after another, lowest slot first, each slot's one draw range. With
         // keepFootprint, the mesh also remembers its faces as seen from above (see MeshData.Covers).
-        public MeshData Build(GraphicsDevice device, bool keepFootprint = false)
+        // With no device, it's built without GPU buffers, to be looked at and not drawn (see MeshData.Headless): for tests.
+        public MeshData Build(GraphicsDevice? device, bool keepFootprint = false)
         {
             var solids = new List<VertexPosition>();
             var ranges = new List<DrawRange>();
@@ -189,8 +214,10 @@ namespace MeshCore.Library
                 for (var t = 0; t < footprint.Length; t++)
                     footprint[t] = (Plan(solids[t * 3]), Plan(solids[t * 3 + 1]), Plan(solids[t * 3 + 2]));
             }
-            return new MeshData(ToBuffer(device, solids), ranges.ToArray(), ToBuffer(device, _edges), Bounds(solids),
-                _outlineTriangles.Count > 0 ? new OutlineData(_outlineTriangles) : null, footprint);
+            var outline = _outlineTriangles.Count > 0 ? new OutlineData(_outlineTriangles) : null;
+            if (device == null)
+                return MeshData.Headless(solids.ToArray(), ranges.ToArray(), _edges.ToArray(), Bounds(solids), outline, footprint);
+            return new MeshData(ToBuffer(device, solids), ranges.ToArray(), ToBuffer(device, _edges), Bounds(solids), outline, footprint);
         }
 
         // Round everything added, faces and edges (the outline's triangles are faces too).

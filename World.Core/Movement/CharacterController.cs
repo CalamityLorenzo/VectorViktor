@@ -245,7 +245,7 @@ namespace World.Core.Movement
         {
             var target = position + travel;
             var into = Downhill(ground.NormalAt(target + Vector3.Normalize(travel) * Radius));
-            var candidates = new[]
+            Span<Vector3> candidates = stackalloc Vector3[]
             {
                 into == Vector3.Zero ? Vector3.Zero : travel - into * MathF.Min(0f, Vector3.Dot(travel, into)),
                 new Vector3(travel.X, 0f, 0f),

@@ -43,6 +43,15 @@ namespace World.Buildings
     public record HatchSpec(Vector2[] Outline, string TargetRoom, float SlabThickness = 0f)
     {
         public bool Contains(Vector3 local) => Geometry2D.InPolygon(Outline, new Vector2(local.X, local.Z));
+
+        // Whether any of `hatches` is over or under `local`: a loop, not Array.Exists, which would make a closure of `local` each time.
+        public static bool AnyContain(HatchSpec[] hatches, Vector3 local)
+        {
+            foreach (var hatch in hatches)
+                if (hatch.Contains(local))
+                    return true;
+            return false;
+        }
     }
 
     // A climbable strip in the room's own coordinates: a corridor Width wide down the line from Start to
@@ -333,7 +342,7 @@ namespace World.Buildings
             if (!Contains(local))
                 return null;
             float? best = null;
-            if (local.Y + reach >= 0f && !Array.Exists(FloorHatches, h => h.Contains(local)))
+            if (local.Y + reach >= 0f && !HatchSpec.AnyContain(FloorHatches, local))
                 best = 0f;
             foreach (var ramp in Ramps)
             {

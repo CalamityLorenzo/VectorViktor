@@ -1,0 +1,21 @@
+name: CI
+
+# Build the whole solution and run the tests on every push and pull request.
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore
+        run: dotnet restore VectorViktor.slnx
+      - name: Build
+        run: dotnet build VectorViktor.slnx --no-restore
+      - name: Test
+        run: dotnet test VectorViktor.slnx --no-build

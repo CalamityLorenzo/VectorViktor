@@ -26,6 +26,9 @@ namespace World.Buildings
         public bool Opening { get; private set; }  // which way it's going (or went last)
         public bool IsShut => Angle <= 0f && !Opening;
 
+        // Where it's going is where it is: nothing for Step to do.
+        public bool AtRest => Angle == (Opening ? MaxOpen : 0f);
+
         public Door(Vector2 hinge, Vector2 shut, Vector2 into, float width, float bottom, float height, Color color)
         {
             Hinge = hinge;

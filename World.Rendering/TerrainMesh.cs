@@ -126,8 +126,9 @@ namespace World.Rendering
         // Which colour walkable ground is (steep ground is always Rock): sand at the water's edge, or grass by height.
         private static int Band(Terrain terrain, Vector3 centre, float shore)
         {
-            foreach (var pool in terrain.Pools)
-                if (pool.Covers(centre.X, centre.Z) && centre.Y < pool.Level + shore)
+            var pools = terrain.Pools;
+            for (var k = 0; k < pools.Count; k++)   // not foreach: that makes garbage of an interface's enumerator, for every triangle
+                if (pools[k].Covers(centre.X, centre.Z) && centre.Y < pools[k].Level + shore)
                     return Sand;
             if (centre.Y < 1.5f)
                 return GrassLow;

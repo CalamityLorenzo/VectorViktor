@@ -26,6 +26,7 @@ namespace Basic.World
         private readonly List<(ScenePart part, MeshInstance view)> _moving = new List<(ScenePart, MeshInstance)>();
         private readonly BoundingFrustum _frustum = new BoundingFrustum(Matrix.Identity);
         private readonly List<Vector3> _cameras = new List<Vector3>();
+        private readonly List<Vector3[]> _sealing = new List<Vector3[]>();
         private readonly WindowPortals _portals;
 
         public TerrainView Terrain { get; }
@@ -103,7 +104,7 @@ namespace Basic.World
             _frustum.Matrix = effect.View * effect.Projection;
             _open.Clear();
             foreach (var (window, beyond, batch) in _windows)
-                if (window.Open(you) && window.Faces(eye) && _frustum.Intersects(BoundingBox.CreateFromPoints(window.Corners())))
+                if (window.Open(you) && window.Faces(eye) && _frustum.Intersects(window.Bounds))
                     _open.Add((window, batch, beyond, Vector3.Distance(eye, window.Centre)));
             if (_open.Count == 0)
                 return;
@@ -123,7 +124,10 @@ namespace Basic.World
                 _portals.Draw(device, effect, window.Corners(), scene, batch, window.Pane, window.Opacity(you),
                     window.Tint, window.TintStrength, background, colorsOn);
             }
-            _portals.Seal(device, effect, _open.Select(w => w.window.Corners()));
+            _sealing.Clear();
+            foreach (var (window, _, _, _) in _open)
+                _sealing.Add(window.Corners());
+            _portals.Seal(device, effect, _sealing);
         }
 
         public void Dispose()

@@ -66,6 +66,10 @@ namespace World.Core.Physics
 
         private readonly List<Body> _bodies = new List<Body>();
 
+        // Kept from one tick to the next, so stepping makes no garbage
+        private readonly List<Body> _settling = new List<Body>();
+        private readonly List<(Body body, Vector3 into, float pressing)> _pressed = new List<(Body, Vector3, float)>();
+
         public IGround Terrain { get; }
         public IReadOnlyList<Body> Bodies => _bodies;
 
@@ -169,10 +173,12 @@ namespace World.Core.Physics
             body.Velocity = new Vector3(v.X, vy, v.Y);
         }
 
+        private static readonly Vector3[] Axes = { Vector3.UnitX, Vector3.UnitZ };
+
         private void MoveAcross(Body body, float dt)
         {
             var v = body.Velocity;
-            foreach (var axis in new[] { Vector3.UnitX, Vector3.UnitZ })
+            foreach (var axis in Axes)
             {
                 var speed = Vector3.Dot(v, axis);
                 if (speed == 0f)
@@ -283,7 +289,9 @@ namespace World.Core.Physics
         // Falling and landing, lowest body first, so each lands on ones that have already settled.
         private void Settle(float dt)
         {
-            var order = new List<Body>(_bodies);
+            var order = _settling;
+            order.Clear();
+            order.AddRange(_bodies);
             order.RemoveAll(b => !Moves(b));
             order.Sort((p, q) => p.Bottom.CompareTo(q.Bottom));
 
@@ -471,7 +479,8 @@ namespace World.Core.Physics
                 return;
             wish.Normalize();
             var chest = walker.Position.Y + CharacterController.PushHeight;
-            var pressed = new List<(Body body, Vector3 into, float pressing)>();
+            var pressed = _pressed;
+            pressed.Clear();
             foreach (var body in _bodies)
             {
                 if (!BesideWalker(body, walker, height))
@@ -493,13 +502,19 @@ namespace World.Core.Physics
 
             // Your push lands at chest height: on whichever of them is there if one is (the middle crate of
             // a stack), otherwise shared between them, at the top of each
-            var atChest = pressed.FindAll(t => t.body.Bottom <= chest && chest <= t.body.Top);
-            if (atChest.Count > 0)
-                pressed = atChest;
+            var sharing = 0;
+            foreach (var (body, _, _) in pressed)
+                if (body.Bottom <= chest && chest <= body.Top)
+                    sharing++;
+            var onlyAtChest = sharing > 0;
+            if (!onlyAtChest)
+                sharing = pressed.Count;
             foreach (var (body, into, pressing) in pressed)
             {
+                if (onlyAtChest && !(body.Bottom <= chest && chest <= body.Top))
+                    continue;
                 var bodySpeed = MathF.Max(Vector3.Dot(body.Velocity, into), 0.05f);
-                var force = MathF.Min(CharacterController.PushForce, CharacterController.PushPower / bodySpeed) / pressed.Count;
+                var force = MathF.Min(CharacterController.PushForce, CharacterController.PushPower / bodySpeed) / sharing;
                 var at = MathHelper.Clamp(chest, body.Bottom, body.Top) - body.Bottom;
                 body.ApplyForce(into * force * pressing, at);
             }

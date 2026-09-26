@@ -126,6 +126,8 @@ namespace MeshRendering
         // freed buffers: say so plainly instead.
         private void ThrowIfDisposed()
         {
+            if (Mesh.IsHeadless)
+                throw new InvalidOperationException("This instance's mesh is headless (built with no graphics device, for a test): it can't be drawn.");
             if (Mesh.IsDisposed)
                 throw new ObjectDisposedException(nameof(MeshData), "This instance's mesh has been disposed; the instance has outlived its owner.");
         }

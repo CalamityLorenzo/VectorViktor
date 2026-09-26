@@ -27,6 +27,7 @@ namespace World.Rendering
         // Kept from one frame to the next, so looking round costs no garbage
         private readonly List<(float distance, int ci, int cj)> _wanted = new List<(float, int, int)>();
         private readonly List<(int, int)> _gone = new List<(int, int)>();
+        private readonly List<Vector3> _single = new List<Vector3>();
 
         public float DrawDistance { get; }
         public float DropDistance => DrawDistance + 40f;
@@ -51,8 +52,8 @@ namespace World.Rendering
         private float Distance(int ci, int cj, IReadOnlyList<Vector3> cameras)
         {
             var nearest = float.MaxValue;
-            foreach (var camera in cameras)
-                nearest = MathF.Min(nearest, Distance(ci, cj, camera));
+            for (var k = 0; k < cameras.Count; k++)   // not foreach: that makes garbage of an interface's enumerator
+                nearest = MathF.Min(nearest, Distance(ci, cj, cameras[k]));
             return nearest;
         }
 
@@ -68,22 +69,28 @@ namespace World.Rendering
         }
 
         // Builds what's come within reach of the camera (all of it at once, if `all`) and drops what's gone out.
-        public void Update(GraphicsDevice device, Vector3 camera, bool all = false) => Update(device, new[] { camera }, all);
+        public void Update(GraphicsDevice device, Vector3 camera, bool all = false)
+        {
+            _single.Clear();
+            _single.Add(camera);
+            Update(device, _single, all);
+        }
 
         // The same, for what's within reach of any of the cameras.
         public void Update(GraphicsDevice device, IReadOnlyList<Vector3> cameras, bool all = false)
         {
             var reach = (int)MathF.Ceiling(DrawDistance / (Terrain.ChunkCells * _terrain.CellSize)) + 1;
             _wanted.Clear();
-            foreach (var camera in cameras)
+            for (var k = 0; k < cameras.Count; k++)
             {
+                var camera = cameras[k];
                 var ci0 = (int)MathF.Floor((camera.X - _terrain.OriginX) / (Terrain.ChunkCells * _terrain.CellSize));
                 var cj0 = (int)MathF.Floor((camera.Z - _terrain.OriginZ) / (Terrain.ChunkCells * _terrain.CellSize));
                 for (var cj = Math.Max(0, cj0 - reach); cj <= Math.Min(_terrain.ChunksZ - 1, cj0 + reach); cj++)
                     for (var ci = Math.Max(0, ci0 - reach); ci <= Math.Min(_terrain.ChunksX - 1, ci0 + reach); ci++)
                     {
                         var distance = Distance(ci, cj, camera);
-                        if (distance <= DrawDistance && !_chunks.ContainsKey((ci, cj)) && !_wanted.Exists(w => w.ci == ci && w.cj == cj))
+                        if (distance <= DrawDistance && !_chunks.ContainsKey((ci, cj)) && !IsWanted(ci, cj))
                             _wanted.Add((distance, ci, cj));
                     }
             }
@@ -100,6 +107,14 @@ namespace World.Rendering
                 _chunks[key].mesh.Dispose();
                 _chunks.Remove(key);
             }
+        }
+
+        private bool IsWanted(int ci, int cj)
+        {
+            foreach (var wanted in _wanted)
+                if (wanted.ci == ci && wanted.cj == cj)
+                    return true;
+            return false;
         }
 
         private void Build(GraphicsDevice device, int ci, int cj)

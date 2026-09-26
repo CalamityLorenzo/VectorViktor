@@ -1,8 +1,5 @@
-using MeshCore.Library;
-using MeshProps;
 using MeshRendering;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
 using System.Linq;
@@ -44,60 +41,36 @@ namespace Basic.World
         private const float StepTime = 1f / 60f;      // the world always moves on in steps of this
         private const float MaxFrame = 0.25f;     // after a stall, catch up no more than this, rather than fall through the world
 
-        private const float FogStart = 20f, FogEnd = 95f;   // metres
-
-        // The world's parts, in the order they're put together (see WorldBuilder): each district's pads are
-        // levelled over the ones before it. Where you can start (the optional command-line argument) is theirs.
-        private static IDistrict[] Districts() => new IDistrict[] { new Countryside(), new Town(), new Street(), new Lane() };
-        private const string DefaultStart = "hills";
-
         private readonly string _start;
-        private BasicEffect _basicEffect;
 
         private BuiltWorld _built;
         private PhysicsWorld _world;
         private Player _player;
-        private WorldView _worldView;
-        private readonly MeshBatch _batch = new MeshBatch();
-        private MeshInstance _playerView, _droneView;
-        private Color[] _playerColors;   // dry: as drawn, they're darker where wet
+        private WorldRenderer _renderer;
         private int _titleWetness = -1;
         private BuildingGround _ground;
         private float _pending;          // time not yet stepped through
         private bool _jumpPressed;       // since the last tick
         private bool _shotPressedE;
+        private readonly (Vector3 feet, float radius, float height)[] _walkers = new (Vector3, float, float)[1];   // who the doors must not swing into
 
         public Game1(string start = null) : base(WindowWidth, WindowHeight, LowResWidth, LowResHeight, colorsKey: Keys.C)
         {
-            _start = start ?? DefaultStart;
+            _start = start ?? WorldBuilder.DefaultStart;
         }
 
         protected override void LoadWorld()
         {
-            // Distance fades everything into the sky: otherwise, a long way off, the terrain's grid lines are
-            // closer together than the pixels are and the far hills turn solid white
-            _basicEffect = new BasicEffect(GraphicsDevice)
-            {
-                VertexColorEnabled = true, World = Matrix.Identity,
-                FogEnabled = true, FogColor = BackgroundColor.ToVector3(), FogStart = FogStart, FogEnd = FogEnd,
-            };
-
-            _built = WorldBuilder.Build(Districts());
+            _built = WorldBuilder.Build(WorldBuilder.Standard());
             _ground = _built.Ground;
             _world = _built.Physics;
             if (!_built.Starts.TryGetValue(_start, out var start))
-                start = _built.Starts[DefaultStart];
+                start = _built.Starts[WorldBuilder.DefaultStart];
             var dropFrom = start.Above > 0f ? _built.Terrain.HeightAt(start.At.X, start.At.Y) + start.Above : 0f;
             _player = new Player(new Vector3(start.At.X, dropFrom, start.At.Y), start.Yaw, _world);
 
-            // The terrain's built a chunk at a time round the camera, out to where the fog has hidden it all
-            _worldView = new WorldView(_built, GraphicsDevice, MeshCache, FogEnd + 15f);
-            _worldView.Update(GraphicsDevice, _player.Eye, _player.Body.Position, all: true);
-            _playerColors = PlayerMesh.Palette(new Color(50, 60, 120), new Color(200, 60, 40), new Color(230, 180, 140));
-            _playerView = MeshCache.CreateInstance(GraphicsDevice, new MeshSource("player", PlayerMesh.Build, _playerColors));
-            _droneView = MeshCache.CreateInstance(GraphicsDevice, new MeshSource("drone", DroneMesh.Build,
-                DroneMesh.Palette(new Color(90, 90, 100), new Color(60, 60, 65), new Color(40, 40, 45), new Color(120, 220, 230))));
-            _droneView.Scale = 1.5f;   // so it reads at low resolution, even a few metres off
+            _renderer = new WorldRenderer(_built, GraphicsDevice, MeshCache);
+            _renderer.BuildTerrain(_player);
             if (Shot?.Keys.Contains('v') == true)
                 _player.ToggleView();
             UpdateTitle();
@@ -108,25 +81,6 @@ namespace Basic.World
             _titleWetness = (int)MathF.Round(_player.Wetness * 100f);
             Window.Title = "Basic.World - " + (_player.View == ViewMode.FirstPerson ? "your view" : "drone view") +
                 (_player.Body.Swimming ? " - swimming" : "") + (_titleWetness > 0 ? $" - wet {_titleWetness}%" : "");
-        }
-
-        // Wet clothes are darker: the legs first, as you wade in, then the body and the head (see PlayerMesh's
-        // heights), as high as you've been soaked.
-        private static readonly (int part, float bottom, float top)[] Soakable =
-            { (PlayerMesh.Legs, 0f, 0.85f), (PlayerMesh.Body, 0.85f, 1.5f), (PlayerMesh.Head, 1.5f, 1.8f) };
-
-        private void DampenPlayer()
-        {
-            var soaked = _player.Wetness * Player.Height;
-            foreach (var (part, bottom, top) in Soakable)
-            {
-                var wet = MathHelper.Clamp((soaked - bottom) / (top - bottom), 0f, 1f);
-                for (var shade = 0; shade < 3; shade++)
-                {
-                    var dry = _playerColors[part + shade];
-                    _playerView.SetColor(part + shade, Color.Lerp(dry, Color.Lerp(dry, Color.Black, 0.45f), wet));
-                }
-            }
         }
 
         protected override void UpdateWorld(GameTime gameTime, KeyboardState keyboard)
@@ -149,7 +103,8 @@ namespace Basic.World
             _pending += MathF.Min((float)gameTime.ElapsedGameTime.TotalSeconds, MaxFrame);
             while (_pending >= StepTime)
             {
-                _ground.StepDoors(StepTime, _world.Bodies, new[] { (_player.Body.Position, CharacterController.Radius, Player.Height) });
+                _walkers[0] = (_player.Body.Position, CharacterController.Radius, Player.Height);
+                _ground.StepDoors(StepTime, _world.Bodies, _walkers);
                 _player.Step(input with { Jump = _jumpPressed }, StepTime, _world);
                 GoThroughPortals();
                 _world.Step(StepTime);
@@ -182,48 +137,15 @@ namespace Basic.World
         {
             if ((int)MathF.Round(_player.Wetness * 100f) != _titleWetness)
                 UpdateTitle();
-            DampenPlayer();
-
-            var body = _player.Body;
-            Vector3 eye, lookAt;
-            if (_player.View == ViewMode.FirstPerson)
-            {
-                eye = _player.Eye;
-                lookAt = eye + body.Heading;
-            }
-            else
-            {
-                eye = _player.Drone.Position;
-                lookAt = _player.Eye;
-            }
-            // The far plane is where the fog ends: past it everything's the background's colour anyway, and the
-            // batch leaves out whatever's beyond it
-            _basicEffect.View = Matrix.CreateLookAt(eye, lookAt, Vector3.Up);
-            _basicEffect.Projection = Matrix.CreatePerspectiveFieldOfView(
-                MathHelper.ToRadians(70f), GraphicsDevice.Viewport.AspectRatio, 0.1f, FogEnd);
-
-            // The meshes face +Z; a yaw of 0 here faces -Z (north), hence Pi - yaw
-            _playerView.Position = body.Position;
-            _playerView.Yaw = MathHelper.Pi - body.Yaw;
-            _droneView.Position = _player.Drone.Position;
-            _droneView.Yaw = MathHelper.Pi - _player.Drone.Yaw;
-
-            // Neither camera sees the thing it's in: from inside your own head (or the drone), you'd only
-            // see the inside of it. Turn round in your own view, though, and the drone's there, following.
-            _worldView.Update(GraphicsDevice, eye, body.Position);
-            _batch.Begin(_basicEffect.View, _basicEffect.Projection);
-            _worldView.Collect(_batch, eye, body.Position, Clock);
-            _batch.Add(_player.View == ViewMode.Drone ? _playerView : _droneView);
-            _worldView.DrawWindows(GraphicsDevice, _basicEffect, eye, body.Position, Clock, BackgroundColor, ColorsOn);
-            _batch.Draw(GraphicsDevice, _basicEffect, BackgroundColor, ColorsOn);
+            _renderer.Draw(_player, Clock, ColorsOn);
         }
 
         // Where everything ended up, beside the screenshot
         protected override void WriteShotReport(string path)
         {
             var report = new System.Text.StringBuilder().AppendLine($"player {_player.Body.Position}")
-                .AppendLine($"terrain chunks: {_built.Terrain.ChunksMade} of {_built.Terrain.ChunksX * _built.Terrain.ChunksZ} worked out, {_worldView.Terrain.Built} built in {_worldView.Terrain.BuildTime.TotalMilliseconds:F0} ms, {_worldView.Terrain.Drawn} drawn")
-                .AppendLine($"meshes: {_batch.Drawn} drawn, {_batch.Culled} culled, {_batch.DrawCalls} draw calls");
+                .AppendLine($"terrain chunks: {_built.Terrain.ChunksMade} of {_built.Terrain.ChunksX * _built.Terrain.ChunksZ} worked out, {_renderer.View.Terrain.Built} built in {_renderer.View.Terrain.BuildTime.TotalMilliseconds:F0} ms, {_renderer.View.Terrain.Drawn} drawn")
+                .AppendLine($"meshes: {_renderer.Batch.Drawn} drawn, {_renderer.Batch.Culled} culled, {_renderer.Batch.DrawCalls} draw calls");
             foreach (var thing in _built.Things.Select(t => t.Body))
                 report.AppendLine($"{thing.Name} {thing.Position} size {thing.Size} resting {thing.Resting} on {(thing.Floating ? "water" : thing.Support?.Name ?? "ground")}");
             System.IO.File.WriteAllText(path, report.ToString());
@@ -233,8 +155,7 @@ namespace Basic.World
         {
             if (disposing)
             {
-                _worldView?.Dispose();
-                _basicEffect?.Dispose();
+                _renderer?.Dispose();
             }
             base.Dispose(disposing);
         }

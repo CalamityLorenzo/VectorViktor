@@ -29,6 +29,12 @@ namespace Basic.World
 
     public static class WorldBuilder
     {
+        // The world's parts, in the order they're put together: each district's pads are levelled over the ones
+        // before it. Where you can start (the optional command-line argument) is theirs.
+        public static IDistrict[] Standard() => new IDistrict[] { new Countryside(), new Town(), new Street(), new Lane() };
+
+        public const string DefaultStart = "hills";
+
         private static void Unique(IEnumerable<string> names, string what)
         {
             var seen = new HashSet<string>();
