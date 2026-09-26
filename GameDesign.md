@@ -6,9 +6,17 @@ Design notes, not plans. Nothing here is to be built yet, and most of it isn't f
 
 You operate a droid: a robot, an artificial thing. **It is damaged.** You see the world through it, and all it can broadcast is this low-polygon, low-resolution picture. **The world has no colour.**
 
-Over the whole game you **slowly repair the droid** (each repair gives it more it can do, and so more options) and you **put the missing colour back into the world**. There are **several worlds in the same solar system** to travel between.
+The droid starts off as little more than a head on a broom handle, shaped like an urn on a stick. The head is a fat cylinder with a ruby-coloured bar across its face where eyes would be; the urn's two handles are its ears, each with a little radar dish in it that moves about at random, sampling the air. The broom handle balances on a pair of hoverboard wheels (so no stairs), with wires running from the head down to the wheels as its spinal cord. Its one arm is another stick of wood with two forks for a hand. It is not humanoid, and moves like a Segway.
+
+You will be able to replace arms, add different types of locomotion (tracks, legs, more wheels), long arms, strong arms, new body like a dustbin, a cupboard etc. How many implements the droid can carry depends on how big a body it has. The head, spine and drone all part of the droid. The head camera sits inside the ruby visor, which runs the width of the head, and can turn and move within it independently of the head itself: if the head is lying on the floor without a body and you need a better view of something, you just turn the camera. It has several features, including zoom, 'identify' and recording. This camera and its view is your view on the world. **Mirrors** are how you see the droid itself, and watch it get better as it's repaired. But the droid's own memories can influence it, making it an unreliable narrator in places.
+
+Over the whole game you **slowly repair the droid** (each repair gives it more it can do, and so more options) and you **put the missing colour back into the world**. 
+
+There are **several worlds in the same solar system** to travel between.
 
 It is a **puzzle adventure**: find X to do Y. There is **action, and violence**, too. There is a **narrative**, which unfolds as the robot recovers.
+
+**The story.** You, the player, are the **operator**. You have completed some training (the tutorial) and have been given command of this droid. It went missing, and has recently begun broadcasting again. Your orders are to gain control of it and get it off the planet to a **satellite orbiting a different planet** (not the space station): the planet it was meant to be on. But the droid is on the **wrong planet** in the solar system. How did it get there? And how do you get it back? **Your orders, and what your droid remembers, tells you and sees, are not always honest.** Reaching the satellite is *one* way to end the game, but probably not the best one.
 
 It is **not a linear run** through the worlds: you are **free to roam**, and can go back to earlier places with new abilities.
 
@@ -16,11 +24,12 @@ Everything else in this document either follows from that or is a way of making 
 
 ### How the premise shapes what the player sees
 - **The picture is the droid's broadcast.** The low-resolution render, hard pixels, letterbox and wireframe are the droid's limits, not the game's. Colourless, white edges on a plain background, is what the world looks like *to it*, and is the state everything starts in (the wireframe view the game is meant to be mainly played in).
-- **The HUD is the droid's own console**, and its messages are how the narrative arrives: what it notices, what it can't do yet, what it remembers. Today the picture has no text at all (the window title shows how wet you are), so there is no HUD yet.
-- **Being damaged is felt.** Early on it is slow and limited, the picture may glitch or drop out, and things it can't do yet are simply not there (no jump, no arms, no drone, a short link). Repairs remove those limits one at a time.
+- **The HUD is the droid's own console**, and its messages are how the narrative arrives: what it notices, what it can't do yet, what it remembers. Your **orders** arrive on it too, so it carries two voices, the droid's and command's, and neither is always honest (see 3.7). Today the picture has no text at all (the window title shows how wet you are), so there is no HUD yet.
+- **Being damaged is felt.** Early on it is slow and limited, the picture may glitch or drop out, and things it can't do yet are simply not there (no jump, no stairs, one crude arm, no drone, a short link). Repairs remove those limits one at a time.
 - **The broadcast could improve as it's repaired** (see question 2): colour first, and perhaps also resolution, how far it can see, or how much detail comes through. This is an idea, not a decision.
-- **Controls with weight**: each way of moving (legs, wheels, tracks) accelerates, turns and stops differently, and the operator's inputs go through the machine. Heavy lag is less fun, so this wants restraint.
-- **Waking and sleeping**: a session starting as the droid coming on, damaged, and ending as the link closing, costs almost nothing and sets the frame.
+- **Mirrors are how the droid sees itself.** Its view is from its own head, so it never sees its body except in a mirror (or from the drone, once it has one). Mirrors placed through the worlds let the player see what the droid has become, and each repair shows: a new arm, new wheels, a new body.
+- **Controls with weight**: each way of moving (legs, wheels, tracks) accelerates, turns and stops differently, and the operator's inputs go through the machine. The starting hoverboard wheels balance like a Segway: the droid leans into moving off, leans back to stop, turns on the spot and wobbles as it settles. Heavy lag is less fun, so this wants restraint.
+- **Waking and sleeping**: a session starting as the droid coming on, damaged, and ending as the link closing, costs almost nothing and sets the frame. It is also the story's opening: a missing droid broadcasting again, and a newly trained operator taking command of it.
 
 ## 2. The loop, and what it needs
 
@@ -37,14 +46,29 @@ What that needs that the game doesn't have today, in one place (see 4): a game s
 ## 3. Feature areas
 
 ### 3.1 The droid: components and repairs
+- **The starting droid** is not humanoid; its outline is an urn on a broom handle:
+  - **Head**: a fat cylinder, with an elongated ruby-coloured visor across the face where the eyes would be. The head camera is inside the visor (see 3.2).
+  - **Ears**: two hoops on the sides of the head, like an urn's handles, each holding a little radar dish that moves around at random, sampling the air.
+  - **Spine**: a broom handle, with wires running from the head down to the wheels.
+  - **Arm**: another stick of wood, with two forks for a hand.
+  - **Wheels**: a pair of hoverboard wheels, self-balancing like a Segway. On two wheels it can't climb stairs, only ramps and low kerbs.
 - **Replaceable components**: arms, legs and body, each changing height, speed and how it moves; they are the repairs, and what's missing is what limits it.
-- **Ways of moving**: legs, wheels, tractor tracks, and stranger ones such as strapped on top of a toy. Different ones suit different worlds and puzzles.
+- **The body is what it carries in**: how many implements the droid can carry depends on how big a body it has, so a dustbin or a cupboard is more room as well as a new shape. The starting droid has no body at all, so it can hold only what's in its fork hand; a bigger body could also be a trade-off, carrying more at the cost of speed or of fitting through gaps.
+- **Ways of moving**: the hoverboard wheels it starts on (self-balancing, like a Segway), legs, more wheels, tractor tracks, and stranger ones such as strapped on top of a toy. Different ones suit different worlds and puzzles.
 - **Abilities gate options**: a repair opens what the droid can reach, carry, open, climb or fight with. Arms are what let it hold an implement, so a weapon needs them (see 3.6).
-- Today: one walker (`CharacterController`, fixed height, radius and speeds from `WorldConstants`), drawn as a seven-box mesh (`PlayerMesh`) that darkens when wet. Its body sizes are constants, so a component changing its height or width means making them values of the droid.
+- Today: one humanoid walker (`CharacterController`), drawn as a seven-box mesh (`PlayerMesh`) that darkens when wet. The starting droid would change it in three ways:
+  - **Its shape.** The walker is a 1.8 m capsule of 0.3 m radius with its eye at 1.6 m, all constants in `WorldConstants`. The droid needs its own sizes, and since components change them, they become values of the droid rather than constants. A two-wheeled base is wide from side to side and short from front to back, which a round capsule only approximates.
+  - **Its movement.** The walker reaches the speed asked for almost at once (`GroundAcceleration`), steps up 0.3 m (`MaxStepUp`, enough for stairs), jumps and swims. Segway movement means a slower lean-in and lean-back, a visible tilt and wobble, no jump, and a step-up of only a kerb's height; all of those belong to the locomotion component.
+  - **Its mesh.** A droid made of parts (head, visor, ears and dishes, broom, wheels, arm, wires) is best built as a mesh per part, so a component can be swapped by swapping its mesh, and the lean can tilt the parts above the wheels. The ear dishes are the first parts of the player that move by themselves; a wandering aim that is a smooth function of time would do it, the way `ScenePart` moves the hangar's turntables.
 
-### 3.2 The drone camera
-- A separate camera machine, with its own control scheme in drone mode and a distance limit from the droid: at the limit the picture and the link degrade, and past it the link drops. In fact, a possibility is the drone drops and has to be collected again. It suits the premise (a second thing sending pictures) and can itself be something to repair or find.
-- Today: it follows the player on a spring (3 m behind, 2 m up), keeps in sight, and stays clear of the ground and walls; you can't steer it and there is no range.
+### 3.2 The cameras: the head camera and the drone
+- **The head camera** is the player's view. It sits inside the ruby visor, which runs the width of the head, and can turn (and slide along the visor) independently of the head. That matters most when the droid is at its most broken: a head lying on the floor with no body can't turn itself, but its camera can turn to get a better view.
+- **Its features**: zoom, 'identify' and recording.
+- **Mirrors** show the droid to itself (see 1): its body is only ever seen in them, or from the drone.
+- Today: the first-person view is the walker's eye, 1.6 m up, looking straight along the body's heading: it turns only when the body turns, and it can't look up or down. A head camera needs its own direction (yaw and pitch) relative to the head, limited to what the visor allows, and its own controls.
+- Today, for mirrors: nothing reflects, and the first-person view doesn't draw the player's own mesh. The nearest thing is the window portals (`WindowPortals`), which draw another scene masked to a quad by the stencil. A mirror is the same trick with the world itself as the scene, seen from the camera reflected in the mirror's plane (with the triangles' winding flipped, and whatever is behind the mirror cut away), and the droid's own mesh drawn in it. Each mirror in view is another pass over the scene, so a few small ones are cheap and a hall of them isn't.
+- **The drone** is a separate camera machine, with its own control scheme in drone mode and a distance limit from the droid: at the limit the picture and the link degrade, and past it the link drops. In fact, a possibility is the drone drops and has to be collected again. It suits the premise (a second thing sending pictures) and can itself be something to repair or find.
+- Today: the drone view is toggled with the first-person view; the drone follows the player on a spring (3 m behind, 2 m up), keeps in sight, and stays clear of the ground and walls; you can't steer it and there is no range.
 
 ### 3.3 Restoring the colour: the central mechanic
 The world's colour is missing; putting it back is the game's progress, and the most visible part of it. This is where the earlier ideas of *colouring in a mesh one colour at a time* and *painting the sides of objects* belong: the player is the one doing it. The way it would work is a design question (see question 1): by colour (find red, and reds return), by object or place, or by world.
@@ -56,7 +80,8 @@ The world's colour is missing; putting it back is the game's progress, and the m
 - **Several worlds in one solar system**, each its own place with its own look and puzzles, reached by travelling.
 - Today a world is a list of districts and a seed (`WorldBuilder.Build(districts, seed)`): a second world is a second list, with its own terrain, buildings and starts. Going elsewhere is done by portals to scenes off the map (the corridor and the hangar are two).
 - **Leaving the planet.** Space is somewhere you fly to. A vehicle launches, climbs through the clouds, the sky darkens, and it's in space with the planet below in **bands of light around its edge**. The reference picture is a flat-shaded, dithered planet from orbit, at a shallow angle, the atmosphere a few soft-edged bands, a galaxy smudge in the stars; it fits the limited-colour look.
-- **It can't stay.** The vehicle doesn't have the power to stay up, and is pulled back down, unless it docks at the **space station**, which flies overhead at times of the day and can be launched up to. This can also be what gates travel: to reach another world takes more power, or stepping stones, and so more repairs.
+- **The goal is a satellite orbiting a different planet**, the one the droid was meant to be on: the orders are to get the droid off the planet it's on and to that satellite (see 3.7), so reaching it means crossing the solar system. It is not the space station below.
+- **It can't stay.** The vehicle doesn't have the power to stay up, and is pulled back down, unless it docks at the **space station**, which flies overhead at times of the day and can be launched up to. The station is a way off the planet, not the goal: a stepping stone on the way to the satellite. It can also be what gates travel: to reach another world takes more power, or stepping stones, and so more repairs.
 - Today: a space plane mesh exists (`SpacePlaneMesh`, a prop in Basic.Levels only, not in the world). Nothing flies: the walker's gravity and movement are for the ground, and the drone is a spring-follow camera. The sky is one solid colour (the background, also the fog's), the far plane is the fog's end (95 m) and terrain is built only within about 110 m of the camera, so nothing large or distant is drawn.
 - What it would need: an altitude-dependent sky, clouds to fly through, the planet from orbit as a scene of its own (a curved rim of flat-shaded patches, the atmosphere as a small number of concentric flat bands with dither), a power budget with a gravity that pulls back, docking, and a movement model for flight.
 
@@ -74,17 +99,38 @@ Break wood to uncover hole.
   2. **Pistols.**
   3. **A rifle.**
   4. **A sci-fi laser gun**: it really damages enemies, and **can bore holes in certain items**, which makes it a puzzle tool as well as a weapon (a way through a wall or a door, something to cut open).
-- **Enemies**, and things that hurt the droid (it is already damaged, and can be damaged further). What they are is open (question 5).
+- **Enemies**, and things that hurt the droid (it is already damaged, and can be damaged further).
+  - **The first section's enemies are small tank-like vehicles that look like converted vacuum cleaners.** They fire projectiles at the droid, at a fairly slow rate.
+  - **They are spawned at points through the story**, so where and when they appear follows the story (3.7) and the game state (section 4) rather than being fixed in the map.
+  - **At first they are more of a nuisance than a threat**, but they can **travel in packs** and **co-ordinate their firing**, so a group is more dangerous than its members.
+  - **Before it has a weapon, the droid deals with them by its wits**: **avoiding** them, **tricking them into shooting each other** (getting between them, then out of the way), and **dropping a heavy box on them**. Fighting starts as a kind of puzzle, and the pack's co-ordinated fire is also what makes it easy to turn on itself.
+  - Enemies in later sections, and whether they differ between worlds, are still open (question 5).
 - **Effects**: particles for water splashes, backfire and explosions, and for hits and the laser.
 - How it would fit what exists:
-  - **Arms and repairs.** Wielding anything needs the droid to have arms, so the first implement is itself a reward for a repair (3.1).
+  - **Arms and repairs.** Wielding anything needs the droid to have arms, so the first implement is itself a reward for a repair (3.1). How many it can carry at once depends on how big its body is (3.1).
   - **Melee** can use the physics already there: crates and lockers take forces and topple, so a swing can knock things over.
   - **Ranged weapons** need a line from the droid to what it hits. Today `ClearLine` finds where a line meets the terrain, walls and ceilings (it is how the drone keeps you in sight), but not bodies or enemies; that is the missing piece for pistols, the rifle and the laser.
   - **Boring holes** is changing the world's shape while the game runs: a wall or an object gets a hole, and things can go through it. Today a building's walls are solid walls to collide with (kept in a grid for speed, built once) and every mesh is built once. The pattern the game already uses for something that changes is two meshes swapped by state (the cottages' windows: a shut one and an open one, shown by where you stand). A boreable item could be the same: a whole one and a bored one, swapped when hit, with its collision changed to match. It would also want to be in the game state (3.5, section 4) so a hole stays a hole.
+  - **The vacuum-cleaner tanks** need three things the game doesn't have:
+    - **Driving with a purpose.** Each tank moves on the ground like a walker, but steers itself: towards the droid, keeping a distance, turning to aim. It can use `ClearLine` to tell whether it can see the droid past the terrain and walls, the same test the drone uses to keep you in sight.
+    - **Projectiles.** A slow rate of fire means only a few shots in flight at once, each a small moving thing stepped every tick and tested against the world (the line from where it was to where it is now) and against the droid. Slow projectiles can be seen coming and dodged, which suits the Segway's slow handling.
+    - **A pack.** Co-ordinated fire wants something above the individual tanks: a pack that picks where each one goes (spread around the droid, say) and when they fire together. Its members are still ordinary tanks; the pack only gives orders.
+    - **Being beaten without a weapon.** Friendly fire means a tank's projectiles are tested against the other tanks too, not only against the droid. A dropped box means the physics bodies (crates and the like, which can already be pushed, stacked and toppled) hurting what they land on: a hit from a body falling fast enough, or heavy enough, crushes or wrecks a tank. Both need tanks to have damage, like the droid.
   - **The droid's own weapons and ammunition**: pistols, the rifle and the laser could run on the droid's power, on ammunition to be found, or both (question 5).
 - Today: nothing to fight with or against. The world's other bodies are crates and the like, moved by pushing; only the player and the drone are walkers, so enemies need a general list of walkers (the review plan's 5.5). There is no dynamic vertex data for particles, nothing to pick up or hold, and no damage.
 
 ### 3.7 The narrative
+- **The setup** (see 1): you are the operator, fresh from training, given command of a droid that went missing and has begun broadcasting again. Your orders: gain control of it, and get it off the planet to a satellite orbiting a different planet, the one it was meant to be on. It is on the wrong planet.
+- **The questions that drive it**: how did the droid get to the wrong planet, why did it go missing, why is it broadcasting again now, and how do you get it back?
+- **Two unreliable sources**, and the player has to work out which to trust:
+  - **Your orders**, from whoever gave you command: what you're told to do, and why.
+  - **The droid**: what it remembers, what it tells you on its console, and what its camera shows, since its memories can influence the picture.
+- **Ways the truth could come out** (ideas, not decisions):
+  - **The cameras as evidence.** 'Identify' and recording let the player check a claim: record something, play it back later, compare it with what the orders or the droid said. The drone sees without the droid's memories, so it can show where the head camera is wrong; mirrors show what the droid really is.
+  - **Repairs change the story.** Repairing the droid's memory could make it more reliable, or show that its memories were right and the orders weren't.
+  - **Orders that are plainly wrong** once the player has seen enough, so obeying them becomes a choice.
+- **More than one ending.** Doing as ordered and reaching the satellite ends the game, but it is probably not the best ending. Since the orders aren't honest, the better endings presumably come from finding out the truth and acting on it.
+- **The tutorial is training**, so it belongs in the story: the operator learning the controls before being given command. It could be a simulator, or a practice droid somewhere safe.
 - Told as the droid recovers: in what it says and remembers, in what the worlds hold, and in what each repair or restored colour unlocks. It should be tied to the game state (3.5) so that story beats are gated by what's been done.
 - Needs text on screen (the console, in 1) and a way of scripting what is said and when.
 
@@ -133,5 +179,8 @@ Trees, tunnels and crossings can be done any time; trees are cheap to try one at
 2. **Does the broadcast improve?** Beyond colour, do repairs also raise the picture's resolution, how far it can see, or the detail that comes through, or is colour the only thing that changes?
 3. **Lights while colourless:** the world starts as wireframe, where a room can't get darker by changing colours. Do lamps' pools and room lights show at all before colour returns? If so, how: edges dimmed or dashed in an unlit room, faces tinted by a pool, or is light one of the things that gets restored?
 4. **The flying vehicle and travel:** is the vehicle the droid itself (flight as a way of moving, fitted like legs or wheels), or a separate craft it controls? When its power runs out does it fall (and crash, or land), glide, or get hauled back? Is power what limits how far apart the worlds can be?
-5. **Enemies and ammunition:** the weapons run from a bat or shovel up to a laser that bores holes. What does the droid fight (other machines, creatures, the worlds' defences), do the enemies differ between worlds, and roughly how much of the game is action against puzzle? Do the guns use ammunition to be found, the droid's power, or both, and can the droid carry more than one implement at a time?
+5. **Enemies and ammunition:** the weapons run from a bat or shovel up to a laser that bores holes. The first section's enemies are known (small vacuum-cleaner tanks, see 3.6). Before it has a weapon, the droid avoids them, tricks them into shooting each other, or drops a heavy box on them (answered). What does it fight in later sections, do the enemies differ between worlds, and roughly how much of the game is action against puzzle? Do the guns use ammunition to be found, the droid's power, or both? (How many implements it can carry depends on how big a body it has: answered, see 3.1.)
 6. **What stops the player getting somewhere too early?** With free roaming, is it the droid's abilities and power alone (it simply can't reach or survive it yet), or also the world itself (danger, distance, a locked way)? And does the droid have to be able to travel between worlds before it can leave the first, or is there more than one world within reach from the start?
+7. **The satellite** (answered: it orbits the planet the droid was meant to be on, and is not the space station; reaching it is one way to end the game, but probably not the best one).
+8. **Who gives the orders, and why aren't they honest?** Does the player find out, and how? Can the player disobey them? Reaching the satellite is one ending and not the best: what are the others, roughly how many are there, and what earns the best one?
+9. **Is the missing colour part of the story?** Is it damage in the droid's camera, something that happened to the wrong planet, or something the droid's memories are hiding? And is the droid's being on the wrong planet tied to it?
