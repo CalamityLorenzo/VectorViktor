@@ -5,7 +5,7 @@
 // Run it in Release for timings (a Debug build is slower, and also runs the debug-only checks, which is what to run
 // it in to see whether a mesh is malformed). Draws go to an off-screen target the size of the game's low-res one, so
 // they cost what the game's do; the numbers are this machine's, for comparing before and after a change.
-using Basic.World;
+using Maps.Home;
 using MeshRendering;
 using Microsoft.Xna.Framework;
 using Color = Microsoft.Xna.Framework.Color;
@@ -17,6 +17,7 @@ using System.Text;
 using World.Core;
 using World.Core.Characters;
 using World.Core.Movement;
+using World.Maps;
 
 const int LowResWidth = 640, LowResHeight = 256;   // as the game's
 const float StepTime = 1f / 60f;
@@ -37,7 +38,7 @@ using var target = new RenderTarget2D(device, LowResWidth, LowResHeight, false, 
 using var cache = new MeshCache();
 
 var loadTime = Stopwatch.StartNew();
-var built = WorldBuilder.Build(WorldBuilder.Standard());
+var built = WorldBuilder.Build(HomeMap.Districts());
 using var renderer = new WorldRenderer(built, device, cache);
 var loaded = loadTime.Elapsed;
 

@@ -195,10 +195,12 @@ This refines the five steps suggested earlier.
   - `Animator` and `ClipPlayer`: layered clips with fade in and out; a non-looping clip holds its end pose.
 - **`World.Core/Characters/DroidRig`**: the starting droid's rig (section 7), with the procedural drivers `Roll`, `Tilt`, `Look`, `CameraView` and `Listen`, and a keyframed `Wave` clip.
 - **`World.Rendering/DroidMesh`**: a mesh per part, sharing one palette. The head, visor and tyres are outlined per view, so they read as round in wireframe. **`World.Rendering/RigScene`**: turns a rig posed by a function of time into `ScenePart`s, so it goes through the existing moving-parts path (and through windows).
-- **`Basic.World/DroidDisplay`**: the droid on show a few metres south of the start. It rocks on its wheels, leaning into each start and stop; its camera runs round the visor; its dishes wander; every seven seconds it waves. Start `Basic.World droid` to stand in front of it.
+- **`Maps.Home/DroidDisplay`** (in `Basic.World` until the world moved into libraries, [ToolsPlan.md](ToolsPlan.md) step 1): the droid on show a few metres south of the start. It rocks on its wheels, leaning into each start and stop; its camera runs round the visor; its dishes wander; every seven seconds it waves. Start `Basic.World droid` to stand in front of it.
 - **Tests**: 26 in `World.Core.Tests/AnimationTests.cs` (130 in that project now), including the droid's cables staying joined and short while it rolls, leans and waves. The droid's meshes are checked by `Meshes.Tests` through the world's moving parts.
 
-### Step 2: live rigs, and the droid as the player
+### Step 2: live rigs, and the droid as the player (partly done 2026-09-27, in the playground)
+Done in [ToolsPlan.md](ToolsPlan.md) step 2: `RigView` (a live rig, following part swaps and cables), `DroidMotion` (wheels rolled each their own distance, lean from acceleration), and the droid as the player in `Droid.Playground`, with its head camera run round the visor by keys. Still to do: the droid as the player in the game itself, with its own size in place of the walker's.
+
 - A `RigView` (World.Rendering) for rigs driven by the simulation rather than by a clock: it keeps a `MeshInstance` per node, follows `RigNode.Part` changes, and adds them to the batch. `RigScene` suits things on show; this suits the player.
 - Swap the walker's `PlayerMesh` for the droid's rig. `Roll` is driven by distance moved, `Tilt` by acceleration, and the camera view comes from `DroidRig.CameraView`. This overlaps GameDesign.md 3.1's droid work (its size, its Segway movement), so it may belong there instead.
 - Head camera controls: running round the rail and pitching within the band.

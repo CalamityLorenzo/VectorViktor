@@ -174,11 +174,14 @@ namespace World.Core.Characters
 
         // The wheels, turned by how far the droid has rolled forward (backward, less than nothing): as far round their
         // rims as it's gone, so they don't slip.
-        public static void Roll(Rig rig, float distance)
+        public static void Roll(Rig rig, float distance) => Roll(rig, distance, distance);
+
+        // Each wheel by how far it has rolled on its own: they differ when it turns, and go opposite ways when it
+        // turns on the spot (see DroidMotion).
+        public static void Roll(Rig rig, float left, float right)
         {
-            var turn = Pose.Turn(Vector3.UnitX, distance / WheelRadius);
-            rig.Change(WheelLeft, p => p with { Rotation = turn });
-            rig.Change(WheelRight, p => p with { Rotation = turn });
+            rig.Change(WheelLeft, p => p with { Rotation = Pose.Turn(Vector3.UnitX, left / WheelRadius) });
+            rig.Change(WheelRight, p => p with { Rotation = Pose.Turn(Vector3.UnitX, right / WheelRadius) });
         }
 
         // Tilts everything above the wheels forward (backward, less than nothing) about the axle, by `angle` radians.

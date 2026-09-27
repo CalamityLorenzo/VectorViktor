@@ -1,3 +1,4 @@
+using Maps.Home;
 using MeshRendering;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
@@ -7,6 +8,7 @@ using World.Buildings;
 using World.Core.Characters;
 using World.Core.Movement;
 using World.Core.Physics;
+using World.Maps;
 
 namespace Basic.World
 {
@@ -61,17 +63,17 @@ namespace Basic.World
         // `followBird`: seen from the camera chasing the bird, to begin with.
         public Game1(string start = null, bool followBird = false) : base(WindowWidth, WindowHeight, LowResWidth, LowResHeight, colorsKey: Keys.C)
         {
-            _start = start ?? WorldBuilder.DefaultStart;
+            _start = start ?? HomeMap.DefaultStart;
             _followBird = followBird;
         }
 
         protected override void LoadWorld()
         {
-            _built = WorldBuilder.Build(WorldBuilder.Standard());
+            _built = WorldBuilder.Build(HomeMap.Districts());
             _ground = _built.Ground;
             _world = _built.Physics;
             if (!_built.Starts.TryGetValue(_start, out var start))
-                start = _built.Starts[WorldBuilder.DefaultStart];
+                start = _built.Starts[HomeMap.DefaultStart];
             var dropFrom = start.Above > 0f ? _built.Terrain.HeightAt(start.At.X, start.At.Y) + start.Above : 0f;
             _player = new Player(new Vector3(start.At.X, dropFrom, start.At.Y), start.Yaw, _world);
             _bird = new Bird(start.At, _ground.SkylineAt, start.Yaw);

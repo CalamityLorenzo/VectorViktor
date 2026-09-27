@@ -17,4 +17,12 @@
   <Project Path="World.Buildings/World.Buildings.csproj" />
   <Project Path="World.Core/World.Core.csproj" />
   <Project Path="World.Rendering/World.Rendering.csproj" />
+  <Folder Name="/Tools/">
+    <Project Path="Tools.DearImGui/Tools.DearImGui.csproj" />
+    <Project Path="Droid.Playground/Droid.Playground.csproj" />
+  </Folder>
+  <Folder Name="/Maps/">
+    <Project Path="World.Maps/World.Maps.csproj" />
+    <Project Path="Maps.Home/Maps.Home.csproj" />
+  </Folder>
 </Solution>

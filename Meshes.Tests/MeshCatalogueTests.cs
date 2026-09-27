@@ -1,4 +1,4 @@
-using Basic.World;
+using Maps.Home;
 using MeshCore.Library;
 using MeshProps;
 using MeshProps.Helpers;
@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using World.Maps;
 using World.Rendering;
 using Xunit;
 
@@ -88,7 +89,7 @@ namespace Meshes.Tests
 
         // ---- What the world is made of
 
-        private static readonly Lazy<BuiltWorld> World = new Lazy<BuiltWorld>(() => WorldBuilder.Build(WorldBuilder.Standard()));
+        private static readonly Lazy<BuiltWorld> World = new Lazy<BuiltWorld>(() => WorldBuilder.Build(HomeMap.Districts()));
 
         [Fact]
         public void Everything_the_world_draws_from_a_source_builds_to_a_sound_mesh_its_palette_covers()

@@ -53,6 +53,9 @@ namespace World.Buildings
 
         public IReadOnlyList<Building> Buildings { get; }
 
+        // Every wall there is to walk into (the buildings', and the free-standing ones), for looking at: tools draw them.
+        public IReadOnlyList<WallSegment> Walls => _walls;
+
         public BuildingGround(IGround terrain, IReadOnlyList<Building> buildings, IEnumerable<WallSegment>? walls = null)
         {
             _terrain = terrain;

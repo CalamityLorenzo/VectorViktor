@@ -1,26 +1,20 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <!-- The home map, built in code (see HomeMap): the country round where you start, the town, the street and the
+       lane. A map library: it references World.Maps for what a map is, and any app that wants this map references
+       it. -->
   <PropertyGroup>
+    <!-- Moved from the game, which was written without null checks (see Directory.Build.props) -->
     <Nullable>disable</Nullable>
-    <OutputType>WinExe</OutputType>
-    <RollForward>Major</RollForward>
-    <PublishReadyToRun>false</PublishReadyToRun>
-    <TieredCompilation>false</TieredCompilation>
-    <UseWindowsForms>true</UseWindowsForms>
-  </PropertyGroup>
-  <PropertyGroup>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
-    <ApplicationIcon>Icon.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="MonoGame.Framework.WindowsDX" />
-    <PackageReference Include="MonoGame.Content.Builder.Task" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\World.Maps\World.Maps.csproj" />
-    <ProjectReference Include="..\Maps.Home\Maps.Home.csproj" />
     <ProjectReference Include="..\World.Core\World.Core.csproj" />
     <ProjectReference Include="..\World.Buildings\World.Buildings.csproj" />
     <ProjectReference Include="..\World.Rendering\World.Rendering.csproj" />
+    <ProjectReference Include="..\MeshCore.Library\MeshCore.Library.csproj" />
     <ProjectReference Include="..\MeshRendering\MeshRendering.csproj" />
     <ProjectReference Include="..\MeshProps\MeshProps.csproj" />
   </ItemGroup>
