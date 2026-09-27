@@ -1,5 +1,6 @@
 using MeshCore.Library;
 using MeshProps;
+using MeshRendering;
 using Microsoft.Xna.Framework;
 using System.Collections.Generic;
 using World.Core;
@@ -12,7 +13,7 @@ namespace Basic.World
     // lake and the pond. Its ground is the terrain's own; what it adds are the things lying about to push, stack,
     // climb, drop and knock over. Most are in view from the start, ahead of you to the north-east; two more wait
     // near the plateau's sheer south edge, to be pushed off it, and the COLA crate and an armchair stand on top of
-    // it. Two float on the pond.
+    // it. Two float on the pond. The starting droid is on show a few metres south of the start (see DroidDisplay).
     public sealed class Countryside : IDistrict
     {
         public IReadOnlyDictionary<string, Start> Starts { get; } = new Dictionary<string, Start>
@@ -25,7 +26,11 @@ namespace Basic.World
             ["lockers"] = new(new Vector2(-3f, -3f), MathHelper.PiOver2),                   // facing the first locker, to push it over
             ["far"] = new(new Vector2(300f, 300f), -MathHelper.PiOver4),                      // out in the far country, looking back towards home
             ["pond"] = new(TerrainGenerator.PondCentre + new Vector2(TerrainGenerator.PondRadius + 3f, 0f), -MathHelper.PiOver2),   // east of it, facing it
+            ["droid"] = new(DroidDisplay.WatchFrom, MathHelper.Pi),                           // facing the droid on show
         };
+
+        // The starting droid, on show (see DroidDisplay)
+        public IEnumerable<ScenePart> Moving(Terrain terrain) => DroidDisplay.Parts(terrain);
 
         public IEnumerable<Thing> Things(PhysicsWorld world, Terrain terrain)
         {
