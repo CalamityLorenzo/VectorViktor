@@ -8,11 +8,13 @@ namespace MeshRendering
     // What the retro-look games share: a window (F11 for borderless full screen, Escape to exit), drawn to a
     // small render target and scaled up with hard pixels, the largest whole number of times that fits (L turns
     // that off), colours on or off for the wireframe look (see MeshInstance), and a MeshCache for the game's
-    // meshes. A game gives its own LoadWorld, UpdateWorld and DrawWorld.
+    // meshes. A game gives its own LoadWorld, UpdateWorld and DrawWorld, and, if it wants, DrawOverlay: drawn over the
+    // scaled-up picture at the window's own resolution (a tool's panels, say).
     //
     // For development, BASIC_WORLD_SHOT="file.png;seconds;keys" saves one low-resolution frame to the file after
     // that many seconds (default 3) - and whatever else WriteShotReport writes, beside it - then exits, with no
-    // need of the screen. What the keys mean is the game's business (see Shot).
+    // need of the screen. What the keys mean is the game's business (see Shot). With ShotOfWholeWindow, the file is
+    // the whole window instead, overlay and all.
     public abstract class RetroGame : Game
     {
         protected static readonly Color BackgroundColor = RetroStyle.Background;
@@ -33,6 +35,10 @@ namespace MeshRendering
         protected bool LowResOn { get; private set; } = true;
         protected ScreenShot? Shot { get; } = ReadShot();
         protected float Clock { get; private set; }   // seconds drawn so far
+
+        // Where the picture is in the window (scaled up, it's centred with a border), as of the last frame: to turn a
+        // mouse position into a point on the picture.
+        protected Rectangle PictureArea { get; private set; }
 
         // `colorsKey` toggles the colours (not Tab, which Alt+Tab would press on the way out).
         protected RetroGame(int windowWidth, int windowHeight, int lowResWidth, int lowResHeight, Keys colorsKey)
@@ -72,18 +78,29 @@ namespace MeshRendering
 
         protected abstract void LoadWorld();
 
+        // While true, the keyboard is someone else's (a tool's text box): Escape, F11 and the toggles are left alone.
+        protected virtual bool KeyboardCaptured => false;
+
+        // Whether a screenshot (see Shot) is of the whole window, overlay and all, rather than the low-resolution picture.
+        protected virtual bool ShotOfWholeWindow => false;
+
         protected sealed override void Update(GameTime gameTime)
         {
             var keyboard = Keyboard.GetState();
 
-            if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || keyboard.IsKeyDown(Keys.Escape))
+            if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed)
                 Exit();
-            if (Pressed(keyboard, Keys.F11))
-                Graphics.ToggleFullScreen();
-            if (Pressed(keyboard, _colorsKey))
-                ColorsOn = !ColorsOn;
-            if (Pressed(keyboard, Keys.L))
-                LowResOn = !LowResOn;
+            if (!KeyboardCaptured)
+            {
+                if (keyboard.IsKeyDown(Keys.Escape))
+                    Exit();
+                if (Pressed(keyboard, Keys.F11))
+                    Graphics.ToggleFullScreen();
+                if (Pressed(keyboard, _colorsKey))
+                    ColorsOn = !ColorsOn;
+                if (Pressed(keyboard, Keys.L))
+                    LowResOn = !LowResOn;
+            }
 
             UpdateWorld(gameTime, keyboard);
 
@@ -114,8 +131,10 @@ namespace MeshRendering
             DrawWorld(gameTime);
 
             Clock += (float)gameTime.ElapsedGameTime.TotalSeconds;
-            if (Shot is { } shot && Clock >= shot.After)
+            var shotDue = Shot is { } due && Clock >= due.After;
+            if (shotDue && !ShotOfWholeWindow)
             {
+                var shot = Shot!.Value;
                 GraphicsDevice.SetRenderTarget(null);
                 using (var file = File.Create(shot.File))
                     _lowRes!.SaveAsPng(file, _lowResWidth, _lowResHeight);
@@ -139,9 +158,38 @@ namespace MeshRendering
                 _spriteBatch!.Begin(samplerState: SamplerState.PointClamp);
                 _spriteBatch.Draw(_lowRes, destination, Color.White);
                 _spriteBatch.End();
+                PictureArea = destination;
+            }
+            else
+                PictureArea = GraphicsDevice.Viewport.Bounds;
+
+            DrawOverlay(gameTime);
+
+            if (shotDue)
+            {
+                SaveWindow(Shot!.Value.File);
+                WriteShotReport(Path.ChangeExtension(Shot.Value.File, ".txt"));
+                Exit();
+                return;
             }
 
             base.Draw(gameTime);
+        }
+
+        // Over the picture, at the window's resolution, into the back buffer.
+        protected virtual void DrawOverlay(GameTime gameTime)
+        {
+        }
+
+        private void SaveWindow(string path)
+        {
+            var back = GraphicsDevice.PresentationParameters;
+            var pixels = new Color[back.BackBufferWidth * back.BackBufferHeight];
+            GraphicsDevice.GetBackBufferData(pixels);
+            using var picture = new Texture2D(GraphicsDevice, back.BackBufferWidth, back.BackBufferHeight);
+            picture.SetData(pixels);
+            using var file = File.Create(path);
+            picture.SaveAsPng(file, back.BackBufferWidth, back.BackBufferHeight);
         }
 
         // The world, into whatever's been set up to draw to (the render target is cleared, the states set).

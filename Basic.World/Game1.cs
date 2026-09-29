@@ -1,3 +1,4 @@
+using Maps.Home;
 using MeshRendering;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
@@ -7,6 +8,7 @@ using World.Buildings;
 using World.Core.Characters;
 using World.Core.Movement;
 using World.Core.Physics;
+using World.Maps;
 
 namespace Basic.World
 {
@@ -23,13 +25,15 @@ namespace Basic.World
     // front gardens sloping down to it, picket fences round the back gardens, a swimming pool in one of
     // them, and billboards for the Commodore 64 and Atari either side of the road; down a lane from it (see Lane), an old
     // cottage whose front door, walked into, takes you to a long corridor, and back, and next door another, whose window shows a hangar. See the
-    // world through your own eyes, or from your camera drone as it flies after you. Drawn to a small render target and scaled up with hard pixels (see RetroGame).
+    // world through your own eyes, or from your camera drone as it flies after you. Overhead, a bird roams the
+    // country round where you start (see Bird): watch it from the camera chasing it, from the start with the command line's "bird".
+    // Drawn to a small render target and scaled up with hard pixels (see RetroGame).
     // Up / W and Down / S walk (hold Shift to run), Left / Right turn, A / D sidestep, Space jumps, E opens or shuts a door.
-    // V switches between your own view and the drone's. C toggles colours / wireframe, L the low-resolution
+    // V switches between your own view and the drone's, B to the bird's chase camera and back. C toggles colours / wireframe, L the low-resolution
     // look, F11 full screen, Escape exits.
     //
     // For development, a BASIC_WORLD_SHOT (see RetroGame) also saves where every body is beside the picture.
-    // Its keys, all optional: v starts in the drone view, w holds walk forward, r runs, e presses E once,
+    // Its keys, all optional: v starts in the drone view, b following the bird, w holds walk forward, r runs, e presses E once,
     // halfway to the shot.
     public class Game1 : RetroGame
     {
@@ -42,10 +46,12 @@ namespace Basic.World
         private const float MaxFrame = 0.25f;     // after a stall, catch up no more than this, rather than fall through the world
 
         private readonly string _start;
+        private bool _followBird;
 
         private BuiltWorld _built;
         private PhysicsWorld _world;
         private Player _player;
+        private Bird _bird;
         private WorldRenderer _renderer;
         private int _titleWetness = -1;
         private BuildingGround _ground;
@@ -54,32 +60,36 @@ namespace Basic.World
         private bool _shotPressedE;
         private readonly (Vector3 feet, float radius, float height)[] _walkers = new (Vector3, float, float)[1];   // who the doors must not swing into
 
-        public Game1(string start = null) : base(WindowWidth, WindowHeight, LowResWidth, LowResHeight, colorsKey: Keys.C)
+        // `followBird`: seen from the camera chasing the bird, to begin with.
+        public Game1(string start = null, bool followBird = false) : base(WindowWidth, WindowHeight, LowResWidth, LowResHeight, colorsKey: Keys.C)
         {
-            _start = start ?? WorldBuilder.DefaultStart;
+            _start = start ?? HomeMap.DefaultStart;
+            _followBird = followBird;
         }
 
         protected override void LoadWorld()
         {
-            _built = WorldBuilder.Build(WorldBuilder.Standard());
+            _built = WorldBuilder.Build(HomeMap.Districts());
             _ground = _built.Ground;
             _world = _built.Physics;
             if (!_built.Starts.TryGetValue(_start, out var start))
-                start = _built.Starts[WorldBuilder.DefaultStart];
+                start = _built.Starts[HomeMap.DefaultStart];
             var dropFrom = start.Above > 0f ? _built.Terrain.HeightAt(start.At.X, start.At.Y) + start.Above : 0f;
             _player = new Player(new Vector3(start.At.X, dropFrom, start.At.Y), start.Yaw, _world);
+            _bird = new Bird(start.At, _ground.SkylineAt, start.Yaw);
 
             _renderer = new WorldRenderer(_built, GraphicsDevice, MeshCache);
             _renderer.BuildTerrain(_player);
             if (Shot?.Keys.Contains('v') == true)
                 _player.ToggleView();
+            _followBird |= Shot?.Keys.Contains('b') == true;
             UpdateTitle();
         }
 
         private void UpdateTitle()
         {
             _titleWetness = (int)MathF.Round(_player.Wetness * 100f);
-            Window.Title = "Basic.World - " + (_player.View == ViewMode.FirstPerson ? "your view" : "drone view") +
+            Window.Title = "Basic.World - " + (_followBird ? "bird view" : _player.View == ViewMode.FirstPerson ? "your view" : "drone view") +
                 (_player.Body.Swimming ? " - swimming" : "") + (_titleWetness > 0 ? $" - wet {_titleWetness}%" : "");
         }
 
@@ -87,7 +97,15 @@ namespace Basic.World
         {
             if (Pressed(keyboard, Keys.V))
             {
-                _player.ToggleView();
+                if (_followBird)
+                    _followBird = false;   // back to whichever view of yours it was
+                else
+                    _player.ToggleView();
+                UpdateTitle();
+            }
+            if (Pressed(keyboard, Keys.B))
+            {
+                _followBird = !_followBird;
                 UpdateTitle();
             }
             _jumpPressed |= Pressed(keyboard, Keys.Space);
@@ -108,6 +126,7 @@ namespace Basic.World
                 _player.Step(input with { Jump = _jumpPressed }, StepTime, _world);
                 GoThroughPortals();
                 _world.Step(StepTime);
+                _bird.Step(StepTime);
                 _jumpPressed = false;   // a jump happens on one tick, not every tick this frame
                 _pending -= StepTime;
             }
@@ -137,13 +156,14 @@ namespace Basic.World
         {
             if ((int)MathF.Round(_player.Wetness * 100f) != _titleWetness)
                 UpdateTitle();
-            _renderer.Draw(_player, Clock, ColorsOn);
+            _renderer.Draw(_player, Clock, ColorsOn, _bird, _followBird);
         }
 
         // Where everything ended up, beside the screenshot
         protected override void WriteShotReport(string path)
         {
             var report = new System.Text.StringBuilder().AppendLine($"player {_player.Body.Position}")
+                .AppendLine($"bird {_bird.Position} yaw {_bird.Yaw:F2} pitch {_bird.Pitch:F2} flap {_bird.FlapPhase:F2}")
                 .AppendLine($"terrain chunks: {_built.Terrain.ChunksMade} of {_built.Terrain.ChunksX * _built.Terrain.ChunksZ} worked out, {_renderer.View.Terrain.Built} built in {_renderer.View.Terrain.BuildTime.TotalMilliseconds:F0} ms, {_renderer.View.Terrain.Drawn} drawn")
                 .AppendLine($"meshes: {_renderer.Batch.Drawn} drawn, {_renderer.Batch.Culled} culled, {_renderer.Batch.DrawCalls} draw calls");
             foreach (var thing in _built.Things.Select(t => t.Body))

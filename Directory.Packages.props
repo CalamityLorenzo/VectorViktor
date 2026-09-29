@@ -8,6 +8,8 @@
     <PackageVersion Include="MonoGame.Framework.WindowsDX" Version="3.8.5.1" />
     <PackageVersion Include="MonoGame.Content.Builder.Task" Version="3.8.5.1" />
     <PackageVersion Include="SharpGLTF.Core" Version="1.0.7" />
+    <!-- Dear ImGui (docking branch, 1.92.9b) for the tools' panels; experimental, so pinned: moved only on purpose (see ToolsPlan.md 6) -->
+    <PackageVersion Include="Hexa.NET.ImGui" Version="3.1.0-experimental" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.0.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />

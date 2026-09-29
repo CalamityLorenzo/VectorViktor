@@ -16,6 +16,8 @@
     <PackageReference Include="MonoGame.Content.Builder.Task" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\World.Maps\World.Maps.csproj" />
+    <ProjectReference Include="..\Maps.Home\Maps.Home.csproj" />
     <ProjectReference Include="..\World.Core\World.Core.csproj" />
     <ProjectReference Include="..\World.Buildings\World.Buildings.csproj" />
     <ProjectReference Include="..\World.Rendering\World.Rendering.csproj" />

@@ -14,6 +14,7 @@
     <ProjectReference Include="..\MeshCore.Library\MeshCore.Library.csproj" />
     <ProjectReference Include="..\MeshProps\MeshProps.csproj" />
     <ProjectReference Include="..\World.Rendering\World.Rendering.csproj" />
-    <ProjectReference Include="..\Basic.World\Basic.World.csproj" />
+    <ProjectReference Include="..\World.Maps\World.Maps.csproj" />
+    <ProjectReference Include="..\Maps.Home\Maps.Home.csproj" />
   </ItemGroup>
 </Project>

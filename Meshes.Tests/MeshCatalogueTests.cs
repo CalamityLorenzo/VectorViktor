@@ -1,4 +1,4 @@
-using Basic.World;
+using Maps.Home;
 using MeshCore.Library;
 using MeshProps;
 using MeshProps.Helpers;
@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using World.Maps;
 using World.Rendering;
 using Xunit;
 
@@ -67,13 +68,28 @@ namespace Meshes.Tests
             };
             foreach (var kind in Enum.GetValues<CrateKind>())
                 meshes[$"crate: {kind}"] = CrateMesh.Build(null, kind, new Vector3(1f, 0.8f, 1.2f));
+            for (var frame = 0; frame < BirdMesh.Frames; frame++)
+                meshes[$"bird: frame {frame}"] = BirdMesh.Source(frame, BirdMesh.Palette(Color.White, Color.Gray)).Build(null);
             foreach (var (name, mesh) in meshes)
                 MeshChecks.IsSound(name, mesh);
         }
 
+        // Its flap's frames loop: the last one leads on into the first as they lead on into each other
+        [Fact]
+        public void The_birds_flap_ends_where_it_began()
+        {
+            var start = BirdMesh.Build(null, 0f);
+            var end = BirdMesh.Build(null, 1f);
+            Assert.Equal(start.HeadlessSolids.Count, end.HeadlessSolids.Count);
+            for (var i = 0; i < start.HeadlessSolids.Count; i++)
+                Assert.True(Vector3.Distance(start.HeadlessSolids[i].Position, end.HeadlessSolids[i].Position) < 1e-4f, $"vertex {i}");
+            Assert.Equal(0, BirdMesh.FrameAt(0f));
+            Assert.Equal(BirdMesh.Frames - 1, BirdMesh.FrameAt(0.9999f));
+        }
+
         // ---- What the world is made of
 
-        private static readonly Lazy<BuiltWorld> World = new Lazy<BuiltWorld>(() => WorldBuilder.Build(WorldBuilder.Standard()));
+        private static readonly Lazy<BuiltWorld> World = new Lazy<BuiltWorld>(() => WorldBuilder.Build(HomeMap.Districts()));
 
         [Fact]
         public void Everything_the_world_draws_from_a_source_builds_to_a_sound_mesh_its_palette_covers()

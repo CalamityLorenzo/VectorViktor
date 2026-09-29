@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- What a map is and how one is put together, for any app that uses maps: the game, the benchmark, the tests, and
+       later the playtest harness and the map studio. A map is a list of districts (IDistrict), each saying what it
+       adds - ground to level, water, buildings, fixtures, things, starts - and WorldBuilder builds them into one
+       world (BuiltWorld), which WorldView and WorldRenderer draw. It holds no particular map: see Maps.Home. -->
+  <PropertyGroup>
+    <!-- Moved from the game, which was written without null checks (see Directory.Build.props) -->
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MonoGame.Framework.WindowsDX" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\World.Core\World.Core.csproj" />
+    <ProjectReference Include="..\World.Buildings\World.Buildings.csproj" />
+    <ProjectReference Include="..\World.Rendering\World.Rendering.csproj" />
+    <ProjectReference Include="..\MeshCore.Library\MeshCore.Library.csproj" />
+    <ProjectReference Include="..\MeshRendering\MeshRendering.csproj" />
+    <ProjectReference Include="..\MeshProps\MeshProps.csproj" />
+  </ItemGroup>
+</Project>

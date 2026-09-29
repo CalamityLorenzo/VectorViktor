@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The playtest harness: drop into a map as the droid and try things out. Each thing tried is an experiment (see
+       Experiment), picked by name; the harness gives them a droid in a world, time controls, cameras, overlays and
+       Dear ImGui panels for their live values. A workbench, changed as experiments need: see ToolsPlan.md step 2 and
+       Lessons/03-the-playground.md. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <RollForward>Major</RollForward>
+    <PublishReadyToRun>false</PublishReadyToRun>
+    <TieredCompilation>false</TieredCompilation>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Icon.ico</ApplicationIcon>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>   <!-- for Trace.Plot: Dear ImGui takes its values by pointer -->
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MonoGame.Framework.WindowsDX" />
+    <PackageReference Include="Hexa.NET.ImGui" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Tools.DearImGui\Tools.DearImGui.csproj" />
+    <ProjectReference Include="..\World.Maps\World.Maps.csproj" />
+    <ProjectReference Include="..\Maps.Home\Maps.Home.csproj" />
+    <ProjectReference Include="..\World.Core\World.Core.csproj" />
+    <ProjectReference Include="..\World.Buildings\World.Buildings.csproj" />
+    <ProjectReference Include="..\World.Rendering\World.Rendering.csproj" />
+    <ProjectReference Include="..\MeshCore.Library\MeshCore.Library.csproj" />
+    <ProjectReference Include="..\MeshRendering\MeshRendering.csproj" />
+  </ItemGroup>
+</Project>

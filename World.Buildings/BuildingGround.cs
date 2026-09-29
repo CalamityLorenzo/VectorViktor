@@ -35,6 +35,8 @@ namespace World.Buildings
         private readonly WallGrid _grid;   // the walls (not the doors, which swing), sorted by where they are
         private readonly List<Door> _doors = new List<Door>();
         private readonly Dictionary<Building, List<Door>> _doorsOf = new Dictionary<Building, List<Door>>();
+        // The box round each room's roof (or the room over it) in the world, overhang and all, and how high it goes
+        private readonly List<(Vector2 min, Vector2 max, float top)> _roofs = new List<(Vector2, Vector2, float)>();
 
         public IReadOnlyList<Door> Doors => _doors;
 
@@ -50,6 +52,9 @@ namespace World.Buildings
         }
 
         public IReadOnlyList<Building> Buildings { get; }
+
+        // Every wall there is to walk into (the buildings', and the free-standing ones), for looking at: tools draw them.
+        public IReadOnlyList<WallSegment> Walls => _walls;
 
         public BuildingGround(IGround terrain, IReadOnlyList<Building> buildings, IEnumerable<WallSegment>? walls = null)
         {
@@ -70,6 +75,10 @@ namespace World.Buildings
                     }
                     var offset = new Vector2(room.WorldOffset.X, room.WorldOffset.Z);
                     _rooms.Add(new Placed(room, min + offset, max + offset));
+                    var eaves = new Vector2(building.WallThickness + building.RoofOverhang);
+                    // A flat roof's top is the shell's; a pitched one's is the roof's thickness over its ridge's underside
+                    var top = building.ShellSpan(room).top + (building.RoofOf(room) != null ? building.RoofThickness : 0f);
+                    _roofs.Add((min + offset - eaves, max + offset + eaves, top));
                 }
                 _walls.AddRange(building.Walls());
                 var doors = building.HangDoors();
@@ -129,6 +138,29 @@ namespace World.Buildings
         }
 
         public float? GroundBelow(Vector3 feet, float reach) => Surface(feet, reach).height;
+
+        // How high whatever stands at (x, z), or within `margin` of it, reaches: the ground, or the water over it,
+        // or a roof or the top of a wall - a fence, a billboard - if that's higher. For something flying over them
+        // all (see Bird), which mustn't go through any of them. Off the edge of the world it's 0.
+        public float SkylineAt(float x, float z, float margin)
+        {
+            var at = new Vector3(x, 0f, z);
+            var top = _terrain.GroundBelow(at with { Y = 1e6f }, 0f) ?? 0f;
+            if (_terrain.WaterAt(at) is { } water)
+                top = MathF.Max(top, water);
+            var p = new Vector2(x, z);
+            foreach (var (min, max, roof) in _roofs)
+                if (p.X >= min.X - margin && p.X <= max.X + margin && p.Y >= min.Y - margin && p.Y <= max.Y + margin)
+                    top = MathF.Max(top, roof);
+            var near = _grid.Near(p - new Vector2(margin), p + new Vector2(margin));
+            for (var k = 0; k < near.Count; k++)   // not foreach: over the interface, that'd make garbage every call
+            {
+                var wall = _grid[near[k]];
+                if (wall.Top > top && Vector2.DistanceSquared(p, Geometry2D.NearestOnSegment(p, wall.A, wall.B)) <= margin * margin)
+                    top = wall.Top;
+            }
+            return top;
+        }
 
         // The ground a walker's feet are on, and whether it's a building's (a floor or a stair) rather than the terrain's.
         private (float? height, bool indoors) Surface(Vector3 feet, float reach)

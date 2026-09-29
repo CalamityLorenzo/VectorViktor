@@ -6,15 +6,19 @@ The aim: a codebase a team of three can work in without treading on each other. 
 
 ## 0. How it fits together
 
+Since 2026-09-27 the districts, `WorldBuilder` and the world's renderers are in two libraries, `World.Maps` (what a map is,
+building and drawing one) and `Maps.Home` (the home map's districts), so every app can share them: see
+[ToolsPlan.md](ToolsPlan.md) step 1. `Basic.World` below now holds only the game.
+
 ```
-Basic.World (exe) ──► World.Rendering ──► MeshRendering ──► MeshCore.Library
-      │                     │                                    ▲
-      ├──► World.Buildings ─┴──► World.Core   (simulation: no GraphicsDevice)
-      └──► MeshProps (procedural props) ─────────────────────────┘
-Basic.World.Benchmark (exe) ──► Basic.World: draws and steps every start with no window (see 2)
+Basic.World (exe) ──► Maps.Home ──► World.Maps ──► World.Rendering ──► MeshRendering ──► MeshCore.Library
+      │                                              │                                    ▲
+      ├──► World.Buildings ──────────────────────────┴──► World.Core   (simulation: no GraphicsDevice)
+      └──► MeshProps (procedural props) ──────────────────────────────────────────────────┘
+Basic.World.Benchmark (exe) ──► Maps.Home, World.Maps: draws and steps every start with no window (see 2)
 Basic.Levels (exe), Basic.Models (exe): the same libraries, smaller games
 World.Core.Tests ──► World.Core, World.Buildings
-Meshes.Tests ──► MeshCore.Library, MeshProps, World.Rendering, Basic.World: every mesh, built with no device
+Meshes.Tests ──► MeshCore.Library, MeshProps, World.Rendering, World.Maps, Maps.Home: every mesh, built with no device
 VectorViktor, LoadingModelMeshes: the original prototypes, self-contained (see 1.5)
 ```
 
@@ -64,7 +68,7 @@ The duplicated `Window` paragraph and the repeated sentence in the `TerrainView`
 ### Measured: `Basic.World.Benchmark`
 `dotnet run -c Release --project Basic.World.Benchmark -- 300 results/name.md` draws 300 frames at each of the 24 starts into an off-screen 640 x 256 target (a hidden window's swap chain, nothing on screen), steps 600 ticks of the world walking straight ahead, and writes a table: meshes drawn and culled, draw calls, chunks, CPU milliseconds per frame, milliseconds including the GPU finishing, garbage per frame and per tick, and microseconds per tick. Run it in Release for timings and in Debug to exercise the debug-only checks. Results are in `Basic.World.Benchmark/results/`; the numbers are this machine's (an RTX 3050), for comparing before and after.
 
-`Basic.World/WorldRenderer.cs` is the frame the game draws, pulled out of `Game1` so the benchmark draws exactly the same one; `WorldBuilder.Standard()` is the list of districts.
+`WorldRenderer` (now in `World.Maps`) is the frame the game draws, pulled out of `Game1` so the benchmark draws exactly the same one; `HomeMap.Districts()` (in `Maps.Home`, formerly `WorldBuilder.Standard()`) is the list of districts.
 
 What it found (average of the 24 starts, Release):
 
