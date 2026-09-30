@@ -8,7 +8,7 @@ namespace MeshRendering
     // What the retro-look games share: a window (F11 for borderless full screen, Escape to exit), drawn to a
     // small render target and scaled up with hard pixels, the largest whole number of times that fits (L turns
     // that off), colours on or off for the wireframe look (see MeshInstance), and a MeshCache for the game's
-    // meshes. A game gives its own LoadWorld, UpdateWorld and DrawWorld, and, if it wants, DrawOverlay: drawn over the
+    // meshes. On a controller, Back exits and Y toggles the colours. A game gives its own LoadWorld, UpdateWorld and DrawWorld, and, if it wants, DrawOverlay: drawn over the
     // scaled-up picture at the window's own resolution (a tool's panels, say).
     //
     // For development, BASIC_WORLD_SHOT="file.png;seconds;keys" saves one low-resolution frame to the file after
@@ -28,6 +28,7 @@ namespace MeshRendering
         private SpriteBatch? _spriteBatch;
         private RasterizerState? _rasterizerState;
         private KeyboardState _previousKeyboard;
+        private GamePadState _previousPad;
 
         protected GraphicsDeviceManager Graphics { get; }
         protected MeshCache MeshCache { get; } = new MeshCache();
@@ -35,6 +36,10 @@ namespace MeshRendering
         protected bool ColorsOn { get; private set; }            // off: faces drawn in the background colour (wireframe look)
         protected bool LowResOn { get; private set; } = true;
         protected float Clock { get; private set; }   // seconds drawn so far
+
+        // The first controller, this frame (a circular dead zone, for sticks that steer). Back exits, Y toggles the
+        // colours; the rest is the game's. PadPressed says what's just gone down.
+        protected GamePadState Pad { get; private set; }
 
         // Where the picture is in the window (scaled up, it's centred with a border), as of the last frame: to turn a
         // mouse position into a point on the picture.
@@ -88,9 +93,12 @@ namespace MeshRendering
         protected sealed override void Update(GameTime gameTime)
         {
             var keyboard = Keyboard.GetState();
+            Pad = GamePad.GetState(PlayerIndex.One, GamePadDeadZone.Circular);
 
-            if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed)
+            if (Pad.Buttons.Back == ButtonState.Pressed)
                 Exit();
+            if (IsActive && PadPressed(Buttons.Y))
+                ColorsOn = !ColorsOn;
             if (!KeyboardCaptured)
             {
                 if (keyboard.IsKeyDown(Keys.Escape))
@@ -106,6 +114,7 @@ namespace MeshRendering
             UpdateWorld(gameTime, keyboard);
 
             _previousKeyboard = keyboard;
+            _previousPad = Pad;
             base.Update(gameTime);
         }
 
@@ -115,9 +124,16 @@ namespace MeshRendering
         // Down now, and up last frame.
         protected bool Pressed(KeyboardState keyboard, Keys key) => keyboard.IsKeyDown(key) && _previousKeyboard.IsKeyUp(key);
 
+        // Down now on the controller, and up last frame.
+        protected bool PadPressed(Buttons button) => Pad.IsButtonDown(button) && _previousPad.IsButtonUp(button);
+
         // +1, -1 or 0 (both or neither), for a pair of keys that push opposite ways.
         protected static float Axis(KeyboardState keyboard, Keys positive, Keys negative) =>
             (keyboard.IsKeyDown(positive) ? 1f : 0f) - (keyboard.IsKeyDown(negative) ? 1f : 0f);
+
+        // The same, for a pair of controller buttons (the d-pad, the shoulders).
+        protected static float Axis(GamePadState pad, Buttons positive, Buttons negative) =>
+            (pad.IsButtonDown(positive) ? 1f : 0f) - (pad.IsButtonDown(negative) ? 1f : 0f);
 
         protected sealed override void Draw(GameTime gameTime)
         {

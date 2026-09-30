@@ -1,6 +1,7 @@
-# VectorViktor: command-line switches
+# VectorViktor: command-line switches and controls
 
-Every runnable project in the solution that reads arguments, and what it accepts. Arguments go after `--` when run
+Every runnable project in the solution that reads arguments, and what it accepts; for `Droid.Playground` and
+`Basic.Levels`, their keyboard and controller controls too. Arguments go after `--` when run
 through `dotnet run`, for example:
 
 ```
@@ -58,6 +59,40 @@ Droid.Playground segway coast clifftop
 Droid.Playground pass trailhead
 ```
 
+### Controls
+
+Keys are ignored while an ImGui panel has the keyboard. The controller is the first one plugged in (Xbox layout).
+
+| Action | Keyboard | Controller |
+|---|---|---|
+| Drive forward / back | Up / Down (also W / S, except in the free camera) | Left stick |
+| Sidestep | A / D (except in the free camera) | Left stick |
+| Turn | Left / Right | Right stick left / right |
+| Go faster | Shift | Right trigger |
+| Head camera round its visor | Q / E | LB / RB |
+| Tilt the head camera | R / F | Right stick up / down |
+| Put the head camera back | Home | Click the right stick |
+| Open or shut a door | Enter | A |
+| Head / drone / free camera | F1 / F2 / F3 | B (cycles through them) |
+| Pause | P | Start |
+| Step one tick (while paused) | N | D-pad down |
+| Slow down / speed up time | `[` / `]` | D-pad left / right |
+| Drop the droid under the free camera | T | D-pad up |
+| Drop the droid on the ground clicked | Ctrl + left click | — |
+| Colours on / off | C | Y |
+| Low-resolution look on / off | L | — |
+| Full screen | F11 | — |
+| Exit | Escape | Back |
+
+In the free camera the controls move the camera, not the droid (the arrow keys still drive it):
+
+| Action | Keyboard / mouse | Controller |
+|---|---|---|
+| Fly | W / A / S / D | Left stick |
+| Look | Mouse, right button held | Right stick |
+| Rise / sink | Space / Ctrl | RB / LB |
+| Faster | Shift | Right trigger |
+
 ## Basic.Levels
 
 ```
@@ -72,6 +107,21 @@ Room ids (from [Basic.Levels/HouseLevel.cs](Basic.Levels/HouseLevel.cs)):
 
 `corridor`, `stairs`, `upper`, `lounge`, `tvroom`, `cola`, `hangar`, `backroom`, `octagon`, `octagonupper`,
 `octagontop`
+
+### Controls
+
+Walk into a door to go through it.
+
+| Action | Keyboard | Controller |
+|---|---|---|
+| Walk forward / back | Up / Down, W / S | Left stick, D-pad up / down |
+| Sidestep | A / D | Left stick |
+| Turn | Left / Right | Right stick, D-pad left / right |
+| Run | Shift (hold) | Right trigger or left stick click (hold) |
+| Colours on / off | Space | Y |
+| Low-resolution look on / off | L | — |
+| Full screen | F11 | — |
+| Exit | Escape | Back |
 
 ## Basic.Models
 

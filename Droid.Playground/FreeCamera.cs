@@ -5,11 +5,13 @@ using System;
 namespace Droid.Playground
 {
     // A camera that flies anywhere, belonging to nothing in the world: W, A, S, D to fly, Space and Ctrl to rise and
-    // sink, Shift for speed, and the mouse, with its right button held, to look.
+    // sink, Shift for speed, and the mouse, with its right button held, to look. On a controller: the left stick flies,
+    // the right stick looks, the right and left shoulders rise and sink, the right trigger for speed.
     public sealed class FreeCamera
     {
         public const float Speed = 6f, FastSpeed = 24f;   // metres per second
         public const float MouseTurn = 0.004f;            // radians per pixel
+        public const float PadTurn = 2.5f;                // radians per second, the right stick pushed all the way
 
         public Vector3 Position { get; set; }
         public float Yaw { get; set; }     // 0 faces north (-Z), as the walker's does
@@ -28,16 +30,21 @@ namespace Droid.Playground
         }
 
         // `turn` is how far the mouse moved (pixels) with the right button held, or nothing.
-        public void Step(KeyboardState keys, Vector2 turn, float dt)
+        public void Step(KeyboardState keys, GamePadState pad, Vector2 turn, float dt)
         {
-            Yaw += turn.X * MouseTurn;
-            Pitch = Math.Clamp(Pitch - turn.Y * MouseTurn, -1.5f, 1.5f);
+            var look = pad.ThumbSticks.Right;
+            Yaw += turn.X * MouseTurn + look.X * PadTurn * dt;
+            Pitch = Math.Clamp(Pitch - turn.Y * MouseTurn + look.Y * PadTurn * dt, -1.5f, 1.5f);
 
             float Axis(Keys plus, Keys minus) => (keys.IsKeyDown(plus) ? 1f : 0f) - (keys.IsKeyDown(minus) ? 1f : 0f);
-            var move = Forward * Axis(Keys.W, Keys.S) + Right * Axis(Keys.D, Keys.A) +
-                       Vector3.Up * Axis(Keys.Space, Keys.LeftControl);
-            if (move.LengthSquared() > 0f)
-                Position += Vector3.Normalize(move) * (keys.IsKeyDown(Keys.LeftShift) ? FastSpeed : Speed) * dt;
+            float Pair(Buttons plus, Buttons minus) => (pad.IsButtonDown(plus) ? 1f : 0f) - (pad.IsButtonDown(minus) ? 1f : 0f);
+            var stick = pad.ThumbSticks.Left;
+            var move = Forward * (Axis(Keys.W, Keys.S) + stick.Y) + Right * (Axis(Keys.D, Keys.A) + stick.X) +
+                       Vector3.Up * (Axis(Keys.Space, Keys.LeftControl) + Pair(Buttons.RightShoulder, Buttons.LeftShoulder));
+            if (move.LengthSquared() > 1f)
+                move.Normalize();   // so going diagonally isn't faster; a stick pushed part way goes slower
+            var fast = keys.IsKeyDown(Keys.LeftShift) || pad.Triggers.Right > 0.5f;
+            Position += move * (fast ? FastSpeed : Speed) * dt;
         }
     }
 }

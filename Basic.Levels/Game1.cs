@@ -15,6 +15,8 @@ namespace Basic.Levels
     // pixels, for the chunky look of an 8/16 bit machine.
     // Up / W and Down / S walk (hold Shift to run), Left / Right turn, A / D sidestep. Walk into a door to go through it.
     // Space toggles colours / wireframe, L toggles the low-resolution look, F11 full screen, Escape exits.
+    // On a controller: the left stick (or the d-pad's up / down) walks and sidesteps, the right stick (or the d-pad's
+    // left / right) turns, the right trigger or a click of the left stick runs; Y colours, Back exits.
     // BASIC_WORLD_SHOT takes a screenshot (see RetroGame).
     public class Game1 : RetroGame
     {
@@ -167,9 +169,12 @@ namespace Basic.Levels
 
         private void Walk(KeyboardState keyboard, float dt)
         {
-            var turn = Axis(keyboard, Keys.Right, Keys.Left);
-            var forward = Axis(keyboard, Keys.Up, Keys.Down) + Axis(keyboard, Keys.W, Keys.S);
-            var sideways = Axis(keyboard, Keys.D, Keys.A);
+            var pad = Pad;
+            var turn = MathHelper.Clamp(Axis(keyboard, Keys.Right, Keys.Left) + Axis(pad, Buttons.DPadRight, Buttons.DPadLeft) +
+                pad.ThumbSticks.Right.X, -1f, 1f);
+            var forward = Axis(keyboard, Keys.Up, Keys.Down) + Axis(keyboard, Keys.W, Keys.S) +
+                Axis(pad, Buttons.DPadUp, Buttons.DPadDown) + pad.ThumbSticks.Left.Y;
+            var sideways = MathHelper.Clamp(Axis(keyboard, Keys.D, Keys.A) + pad.ThumbSticks.Left.X, -1f, 1f);
 
             _yaw = MathHelper.WrapAngle(_yaw + turn * TurnSpeed * dt);
 
@@ -182,7 +187,9 @@ namespace Basic.Levels
                 return;
 
             var spec = _room.Spec;
-            var speed = keyboard.IsKeyDown(Keys.LeftShift) || keyboard.IsKeyDown(Keys.RightShift) ? WalkSpeed * RunMultiplier : WalkSpeed;
+            var run = keyboard.IsKeyDown(Keys.LeftShift) || keyboard.IsKeyDown(Keys.RightShift) ||
+                pad.Triggers.Right > 0.5f || pad.IsButtonDown(Buttons.LeftStick);
+            var speed = run ? WalkSpeed * RunMultiplier : WalkSpeed;
 
             // Collide in the room's own coordinates
             var p = _position - spec.WorldOffset + step * speed * dt;

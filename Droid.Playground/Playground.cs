@@ -26,6 +26,12 @@ namespace Droid.Playground
     // P pauses, N steps a tick while paused, [ and ] slow and speed time; F1 head camera, F2 drone, F3 free camera;
     // Q/E run the head camera round its visor, R/F tilt it, Home puts it back; T drops the droid under the free camera;
     // Ctrl+click drops it on the ground clicked; Enter opens or shuts a door; C colours, L low resolution, Esc exits.
+    //
+    // On a controller: the left stick drives (outside the free camera), the right stick turns and tilts the head
+    // camera, the right trigger goes faster; the shoulders run the head camera round its visor, a click of the right
+    // stick puts it back; A opens or shuts a door, B changes camera (head, drone, free); Start pauses, the d-pad's
+    // down steps a tick, left and right slow and speed time, up drops the droid under the free camera; Y colours,
+    // Back exits. In the free camera the sticks fly it and look, the shoulders rise and sink (see FreeCamera).
     public sealed class Playground : RetroGame
     {
         private const int WindowWidth = 1440, WindowHeight = 810;
@@ -121,6 +127,7 @@ namespace Droid.Playground
             var mouse = Mouse.GetState(Window);
             var keys = IsActive && !_imgui.WantsKeyboard;
             var pointer = IsActive && !_imgui.WantsMouse;
+            var pad = IsActive ? Pad : default;
 
             if (keys)
             {
@@ -137,11 +144,27 @@ namespace Droid.Playground
                 _around = MathHelper.WrapAngle(_around + Axis(keyboard, Keys.Q, Keys.E) * 2f * _frameSeconds);
                 _up = Math.Clamp(_up + Axis(keyboard, Keys.R, Keys.F) * 1f * _frameSeconds, -0.45f, 0.45f);
             }
+            if (IsActive)
+            {
+                if (PadPressed(Buttons.Start)) _paused = !_paused;
+                if (PadPressed(Buttons.DPadDown)) _stepOnce = true;
+                if (PadPressed(Buttons.DPadLeft)) _speed = Math.Min(_speed + 1, Speeds.Length - 1);
+                if (PadPressed(Buttons.DPadRight)) _speed = Math.Max(_speed - 1, 0);
+                if (PadPressed(Buttons.B)) _camera = (CameraMode)(((int)_camera + 1) % 3);
+                if (PadPressed(Buttons.RightStick)) _around = _up = 0f;
+                if (PadPressed(Buttons.DPadUp)) DropUnder(_free.Position);
+                if (PadPressed(Buttons.A)) _built.Ground.Interact(_player.Body.Position, _player.Body.Heading);
+                if (_camera != CameraMode.Free)   // there the shoulders and the right stick are the camera's
+                {
+                    _around = MathHelper.WrapAngle(_around + Axis(pad, Buttons.LeftShoulder, Buttons.RightShoulder) * 2f * _frameSeconds);
+                    _up = Math.Clamp(_up + pad.ThumbSticks.Right.Y * 1f * _frameSeconds, -0.45f, 0.45f);
+                }
+            }
             if (_camera == CameraMode.Free)
             {
                 var turn = pointer && mouse.RightButton == ButtonState.Pressed
                     ? new Vector2(mouse.X - _mouse.X, mouse.Y - _mouse.Y) : Vector2.Zero;
-                _free.Step(keys ? keyboard : default, turn, _frameSeconds);
+                _free.Step(keys ? keyboard : default, pad, turn, _frameSeconds);
             }
             if (pointer && mouse.LeftButton == ButtonState.Pressed && _mouse.LeftButton == ButtonState.Released &&
                 keyboard.IsKeyDown(Keys.LeftControl) && GroundUnder(mouse) is { } clicked)
@@ -149,6 +172,8 @@ namespace Droid.Playground
             _mouse = mouse;
 
             var asked = keys ? ReadInput(keyboard, wasd: _camera != CameraMode.Free) : MoveInput.None;
+            if (_camera != CameraMode.Free)
+                asked = WithPad(asked, pad);
             if (Shot is { } shot && shot.Keys.Contains('w'))
                 asked = new MoveInput(new Vector2(0f, 1f), Run: shot.Keys.Contains('r'));
 
@@ -177,6 +202,14 @@ namespace Droid.Playground
             return new MoveInput(new Vector2(sideways, MathHelper.Clamp(forward, -1f, 1f)), Axis(keyboard, Keys.Right, Keys.Left),
                 keyboard.IsKeyDown(Keys.LeftShift) || keyboard.IsKeyDown(Keys.RightShift));
         }
+
+        // The controller's asking added to the keyboard's: the left stick to go, the right stick's sideways to turn.
+        private static MoveInput WithPad(MoveInput asked, GamePadState pad) => asked with
+        {
+            Move = Vector2.Clamp(asked.Move + pad.ThumbSticks.Left, -Vector2.One, Vector2.One),
+            Turn = MathHelper.Clamp(asked.Turn + pad.ThumbSticks.Right.X, -1f, 1f),
+            Run = asked.Run || pad.Triggers.Right > 0.5f,
+        };
 
         // One tick of the world: the experiment says what the droid's told to do, the world moves on, the rig follows.
         private void Tick(MoveInput asked)
