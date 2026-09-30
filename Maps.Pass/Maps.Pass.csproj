@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The pass map, built in code (see PassMap): a road's way, winding up and down over two passes between mountains
+       too steep to walk, past a lake under cliffs, down into a flat basin with a lake in its middle where a town will
+       go, and the road (see Road). A map library, like Maps.Home and Maps.Coast: it references World.Maps for what a map is, and any app that
+       wants this map references it. -->
+  <ItemGroup>
+    <PackageReference Include="MonoGame.Framework.WindowsDX" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\World.Maps\World.Maps.csproj" />
+    <ProjectReference Include="..\World.Core\World.Core.csproj" />
+    <ProjectReference Include="..\MeshCore.Library\MeshCore.Library.csproj" />
+    <ProjectReference Include="..\MeshProps\MeshProps.csproj" />
+  </ItemGroup>
+</Project>

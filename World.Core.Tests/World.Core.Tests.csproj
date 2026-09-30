@@ -11,5 +11,7 @@
   <ItemGroup>
     <ProjectReference Include="..\World.Core\World.Core.csproj" />
     <ProjectReference Include="..\World.Buildings\World.Buildings.csproj" />
+    <ProjectReference Include="..\Maps.Coast\Maps.Coast.csproj" />
+    <ProjectReference Include="..\Maps.Pass\Maps.Pass.csproj" />
   </ItemGroup>
 </Project>

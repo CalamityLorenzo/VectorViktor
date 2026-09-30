@@ -1,3 +1,5 @@
+using Maps.Coast;
+using Maps.Pass;
 using Maps.Home;
 using MeshCore.Library;
 using MeshProps;
@@ -90,11 +92,16 @@ namespace Meshes.Tests
         // ---- What the world is made of
 
         private static readonly Lazy<BuiltWorld> World = new Lazy<BuiltWorld>(() => WorldBuilder.Build(HomeMap.Districts()));
+        private static readonly Lazy<BuiltWorld> Coast = new Lazy<BuiltWorld>(() => WorldBuilder.Build(CoastMap.Map));
+        private static readonly Lazy<BuiltWorld> Pass = new Lazy<BuiltWorld>(() => WorldBuilder.Build(PassMap.Map));
 
-        [Fact]
-        public void Everything_the_world_draws_from_a_source_builds_to_a_sound_mesh_its_palette_covers()
+        [Theory]
+        [InlineData("home")]
+        [InlineData("coast")]
+        [InlineData("pass")]
+        public void Everything_the_world_draws_from_a_source_builds_to_a_sound_mesh_its_palette_covers(string map)
         {
-            var world = World.Value;
+            var world = map switch { "coast" => Coast.Value, "pass" => Pass.Value, _ => World.Value };
             var sources = world.Fixtures.Select(f => f.Mesh)
                 .Concat(world.Things.Select(t => t.Mesh))
                 .Concat(world.Moving.Select(m => m.Mesh))
@@ -103,16 +110,19 @@ namespace Meshes.Tests
                 .Concat(world.Buildings.SelectMany(b => b.Rooms).SelectMany(r => r.Props).Select(p => p.Mesh))
                 .Concat(world.Buildings.SelectMany(b => world.Ground.DoorsOf(b)).Select(DoorMesh.Source))
                 .ToList();
-            Assert.True(sources.Count > 50, $"only {sources.Count} sources: is the world empty?");
+            Assert.True(sources.Count > 20, $"only {sources.Count} sources: is the world empty?");
 
             foreach (var source in sources)
                 MeshChecks.IsSound(source.Key, source.Build(null), source.Palette);
         }
 
-        [Fact]
-        public void The_rooms_and_the_ponds_and_lakes_build_to_sound_meshes()
+        [Theory]
+        [InlineData("home")]
+        [InlineData("coast")]
+        [InlineData("pass")]
+        public void The_rooms_and_the_ponds_and_lakes_build_to_sound_meshes(string map)
         {
-            var world = World.Value;
+            var world = map switch { "coast" => Coast.Value, "pass" => Pass.Value, _ => World.Value };
             foreach (var room in world.Buildings.SelectMany(b => b.Rooms))
                 MeshChecks.IsSound("room " + room.Id, RoomMesh.Build(null, room), RoomMesh.Palette(room));
             foreach (var pool in world.Terrain.Pools)

@@ -1,3 +1,4 @@
+using World.Core;
 using World.Maps;
 
 namespace Maps.Home
@@ -12,5 +13,8 @@ namespace Maps.Home
         public static IDistrict[] Districts() => new IDistrict[] { new Countryside(), new Town(), new Street(), new Lane() };
 
         public const string DefaultStart = "hills";
+
+        // All of that as one Map, to pick by name ("home") beside other maps.
+        public static readonly Map Map = new Map("home", pads => TerrainGenerator.Create(1, pads), Districts, DefaultStart);
     }
 }

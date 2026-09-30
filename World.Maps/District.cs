@@ -27,6 +27,9 @@ namespace World.Maps
         // Free-standing walls to walk into: fences, posts.
         IEnumerable<WallSegment> Walls(Terrain terrain) => Array.Empty<WallSegment>();
 
+        // Solid level-topped strips to stand on and walk along, and to walk into from the side (see Ledge).
+        IEnumerable<Ledge> Ledges(Terrain terrain) => Array.Empty<Ledge>();
+
         // Doors that take you somewhere else when you walk into them (see Portal).
         IEnumerable<Portal> Portals(Terrain terrain) => Array.Empty<Portal>();
 
@@ -38,6 +41,9 @@ namespace World.Maps
 
         // What's drawn that moves by itself, never touched (something going round), placed in the world.
         IEnumerable<ScenePart> Moving(Terrain terrain) => Array.Empty<ScenePart>();
+
+        // Cars parked, to get into and drive.
+        IEnumerable<ParkedCar> Cars(Terrain terrain) => Array.Empty<ParkedCar>();
 
         // Things lying about, to push, stack and knock over: each a body added to the world.
         IEnumerable<Thing> Things(PhysicsWorld world, Terrain terrain) => Array.Empty<Thing>();

@@ -10,4 +10,6 @@ Each lesson ends with **an exercise** to write yourself. They're optional: nothi
 | 02 | [Drawing Dear ImGui with MonoGame](02-drawing-dear-imgui.md) | ToolsPlan step 2 | A Stats window, and Dear ImGui's demo |
 | 03 | [The playground: fixed ticks, time control and experiments](03-the-playground.md) | ToolsPlan step 2 | An experiment where the head camera looks into turns |
 
+For a picture of how the projects reference each other, see the [project map](project-map.md).
+
 Planned, as the steps they belong to are built: map files and serialisation; cameras and snap views; picking and undo. Lessons on what was built before the lessons began (meshes and outlines, the physics, rigs and clips) can be written whenever wanted.

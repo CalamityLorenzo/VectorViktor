@@ -9,7 +9,9 @@ namespace World.Core
     //
     // With a `Half` it's a rectangle instead, `Half` either side of `Centre`, and `Radius` isn't used: a
     // swimming pool, dug square into the ground.
-    public readonly record struct Pool(Vector2 Centre, float Radius, float Level, Vector2 Half = default)
+    //
+    // `Shore` is how far above the water its shore is sand, where the drawing's own isn't enough: a beach.
+    public readonly record struct Pool(Vector2 Centre, float Radius, float Level, Vector2 Half = default, float? Shore = null)
     {
         public bool IsRectangle => Half != Vector2.Zero;
 
@@ -17,6 +19,6 @@ namespace World.Core
             ? MathF.Abs(x - Centre.X) <= Half.X && MathF.Abs(z - Centre.Y) <= Half.Y
             : Vector2.DistanceSquared(new Vector2(x, z), Centre) <= Radius * Radius;
 
-        public static Pool Rectangle(Vector2 centre, Vector2 half, float level) => new Pool(centre, 0f, level, half);
+        public static Pool Rectangle(Vector2 centre, Vector2 half, float level, float? shore = null) => new Pool(centre, 0f, level, half, shore);
     }
 }

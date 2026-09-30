@@ -82,10 +82,18 @@ namespace World.Maps
             var body = player.Body;
             var you = body.Position;
             Vector3 eye, lookAt;
+            var driving = player.Driving;
+            View.HiddenCar = !followBird && driving != null && player.View == ViewMode.FirstPerson ? driving : null;
             if (followBird && bird != null)
             {
                 (eye, lookAt) = bird.Chase(_ground);
                 you = eye;
+            }
+            else if (driving != null)
+            {
+                // Through the windscreen, or from the car's chase camera
+                eye = player.View == ViewMode.FirstPerson ? driving.Eye : driving.Chase.Position;
+                lookAt = player.View == ViewMode.FirstPerson ? eye + driving.Forward : driving.Position + driving.Up * 1.4f + driving.Heading * 2f;
             }
             else if (player.View == ViewMode.FirstPerson)
             {
@@ -108,9 +116,10 @@ namespace World.Maps
             // From the bird's chase camera, both are.
             DrawFrom(eye, lookAt, Vector3.Up, you, clock, colorsOn, batch =>
             {
-                if (followBird || player.View == ViewMode.Drone)
+                // Driving, you're in the car, and your drone's put away
+                if (driving == null && (followBird || player.View == ViewMode.Drone))
                     batch.Add(_playerView);
-                if (followBird || player.View == ViewMode.FirstPerson)
+                if (driving == null && (followBird || player.View == ViewMode.FirstPerson))
                     batch.Add(_droneView);
                 if (bird != null)
                 {

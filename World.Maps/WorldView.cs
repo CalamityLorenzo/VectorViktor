@@ -1,4 +1,5 @@
 using MeshCore.Library;
+using MeshProps;
 using MeshRendering;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -6,12 +7,13 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using World.Core.Physics;
+using World.Core.Vehicles;
 using World.Rendering;
 
 namespace World.Maps
 {
     // The world (see BuiltWorld) as drawn: the terrain a chunk at a time round the camera, the water, the
-    // buildings, what's built into the ground, and the things lying about. Each frame it's gathered into a
+    // buildings, what's built into the ground, the things lying about, and the cars. Each frame it's gathered into a
     // MeshBatch, which leaves out whatever's not in view.
     public sealed class WorldView : IDisposable
     {
@@ -28,13 +30,24 @@ namespace World.Maps
         private readonly List<Vector3> _cameras = new List<Vector3>();
         private readonly List<Vector3[]> _sealing = new List<Vector3[]>();
         private readonly WindowPortals _portals;
+        private readonly List<Car> _cars;
+        private readonly Dictionary<Car, MeshInstance> _carViews = new Dictionary<Car, MeshInstance>();
+        private readonly MeshSource _carMesh = new MeshSource("car", CarMesh.Build, CarMesh.Palette(new Color(200, 40, 35), new Color(60, 90, 120), new Color(30, 30, 32)));
+        private readonly GraphicsDevice _device;
+        private readonly MeshCache _cache;
 
         public TerrainView Terrain { get; }
+
+        // A car not to draw: the one you're sitting in, looking out through its windscreen
+        public Car HiddenCar { get; set; }
 
         // `drawDistance` is how far out the terrain's built: out to where the fog has hidden it all.
         public WorldView(BuiltWorld world, GraphicsDevice device, MeshCache cache, float drawDistance)
         {
             Terrain = new TerrainView(world.Terrain, shore: 0.5f, drawDistance, bare: world.Bare);
+            _cars = world.Cars;
+            _device = device;
+            _cache = cache;
 
             var pools = world.Terrain.Pools;
             for (var i = 0; i < pools.Count; i++)
@@ -93,6 +106,15 @@ namespace World.Maps
             foreach (var (body, view, turn) in _things)
             {
                 view.Transform = Matrix.CreateRotationY(turn) * body.Pose;   // upright, on its side, or part way over
+                batch.Add(view);
+            }
+            foreach (var car in _cars)
+            {
+                if (car == HiddenCar)
+                    continue;
+                if (!_carViews.TryGetValue(car, out var view))
+                    _carViews[car] = view = _cache.CreateInstance(_device, _carMesh);
+                view.Transform = car.World;
                 batch.Add(view);
             }
         }

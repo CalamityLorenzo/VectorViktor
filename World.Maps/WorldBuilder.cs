@@ -1,10 +1,12 @@
 using MeshRendering;
+using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using World.Buildings;
 using World.Core;
 using World.Core.Physics;
+using World.Core.Vehicles;
 
 namespace World.Maps
 {
@@ -21,6 +23,9 @@ namespace World.Maps
         public required IReadOnlyList<ScenePart> Moving { get; init; }
         public required IReadOnlyList<Portal> Portals { get; init; }
         public required IReadOnlyList<Thing> Things { get; init; }
+
+        // The cars, parked or driven: more can be added (see Start.InCar)
+        public required List<Car> Cars { get; init; }
         public required IReadOnlyDictionary<string, Start> Starts { get; init; }
 
         // Where the terrain gets no grid lines (see IDistrict.Bare).
@@ -37,19 +42,27 @@ namespace World.Maps
                     throw new InvalidOperationException($"Two of the world's buildings have a {what} called '{name}'.");
         }
 
-        // A map, from its districts (see Maps.Home's HomeMap for one): every district's pads levelled into one terrain,
-        // in the order the districts are listed (each district's over the ones before it), then its water,
-        // its buildings and walls as one ground, and its things in one world of bodies.
-        public static BuiltWorld Build(IReadOnlyList<IDistrict> districts, int seed = 1)
+        // A whole map (see Map): its districts on its own terrain.
+        public static BuiltWorld Build(Map map) => Build(map.Districts(), map.MakeTerrain);
+
+        // A map, from its districts (see Maps.Home's HomeMap for one), on the home map's terrain (see TerrainGenerator).
+        public static BuiltWorld Build(IReadOnlyList<IDistrict> districts, int seed = 1) =>
+            Build(districts, pads => TerrainGenerator.Create(seed, pads));
+
+        // A map, from its districts: every district's pads levelled into one terrain, made by `makeTerrain`, in the
+        // order the districts are listed (each district's over the ones before it), then its water, its buildings
+        // walls and ledges as one ground, and its things in one world of bodies.
+        public static BuiltWorld Build(IReadOnlyList<IDistrict> districts, Func<IReadOnlyList<TerrainGenerator.Pad>, Terrain> makeTerrain)
         {
-            var terrain = TerrainGenerator.Create(seed, districts.SelectMany(d => d.Pads).ToList());
+            var terrain = makeTerrain(districts.SelectMany(d => d.Pads).ToList());
             terrain.Flood(districts.SelectMany(d => d.Pools(terrain)).ToArray());
 
             var buildings = districts.SelectMany(d => d.Buildings(terrain)).ToList();
             // Their meshes are known by their names (see BuildingMesh.Source, RoomView), so no two may share one
             Unique(buildings.Select(b => b.Name), "building");
             Unique(buildings.SelectMany(b => b.Rooms).Select(r => r.Id), "room");
-            var ground = new BuildingGround(terrain, buildings, districts.SelectMany(d => d.Walls(terrain)).ToList());
+            var ground = new BuildingGround(terrain, buildings, districts.SelectMany(d => d.Walls(terrain)).ToList(),
+                                            districts.SelectMany(d => d.Ledges(terrain)).ToList());
             var physics = new PhysicsWorld(ground);
 
             var all = districts.ToArray();
@@ -78,6 +91,8 @@ namespace World.Maps
                 Moving = districts.SelectMany(d => d.Moving(terrain)).ToList(),
                 Portals = districts.SelectMany(d => d.Portals(terrain)).ToList(),
                 Things = districts.SelectMany(d => d.Things(physics, terrain)).ToList(),
+                Cars = districts.SelectMany(d => d.Cars(terrain))
+                    .Select(c => new Car(new Vector3(c.At.X, terrain.HeightAt(c.At.X, c.At.Y), c.At.Y), c.Yaw, physics)).ToList(),
                 Starts = starts,
                 Bare = Bare,
             };

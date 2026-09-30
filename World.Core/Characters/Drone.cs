@@ -30,20 +30,30 @@ namespace World.Core.Characters
         public Vector3 Velocity { get; private set; }
         public float Yaw { get; private set; }
 
-        public Drone(Vector3 position, float yaw = 0f)
+        // How far behind and above its owner it keeps, and how quickly it follows: a walker's, unless it's told
+        // otherwise - a car's chase camera, say, further back and quicker to keep up
+        private readonly float _distance, _height, _stiffness;
+
+        public Drone(Vector3 position, float yaw = 0f, float followDistance = FollowDistance, float followHeight = FollowHeight,
+                     float stiffness = Stiffness)
         {
             Position = position;
             Yaw = yaw;
+            _distance = followDistance;
+            _height = followHeight;
+            _stiffness = stiffness;
         }
 
-        // Where it wants to be for an owner with feet at `feet`, facing `ownerYaw`.
-        public static Vector3 Station(Vector3 feet, float ownerYaw) =>
-            feet + Vector3.Up * FollowHeight - new Vector3(MathF.Sin(ownerYaw), 0f, -MathF.Cos(ownerYaw)) * FollowDistance;
+        // Where a walker's drone wants to be for an owner with feet at `feet`, facing `ownerYaw`.
+        public static Vector3 Station(Vector3 feet, float ownerYaw) => Station(feet, ownerYaw, FollowDistance, FollowHeight);
+
+        private static Vector3 Station(Vector3 feet, float ownerYaw, float distance, float height) =>
+            feet + Vector3.Up * height - new Vector3(MathF.Sin(ownerYaw), 0f, -MathF.Cos(ownerYaw)) * distance;
 
         // Jumps straight to its station, at rest: for when the owner is first placed, or teleported.
         public void Reset(Vector3 feet, float ownerYaw, IGround ground)
         {
-            Position = ground.ClearLine(feet + Vector3.Up * Player.EyeHeight, KeepClear(Station(feet, ownerYaw), ground));
+            Position = ground.ClearLine(feet + Vector3.Up * Player.EyeHeight, KeepClear(Station(feet, ownerYaw, _distance, _height), ground));
             Velocity = Vector3.Zero;
             Yaw = ownerYaw;
         }
@@ -52,8 +62,8 @@ namespace World.Core.Characters
         public void Step(Vector3 feet, float ownerYaw, Vector3 lookAt, float dt, IGround ground)
         {
             // Critically damped spring, integrated semi-implicitly (velocity first), which stays stable at 60 Hz
-            var station = InSight(lookAt, ground.ClearLine(lookAt, Station(feet, ownerYaw)), ground);
-            var acceleration = (station - Position) * (Stiffness * Stiffness) - Velocity * (2f * Stiffness);
+            var station = InSight(lookAt, ground.ClearLine(lookAt, Station(feet, ownerYaw, _distance, _height)), ground);
+            var acceleration = (station - Position) * (_stiffness * _stiffness) - Velocity * (2f * _stiffness);
             Velocity += acceleration * dt;
             var position = Position + Velocity * dt;
 

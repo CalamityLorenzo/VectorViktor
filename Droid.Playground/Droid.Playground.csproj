@@ -20,6 +20,8 @@
     <ProjectReference Include="..\Tools.DearImGui\Tools.DearImGui.csproj" />
     <ProjectReference Include="..\World.Maps\World.Maps.csproj" />
     <ProjectReference Include="..\Maps.Home\Maps.Home.csproj" />
+    <ProjectReference Include="..\Maps.Coast\Maps.Coast.csproj" />
+    <ProjectReference Include="..\Maps.Pass\Maps.Pass.csproj" />
     <ProjectReference Include="..\World.Core\World.Core.csproj" />
     <ProjectReference Include="..\World.Buildings\World.Buildings.csproj" />
     <ProjectReference Include="..\World.Rendering\World.Rendering.csproj" />

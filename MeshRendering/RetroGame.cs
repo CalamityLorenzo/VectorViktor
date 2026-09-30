@@ -13,8 +13,8 @@ namespace MeshRendering
     //
     // For development, BASIC_WORLD_SHOT="file.png;seconds;keys" saves one low-resolution frame to the file after
     // that many seconds (default 3) - and whatever else WriteShotReport writes, beside it - then exits, with no
-    // need of the screen. What the keys mean is the game's business (see Shot). With ShotOfWholeWindow, the file is
-    // the whole window instead, overlay and all.
+    // need of the screen. What the keys mean is the game's business (see Shot), but for c: colours off, the wireframe
+    // look. With ShotOfWholeWindow, the file is the whole window instead, overlay and all.
     public abstract class RetroGame : Game
     {
         protected static readonly Color BackgroundColor = RetroStyle.Background;
@@ -31,9 +31,9 @@ namespace MeshRendering
 
         protected GraphicsDeviceManager Graphics { get; }
         protected MeshCache MeshCache { get; } = new MeshCache();
-        protected bool ColorsOn { get; private set; } = true;   // off: faces drawn in the background colour (wireframe look)
-        protected bool LowResOn { get; private set; } = true;
         protected ScreenShot? Shot { get; } = ReadShot();
+        protected bool ColorsOn { get; private set; }            // off: faces drawn in the background colour (wireframe look)
+        protected bool LowResOn { get; private set; } = true;
         protected float Clock { get; private set; }   // seconds drawn so far
 
         // Where the picture is in the window (scaled up, it's centred with a border), as of the last frame: to turn a
@@ -46,6 +46,7 @@ namespace MeshRendering
             _lowResWidth = lowResWidth;
             _lowResHeight = lowResHeight;
             _colorsKey = colorsKey;
+            ColorsOn = Shot?.Keys.Contains('c') != true;
             Graphics = new GraphicsDeviceManager(this)
             {
                 PreferredBackBufferWidth = windowWidth,

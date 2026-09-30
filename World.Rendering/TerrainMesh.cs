@@ -7,7 +7,7 @@ using World.Core;
 namespace World.Rendering
 {
     // The terrain as one mesh: every triangle HeightAt uses, flat-coloured by what it is - sand round the
-    // lakes and ponds (up to `shore` above their water), grass in three bands of height, rock wherever
+    // lakes and ponds (up to `shore` above their water, or their own Pool.Shore), grass in three bands of height, rock wherever
     // it's too steep to walk - and shaded in three steps by how squarely it faces the light, so the hills'
     // shapes read between the grid lines, which are drawn every couple of cells, in white like everything else. Cliff faces get no grid, only an
     // outline where the rock ends. The mesh is in world coordinates. A big terrain is drawn a chunk at a
@@ -128,7 +128,7 @@ namespace World.Rendering
         {
             var pools = terrain.Pools;
             for (var k = 0; k < pools.Count; k++)   // not foreach: that makes garbage of an interface's enumerator, for every triangle
-                if (pools[k].Covers(centre.X, centre.Z) && centre.Y < pools[k].Level + shore)
+                if (pools[k].Covers(centre.X, centre.Z) && centre.Y < pools[k].Level + (pools[k].Shore ?? shore))
                     return Sand;
             if (centre.Y < 1.5f)
                 return GrassLow;

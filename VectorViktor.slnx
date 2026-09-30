@@ -24,5 +24,7 @@
   <Folder Name="/Maps/">
     <Project Path="World.Maps/World.Maps.csproj" />
     <Project Path="Maps.Home/Maps.Home.csproj" />
+    <Project Path="Maps.Coast/Maps.Coast.csproj" />
+    <Project Path="Maps.Pass/Maps.Pass.csproj" />
   </Folder>
 </Solution>

@@ -2,6 +2,7 @@ using Microsoft.Xna.Framework;
 using System;
 using World.Core.Movement;
 using World.Core.Physics;
+using World.Core.Vehicles;
 
 namespace World.Core.Characters
 {
@@ -12,11 +13,16 @@ namespace World.Core.Characters
     //
     // Wading or swimming soaks you as high as the water comes up you, at once; out of it, you dry off, from
     // soaked to dry in DryingTime.
+    //
+    // You can get into a car (see Car) and drive it, seen from its chase camera or through the windscreen; while
+    // you do, you go where it goes. You get out beside the driver's door, once it's all but stopped.
     public sealed class Player
     {
         public const float EyeHeight = WorldConstants.EyeHeight;
         public const float Height = CharacterController.Height;
         public const float DryingTime = 90f;   // seconds
+        public const float CarReach = 3.5f;    // how near a car's middle you must be to get in
+        public const float StoppedSpeed = 1.5f;   // metres per second: slow enough to get out
 
         // How wet you are: 0 dry, 1 soaked to the top of your head.
         public float Wetness { get; private set; }
@@ -25,7 +31,10 @@ namespace World.Core.Characters
         public Drone Drone { get; }
         public ViewMode View { get; set; } = ViewMode.FirstPerson;
 
-        public Vector3 Eye => Body.Position + Vector3.Up * EyeHeight;
+        // The car you're driving, if you are
+        public Car? Driving { get; private set; }
+
+        public Vector3 Eye => Driving?.Eye ?? Body.Position + Vector3.Up * EyeHeight;
 
         public Player(Vector3 feet, float yaw, IGround ground)
         {
@@ -46,6 +55,58 @@ namespace World.Core.Characters
         }
 
         public void ToggleView() => View = View == ViewMode.FirstPerson ? ViewMode.Drone : ViewMode.FirstPerson;
+
+        // Whether you're near enough `car` to get in
+        public bool CanReach(Car car) =>
+            Driving == null && Vector2.Distance(new Vector2(car.Position.X, car.Position.Z), new Vector2(Body.Position.X, Body.Position.Z)) <= CarReach &&
+            MathF.Abs(car.Position.Y - Body.Position.Y) < 1.5f;
+
+        // Into the driver's seat, seen from behind the car to begin with
+        public void GetIn(Car car)
+        {
+            Driving = car;
+            View = ViewMode.Drone;
+            FollowCar();
+        }
+
+        // Out of the car, onto the ground beside the driver's door - or the other side's, if there's no standing
+        // there - facing the way it does; not while it's still going, or if there's nowhere to stand either side.
+        public bool GetOut(IGround ground)
+        {
+            if (Driving is not { } car || MathF.Abs(car.Speed) > StoppedSpeed || !car.Grounded)
+                return false;
+            foreach (var side in new[] { 1f, -1f })
+            {
+                var right = car.Right2 * side * (Car.Width / 2f + CharacterController.Radius + 0.2f);
+                var spot = new Vector3(car.Position.X + right.X, car.Position.Y + CharacterController.MaxStepUp, car.Position.Z + right.Y);
+                var below = ground.GroundBelow(spot, CharacterController.MaxStepUp * 2f);
+                if (!below.HasValue || MathF.Abs(below.Value - car.Position.Y) > 0.5f)
+                    continue;
+                var feet = spot with { Y = below.Value };
+                if (!ground.IsWalkable(feet) || Vector3.DistanceSquared(ground.KeepOut(feet, CharacterController.Radius, Height), feet) > 1e-4f)
+                    continue;
+                Driving = null;
+                View = ViewMode.FirstPerson;
+                Teleport(feet, car.Yaw, ground);
+                return true;
+            }
+            return false;
+        }
+
+        // Driving: the car goes, and you with it
+        public void Drive(in DriveInput input, float dt, IGround ground)
+        {
+            if (Driving is not { } car)
+                return;
+            car.Step(input, dt, ground);
+            FollowCar();
+        }
+
+        private void FollowCar()
+        {
+            Body.Position = Driving!.Position;
+            Body.Yaw = Driving.Yaw;
+        }
 
         public void Step(in MoveInput input, float dt, IGround ground)
         {

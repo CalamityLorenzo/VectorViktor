@@ -1,6 +1,7 @@
 using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using World.Core;
 using World.Core.Movement;
 using World.Core.Physics;
@@ -19,7 +20,8 @@ namespace World.Buildings
     // The furniture in a room (a PropSpec with a Half) blocks you up to PropHeight above its floor.
     //
     // Free-standing walls outside - garden fences, a billboard's posts - can be given as well (see
-    // WallSegment); they block walkers, bodies and the drone's line of sight the same way.
+    // WallSegment); they block walkers, bodies and the drone's line of sight the same way. And ledges (see
+    // Ledge): level-topped strips to stand on, blocking walkers at their sides.
     //
     // Its doors (see Door) are walls too, wherever they've swung to. They swing on in StepDoors, stopping
     // against anything in their way, and Interact opens or shuts the one a walker is facing.
@@ -33,6 +35,9 @@ namespace World.Buildings
         private readonly List<Placed> _rooms = new List<Placed>();
         private readonly List<WallSegment> _walls = new List<WallSegment>();
         private readonly WallGrid _grid;   // the walls (not the doors, which swing), sorted by where they are
+        private readonly Ledge[] _ledges;
+        private readonly WallGrid _ledgeGrid;   // the ledges' middle lines, in the same order, sorted by where they are
+        private readonly float _ledgeReach;     // the widest of them, either side of its line
         private readonly List<Door> _doors = new List<Door>();
         private readonly Dictionary<Building, List<Door>> _doorsOf = new Dictionary<Building, List<Door>>();
         // The box round each room's roof (or the room over it) in the world, overhang and all, and how high it goes
@@ -56,7 +61,10 @@ namespace World.Buildings
         // Every wall there is to walk into (the buildings', and the free-standing ones), for looking at: tools draw them.
         public IReadOnlyList<WallSegment> Walls => _walls;
 
-        public BuildingGround(IGround terrain, IReadOnlyList<Building> buildings, IEnumerable<WallSegment>? walls = null)
+        public IReadOnlyList<Ledge> Ledges => _ledges;
+
+        public BuildingGround(IGround terrain, IReadOnlyList<Building> buildings, IEnumerable<WallSegment>? walls = null,
+                              IEnumerable<Ledge>? ledges = null)
         {
             _terrain = terrain;
             Buildings = buildings;
@@ -86,7 +94,20 @@ namespace World.Buildings
                 _doors.AddRange(doors);
             }
             _grid = new WallGrid(_walls);
+            _ledges = ledges?.ToArray() ?? Array.Empty<Ledge>();
+            _ledgeGrid = new WallGrid(_ledges.Select(l => new WallSegment(l.A, l.B, l.Bottom, l.Top)).ToList());
+            _ledgeReach = _ledges.Length == 0 ? 0f : _ledges.Max(l => l.HalfWidth);
         }
+
+        // The indexes of the ledges that might be within `margin` (past their own widths) of (x, z)
+        private IReadOnlyList<int> LedgesNear(Vector2 p, float margin)
+        {
+            var reach = new Vector2(_ledgeReach + margin);
+            return _ledgeGrid.Near(p - reach, p + reach);
+        }
+
+        private static float DistanceFromLine(Vector2 p, Ledge ledge) =>
+            Vector2.Distance(p, Geometry2D.NearestOnSegment(p, ledge.A, ledge.B));
 
         // Swings the doors on, each stopping short of any body in its way, or any walker (feet, radius, height).
         public void StepDoors(float dt, IEnumerable<Body> bodies, IEnumerable<(Vector3 feet, float radius, float height)> walkers)
@@ -159,14 +180,22 @@ namespace World.Buildings
                 if (wall.Top > top && Vector2.DistanceSquared(p, Geometry2D.NearestOnSegment(p, wall.A, wall.B)) <= margin * margin)
                     top = wall.Top;
             }
+            var ledges = LedgesNear(p, margin);
+            for (var k = 0; k < ledges.Count; k++)
+            {
+                var ledge = _ledges[ledges[k]];
+                if (ledge.Top > top && DistanceFromLine(p, ledge) <= ledge.HalfWidth + margin)
+                    top = ledge.Top;
+            }
             return top;
         }
 
-        // The ground a walker's feet are on, and whether it's a building's (a floor or a stair) rather than the terrain's.
-        private (float? height, bool indoors) Surface(Vector3 feet, float reach)
+        // The ground a walker's feet are on, and whether it's a building's (a floor or a stair) or a ledge's rather
+        // than the terrain's: level, and always walkable.
+        private (float? height, bool built) Surface(Vector3 feet, float reach)
         {
             var best = _terrain.GroundBelow(feet, reach);
-            var indoors = false;
+            var built = false;
             foreach (var room in _rooms)
             {
                 if (!room.Near(feet, 0f))
@@ -178,16 +207,27 @@ namespace World.Buildings
                 if (!best.HasValue || height >= best.Value)
                 {
                     best = height;
-                    indoors = true;
+                    built = true;
                 }
             }
-            return (best, indoors);
+            var p = new Vector2(feet.X, feet.Z);
+            var ledges = LedgesNear(p, 0f);
+            for (var k = 0; k < ledges.Count; k++)
+            {
+                var ledge = _ledges[ledges[k]];
+                if ((!best.HasValue || ledge.Top >= best.Value) && ledge.Top <= feet.Y + reach && DistanceFromLine(p, ledge) <= ledge.HalfWidth)
+                {
+                    best = ledge.Top;
+                    built = true;
+                }
+            }
+            return (best, built);
         }
 
-        // Floors and stairs are level, as far as standing on them goes, and always walkable.
+        // Floors, stairs and ledges are level, as far as standing on them goes, and always walkable.
         private const float LookReach = CharacterController.MaxStepUp + CharacterController.Radius;
-        public Vector3 NormalAt(Vector3 feet) => Surface(feet, LookReach).indoors ? Vector3.Up : _terrain.NormalAt(feet);
-        public bool IsWalkable(Vector3 feet) => Surface(feet, LookReach).indoors || _terrain.IsWalkable(feet);
+        public Vector3 NormalAt(Vector3 feet) => Surface(feet, LookReach).built ? Vector3.Up : _terrain.NormalAt(feet);
+        public bool IsWalkable(Vector3 feet) => Surface(feet, LookReach).built || _terrain.IsWalkable(feet);
 
         // On a ladder (a ramp with a MaxStepUp above the usual), at the height of it: its own.
         public float StepUpAt(Vector3 feet, float step)
@@ -239,6 +279,13 @@ namespace World.Buildings
                     p = PushOutOfWall(p, _grid[index], radius, height);
                 foreach (var door in _doors)
                     p = PushOutOfWall(p, door.Panel, radius, height);
+                // Out from the side of a ledge too high to step up onto, as from a wall as thick as it is
+                foreach (var index in LedgesNear(new Vector2(p.X, p.Z), radius))
+                {
+                    var ledge = _ledges[index];
+                    if (ledge.Bottom < p.Y + height && ledge.Top > p.Y + CharacterController.MaxStepUp)
+                        p = PushOutOfWall(p, new WallSegment(ledge.A, ledge.B, ledge.Bottom, ledge.Top), ledge.HalfWidth + radius, height);
+                }
 
                 foreach (var room in _rooms)
                 {

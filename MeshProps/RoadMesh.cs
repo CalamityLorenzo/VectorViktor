@@ -244,6 +244,97 @@ namespace MeshProps
             return road.Build(device);
         }
 
+        // A country road along a line laid out in the world, climbing and falling and bending as it goes, not on the
+        // grid: `path` is its centre line's points (world X, height, Z), a few metres apart at most, and the road's
+        // level across at each. The same 7 m of tarmac as the town's roads, with the broken white line down the
+        // middle and a solid one along each edge, but no kerbs or pavements: a grass verge `verge` wide either side
+        // instead, lying on the ground like the tarmac. `before` and `after`, if given, are the points either side of
+        // it on the rest of the line, so a piece laid end to end with its neighbours meets them square; and `along`
+        // is how far along the whole road the piece starts, so its broken line keeps the rhythm of theirs.
+        public static MeshData Winding(GraphicsDevice device, IReadOnlyList<Vector3> path, float verge = 1.5f, float along = 0f,
+            Vector3? before = null, Vector3? after = null)
+        {
+            if (path.Count < 2)
+                throw new ArgumentException("A road runs between at least two points.", nameof(path));
+
+            var road = new RoadBuilder();
+            var mesh = road.Mesh;
+            var n = path.Count;
+
+            // Across the road, level, at each point: to its left, as it runs from the first point to the last, and
+            // mitred between the stretches either side, so the road keeps its width round a bend
+            static Vector2 Left(Vector3 from, Vector3 to)
+            {
+                var d = Vector2.Normalize(new Vector2(to.X - from.X, to.Z - from.Z));
+                return new Vector2(d.Y, -d.X);
+            }
+            var across = new Vector3[n];
+            var s = new float[n];
+            for (var i = 0; i < n; i++)
+            {
+                var previous = i > 0 ? path[i - 1] : before;
+                var next = i < n - 1 ? path[i + 1] : after;
+                var a = previous is { } p ? Left(p, path[i]) : Left(path[i], next!.Value);
+                var b = next is { } q ? Left(path[i], q) : a;
+                var mitre = Vector2.Normalize(a + b);
+                mitre /= Vector2.Dot(mitre, a);
+                across[i] = new Vector3(mitre.X, 0f, mitre.Y);
+                s[i] = i == 0 ? along : s[i - 1] + Vector3.Distance(path[i - 1], path[i]);
+            }
+
+            const float surface = RoadBuilder.SurfaceHeight, paint = surface + 0.005f;
+            Vector3 At(int i, float x, float y) => path[i] + across[i] * x + Vector3.Up * y;
+
+            // The tarmac and the verges either side, the tarmac's edges outlined; and the solid lines along its edges
+            const float edgeLine = 0.3f, lineWidth = 0.15f;
+            for (var i = 0; i < n - 1; i++)
+            {
+                mesh.AddQuad(RoadBuilder.Tarmac, At(i, -Half, surface), At(i + 1, -Half, surface), At(i + 1, Half, surface), At(i, Half, surface));
+                mesh.AddQuad(RoadBuilder.Verge, At(i, Half, surface), At(i + 1, Half, surface), At(i + 1, Half + verge, surface), At(i, Half + verge, surface));
+                mesh.AddQuad(RoadBuilder.Verge, At(i, -Half - verge, surface), At(i + 1, -Half - verge, surface), At(i + 1, -Half, surface), At(i, -Half, surface));
+                foreach (var side in new[] { -1f, 1f })
+                {
+                    mesh.AddLine(At(i, side * Half, surface), At(i + 1, side * Half, surface));
+                    float inner = side * (Half - edgeLine - lineWidth / 2f), outer = side * (Half - edgeLine + lineWidth / 2f);
+                    mesh.AddQuad(RoadBuilder.Paint, At(i, inner, paint), At(i + 1, inner, paint), At(i + 1, outer, paint), At(i, outer, paint));
+                }
+            }
+
+            // The broken line: dashes 3 m long every 6 m of the whole road, a metre or less at a time so they follow it
+            // round a bend; any that start before this piece or run on past it are cut at its ends
+            (Vector3 at, Vector3 across) Along(float distance)
+            {
+                var i = 1;
+                while (i < n - 1 && s[i] < distance)
+                    i++;
+                var t = Math.Clamp((distance - s[i - 1]) / MathF.Max(1e-6f, s[i] - s[i - 1]), 0f, 1f);
+                return (Vector3.Lerp(path[i - 1], path[i], t), Vector3.Lerp(across[i - 1], across[i], t));
+            }
+            const float period = 6f, dash = 3f;
+            for (var start = MathF.Floor(s[0] / period) * period + (period - dash) / 2f; start < s[n - 1]; start += period)
+            {
+                float from = MathF.Max(start, s[0]), to = MathF.Min(start + dash, s[n - 1]);
+                if (to <= from)
+                    continue;
+                var pieces = Math.Max(1, (int)MathF.Ceiling(to - from));
+                for (var k = 0; k < pieces; k++)
+                {
+                    var (p0, a0) = Along(MathHelper.Lerp(from, to, k / (float)pieces));
+                    var (p1, a1) = Along(MathHelper.Lerp(from, to, (k + 1) / (float)pieces));
+                    Vector3 l0 = p0 - a0 * (lineWidth / 2f) + Vector3.Up * paint, r0 = p0 + a0 * (lineWidth / 2f) + Vector3.Up * paint;
+                    Vector3 l1 = p1 - a1 * (lineWidth / 2f) + Vector3.Up * paint, r1 = p1 + a1 * (lineWidth / 2f) + Vector3.Up * paint;
+                    mesh.AddQuad(RoadBuilder.Paint, l0, l1, r1, r0);
+                    mesh.AddLine(l0, l1);
+                    mesh.AddLine(r0, r1);
+                    if (k == 0)
+                        mesh.AddLine(l0, r0);
+                    if (k == pieces - 1)
+                        mesh.AddLine(l1, r1);
+                }
+            }
+            return road.Build(device);
+        }
+
         private static void CheckCorner(float cornerRadius)
         {
             if (cornerRadius <= RoadBuilder.PavementWidth)

@@ -8,6 +8,7 @@ using World.Buildings;
 using World.Core.Characters;
 using World.Core.Movement;
 using World.Core.Physics;
+using World.Core.Vehicles;
 using World.Maps;
 
 namespace Basic.World
@@ -29,12 +30,14 @@ namespace Basic.World
     // country round where you start (see Bird): watch it from the camera chasing it, from the start with the command line's "bird".
     // Drawn to a small render target and scaled up with hard pixels (see RetroGame).
     // Up / W and Down / S walk (hold Shift to run), Left / Right turn, A / D sidestep, Space jumps, E opens or shuts a door.
+    // Where there's a car (on the pass), E by it gets in, and E again, stopped, gets out; driving, Up / W is the
+    // throttle, Down / S brakes and then reverses, Left / Right or A / D steer, and Space is the handbrake.
     // V switches between your own view and the drone's, B to the bird's chase camera and back. C toggles colours / wireframe, L the low-resolution
     // look, F11 full screen, Escape exits.
     //
     // For development, a BASIC_WORLD_SHOT (see RetroGame) also saves where every body is beside the picture.
-    // Its keys, all optional: v starts in the drone view, b following the bird, w holds walk forward, r runs, e presses E once,
-    // halfway to the shot.
+    // Its keys, all optional: v starts in the drone view, b following the bird, w holds walk forward (or the throttle,
+    // driving), r runs, e presses E once, halfway to the shot.
     public class Game1 : RetroGame
     {
         private const int WindowWidth = 1440;
@@ -45,6 +48,7 @@ namespace Basic.World
         private const float StepTime = 1f / 60f;      // the world always moves on in steps of this
         private const float MaxFrame = 0.25f;     // after a stall, catch up no more than this, rather than fall through the world
 
+        private readonly Map _map;
         private readonly string _start;
         private bool _followBird;
 
@@ -53,29 +57,32 @@ namespace Basic.World
         private Player _player;
         private Bird _bird;
         private WorldRenderer _renderer;
-        private int _titleWetness = -1;
+        private int _titleWetness = -1, _titleSpeed = -1;
         private BuildingGround _ground;
         private float _pending;          // time not yet stepped through
         private bool _jumpPressed;       // since the last tick
         private bool _shotPressedE;
         private readonly (Vector3 feet, float radius, float height)[] _walkers = new (Vector3, float, float)[1];   // who the doors must not swing into
 
-        // `followBird`: seen from the camera chasing the bird, to begin with.
-        public Game1(string start = null, bool followBird = false) : base(WindowWidth, WindowHeight, LowResWidth, LowResHeight, colorsKey: Keys.C)
+        // `followBird`: seen from the camera chasing the bird, to begin with. `map`: the home map if none.
+        public Game1(string start = null, bool followBird = false, Map map = null) : base(WindowWidth, WindowHeight, LowResWidth, LowResHeight, colorsKey: Keys.C)
         {
-            _start = start ?? HomeMap.DefaultStart;
+            _map = map ?? HomeMap.Map;
+            _start = start ?? _map.DefaultStart;
             _followBird = followBird;
         }
 
         protected override void LoadWorld()
         {
-            _built = WorldBuilder.Build(HomeMap.Districts());
+            _built = WorldBuilder.Build(_map);
             _ground = _built.Ground;
             _world = _built.Physics;
             if (!_built.Starts.TryGetValue(_start, out var start))
-                start = _built.Starts[HomeMap.DefaultStart];
+                start = _built.Starts[_map.DefaultStart];
             var dropFrom = start.Above > 0f ? _built.Terrain.HeightAt(start.At.X, start.At.Y) + start.Above : 0f;
             _player = new Player(new Vector3(start.At.X, dropFrom, start.At.Y), start.Yaw, _world);
+            if (start.InCar)
+                _player.GetIn(CarAt(start));
             _bird = new Bird(start.At, _ground.SkylineAt, start.Yaw);
 
             _renderer = new WorldRenderer(_built, GraphicsDevice, MeshCache);
@@ -86,10 +93,25 @@ namespace Basic.World
             UpdateTitle();
         }
 
+        // The car parked at a start, or one brought there if there's none
+        private Car CarAt(Start start)
+        {
+            var near = _built.Cars.FirstOrDefault(c => Vector2.Distance(new Vector2(c.Position.X, c.Position.Z), start.At) < 10f);
+            if (near != null)
+                return near;
+            var car = new Car(new Vector3(start.At.X, _built.Terrain.HeightAt(start.At.X, start.At.Y), start.At.Y), start.Yaw, _world);
+            _built.Cars.Add(car);
+            return car;
+        }
+
         private void UpdateTitle()
         {
             _titleWetness = (int)MathF.Round(_player.Wetness * 100f);
-            Window.Title = "Basic.World - " + (_followBird ? "bird view" : _player.View == ViewMode.FirstPerson ? "your view" : "drone view") +
+            _titleSpeed = _player.Driving is { } car ? (int)MathF.Round(MathF.Abs(car.Speed) * 3.6f) : -1;
+            var view = _followBird ? "bird view" : _player.Driving != null ? (_player.View == ViewMode.FirstPerson ? "driving" : "driving, chase view")
+                : _player.View == ViewMode.FirstPerson ? "your view" : "drone view";
+            Window.Title = "Basic.World - " + view + (_titleSpeed >= 0 ? $" - {_titleSpeed} km/h" : "") +
+                (_player.Driving?.Flooded == true ? " - flooded" : "") +
                 (_player.Body.Swimming ? " - swimming" : "") + (_titleWetness > 0 ? $" - wet {_titleWetness}%" : "");
         }
 
@@ -112,19 +134,39 @@ namespace Basic.World
             if (Pressed(keyboard, Keys.E) || (Shot is { } pressing && pressing.Keys.Contains('e') && !_shotPressedE && Clock >= pressing.After / 2f))
             {
                 _shotPressedE = Shot != null;
-                _ground.Interact(_player.Body.Position, _player.Body.Heading);
+                // Out of the car you're in, into one you're by, or else a door
+                var car = _built.Cars.FirstOrDefault(_player.CanReach);
+                if (_player.Driving != null)
+                    _player.GetOut(_world);
+                else if (car != null)
+                    _player.GetIn(car);
+                else
+                    _ground.Interact(_player.Body.Position, _player.Body.Heading);
+                UpdateTitle();
             }
 
             var input = IsActive ? ReadInput(keyboard) : MoveInput.None;
+            var drive = IsActive ? ReadDrive(keyboard) : DriveInput.None;
             if (Shot is { } shot && shot.Keys.Contains('w'))
+            {
                 input = new MoveInput(new Vector2(0f, 1f), Run: shot.Keys.Contains('r'));
+                drive = new DriveInput(1f, 0f);
+            }
             _pending += MathF.Min((float)gameTime.ElapsedGameTime.TotalSeconds, MaxFrame);
             while (_pending >= StepTime)
             {
                 _walkers[0] = (_player.Body.Position, CharacterController.Radius, Player.Height);
                 _ground.StepDoors(StepTime, _world.Bodies, _walkers);
-                _player.Step(input with { Jump = _jumpPressed }, StepTime, _world);
-                GoThroughPortals();
+                if (_player.Driving != null)
+                    _player.Drive(drive, StepTime, _world);
+                else
+                {
+                    _player.Step(input with { Jump = _jumpPressed }, StepTime, _world);
+                    GoThroughPortals();
+                }
+                foreach (var car in _built.Cars)
+                    if (car != _player.Driving)
+                        car.Step(DriveInput.Parked, StepTime, _world);
                 _world.Step(StepTime);
                 _bird.Step(StepTime);
                 _jumpPressed = false;   // a jump happens on one tick, not every tick this frame
@@ -143,6 +185,11 @@ namespace Basic.World
                 }
         }
 
+        private static DriveInput ReadDrive(KeyboardState keyboard) => new DriveInput(
+            MathHelper.Clamp(Axis(keyboard, Keys.Up, Keys.Down) + Axis(keyboard, Keys.W, Keys.S), -1f, 1f),
+            MathHelper.Clamp(Axis(keyboard, Keys.Right, Keys.Left) + Axis(keyboard, Keys.D, Keys.A), -1f, 1f),
+            keyboard.IsKeyDown(Keys.Space));
+
         private static MoveInput ReadInput(KeyboardState keyboard)
         {
             var forward = Axis(keyboard, Keys.Up, Keys.Down) + Axis(keyboard, Keys.W, Keys.S);
@@ -154,7 +201,8 @@ namespace Basic.World
 
         protected override void DrawWorld(GameTime gameTime)
         {
-            if ((int)MathF.Round(_player.Wetness * 100f) != _titleWetness)
+            if ((int)MathF.Round(_player.Wetness * 100f) != _titleWetness ||
+                (_player.Driving is { } car && (int)MathF.Round(MathF.Abs(car.Speed) * 3.6f) != _titleSpeed))
                 UpdateTitle();
             _renderer.Draw(_player, Clock, ColorsOn, _bird, _followBird);
         }
@@ -162,7 +210,8 @@ namespace Basic.World
         // Where everything ended up, beside the screenshot
         protected override void WriteShotReport(string path)
         {
-            var report = new System.Text.StringBuilder().AppendLine($"player {_player.Body.Position}")
+            var report = new System.Text.StringBuilder().AppendLine($"player {_player.Body.Position}" +
+                    (_player.Driving is { } car ? $" driving at {car.Speed * 3.6f:F0} km/h, grounded {car.Grounded}" : ""))
                 .AppendLine($"bird {_bird.Position} yaw {_bird.Yaw:F2} pitch {_bird.Pitch:F2} flap {_bird.FlapPhase:F2}")
                 .AppendLine($"terrain chunks: {_built.Terrain.ChunksMade} of {_built.Terrain.ChunksX * _built.Terrain.ChunksZ} worked out, {_renderer.View.Terrain.Built} built in {_renderer.View.Terrain.BuildTime.TotalMilliseconds:F0} ms, {_renderer.View.Terrain.Drawn} drawn")
                 .AppendLine($"meshes: {_renderer.Batch.Drawn} drawn, {_renderer.Batch.Culled} culled, {_renderer.Batch.DrawCalls} draw calls");

@@ -1,5 +1,4 @@
 using Hexa.NET.ImGui;
-using Maps.Home;
 using MeshRendering;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -35,6 +34,7 @@ namespace Droid.Playground
         private const float MaxFrame = 0.25f;
         private static readonly (float scale, string name)[] Speeds = { (1f, "full speed"), (0.5f, "half"), (0.25f, "quarter"), (0.125f, "eighth") };
 
+        private readonly Map _map;
         private readonly string _startName;
         private string _experimentName;
 
@@ -62,10 +62,11 @@ namespace Droid.Playground
         private MouseState _mouse;
         private float _frameSeconds;
 
-        public Playground(string experiment, string? start) : base(WindowWidth, WindowHeight, LowResWidth, LowResHeight, colorsKey: Keys.C)
+        public Playground(string experiment, Map map, string? start) : base(WindowWidth, WindowHeight, LowResWidth, LowResHeight, colorsKey: Keys.C)
         {
             _experimentName = experiment;
-            _startName = start ?? HomeMap.DefaultStart;
+            _map = map;
+            _startName = start ?? map.DefaultStart;
         }
 
         protected override bool KeyboardCaptured => _imgui?.WantsKeyboard == true;
@@ -73,9 +74,9 @@ namespace Droid.Playground
 
         protected override void LoadWorld()
         {
-            _built = WorldBuilder.Build(HomeMap.Districts());
+            _built = WorldBuilder.Build(_map);
             _starts = _built.Starts.Keys.OrderBy(n => n, StringComparer.Ordinal).ToArray();
-            var start = _built.Starts.TryGetValue(_startName, out var chosen) ? chosen : _built.Starts[HomeMap.DefaultStart];
+            var start = _built.Starts.TryGetValue(_startName, out var chosen) ? chosen : _built.Starts[_map.DefaultStart];
             _player = new Player(Feet(start), start.Yaw, _built.Physics);
 
             _rig = DroidRig.Build();
