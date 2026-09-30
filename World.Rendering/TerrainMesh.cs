@@ -45,9 +45,11 @@ namespace World.Rendering
             Build(device, terrain, shore, 0, 0, terrain.Width, terrain.Depth);
 
         // Cells i0 to i0 + cellsX (not including it) along X, and j0 to j0 + cellsZ along Z. Where `bare`
-        // says so (under a road, say), the ground gets no grid lines: they'd show through what's on it.
+        // says so (under a road, say), the ground gets no grid lines: they'd show through what's on it. Where
+        // `covered` says so at all three of a triangle's corners, the triangle isn't drawn at all: what's laid over
+        // it is the ground there as drawn, and it would only show through that where the two don't quite agree.
         public static MeshData Build(GraphicsDevice device, Terrain terrain, float shore, int i0, int j0, int cellsX, int cellsZ,
-                                     Func<float, float, bool>? bare = null)
+                                     Func<float, float, bool>? bare = null, Func<float, float, bool>? covered = null)
         {
             // Every triangle's facing is worked out once, here, for this range's cells and the triangles the
             // lines along its north and west edges look across into - the south-west ones of the row of cells
@@ -79,6 +81,8 @@ namespace World.Rendering
                         if (!own)
                             continue;
                         var (a, b, c) = terrain.Triangle(i, j, southWest);
+                        if (covered != null && covered(a.X, a.Z) && covered(b.X, b.Z) && covered(c.X, c.Z))
+                            continue;
                         var band = steep ? Rock : Band(terrain, (a + b + c) / 3f, shore);
                         mesh.AddTri(band * Shades + Shade(normal), a, b, c);
                     }

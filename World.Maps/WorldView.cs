@@ -44,7 +44,7 @@ namespace World.Maps
         // `drawDistance` is how far out the terrain's built: out to where the fog has hidden it all.
         public WorldView(BuiltWorld world, GraphicsDevice device, MeshCache cache, float drawDistance)
         {
-            Terrain = new TerrainView(world.Terrain, shore: 0.5f, drawDistance, bare: world.Bare);
+            Terrain = new TerrainView(world.Terrain, shore: 0.5f, drawDistance, bare: world.Bare, covered: world.Covered);
             _cars = world.Cars;
             _device = device;
             _cache = cache;

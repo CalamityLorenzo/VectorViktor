@@ -285,19 +285,27 @@ namespace MeshProps
             const float surface = RoadBuilder.SurfaceHeight, paint = surface + 0.005f;
             Vector3 At(int i, float x, float y) => path[i] + across[i] * x + Vector3.Up * y;
 
-            // The tarmac and the verges either side, the tarmac's edges outlined; and the solid lines along its edges
+            // The tarmac and the verges either side, the tarmac's edges outlined; and the solid lines along its edges.
+            // Round a bend a stretch's ends aren't parallel, so its quads aren't flat, and each is two triangles tipped
+            // a little differently from any others across it. So the tarmac's laid in strips, split where the lines'
+            // edges are, and each line is its strip lifted, split the same way: lying exactly on the tarmac under it,
+            // never dipping into it. (The broken line's too narrow for its strip to be anything but flat.)
             const float edgeLine = 0.3f, lineWidth = 0.15f;
+            const float lineOuter = Half - edgeLine + lineWidth / 2f, lineInner = Half - edgeLine - lineWidth / 2f, middle = lineWidth / 2f;
+            float[] strips = { -Half, -lineOuter, -lineInner, -middle, middle, lineInner, lineOuter, Half };
             for (var i = 0; i < n - 1; i++)
             {
-                mesh.AddQuad(RoadBuilder.Tarmac, At(i, -Half, surface), At(i + 1, -Half, surface), At(i + 1, Half, surface), At(i, Half, surface));
+                for (var k = 0; k < strips.Length - 1; k++)
+                {
+                    float left = strips[k], right = strips[k + 1];
+                    mesh.AddQuad(RoadBuilder.Tarmac, At(i, left, surface), At(i + 1, left, surface), At(i + 1, right, surface), At(i, right, surface));
+                    if (k == 1 || k == strips.Length - 3)
+                        mesh.AddQuad(RoadBuilder.Paint, At(i, left, paint), At(i + 1, left, paint), At(i + 1, right, paint), At(i, right, paint));
+                }
                 mesh.AddQuad(RoadBuilder.Verge, At(i, Half, surface), At(i + 1, Half, surface), At(i + 1, Half + verge, surface), At(i, Half + verge, surface));
                 mesh.AddQuad(RoadBuilder.Verge, At(i, -Half - verge, surface), At(i + 1, -Half - verge, surface), At(i + 1, -Half, surface), At(i, -Half, surface));
                 foreach (var side in new[] { -1f, 1f })
-                {
                     mesh.AddLine(At(i, side * Half, surface), At(i + 1, side * Half, surface));
-                    float inner = side * (Half - edgeLine - lineWidth / 2f), outer = side * (Half - edgeLine + lineWidth / 2f);
-                    mesh.AddQuad(RoadBuilder.Paint, At(i, inner, paint), At(i + 1, inner, paint), At(i + 1, outer, paint), At(i, outer, paint));
-                }
             }
 
             // The broken line: dashes 3 m long every 6 m of the whole road, a metre or less at a time so they follow it

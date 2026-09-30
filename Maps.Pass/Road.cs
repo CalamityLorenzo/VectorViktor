@@ -60,5 +60,15 @@ namespace Maps.Pass
 
         // Under the road and its verges, and the cells over their edges
         public bool Bare(float x, float z) => PassRoute.Within(new Vector2(x, z), PassRoute.HalfWidth + 1f);
+
+        // Under the road and its verges, edge to edge - but not round past either end of it, where it stops square
+        public bool Covered(float x, float z)
+        {
+            var p = new Vector2(x, z);
+            if (!PassRoute.Within(p, PassRoute.HalfWidth))
+                return false;
+            var s = PassRoute.Nearest(p).s;
+            return s > 0f && s < PassRoute.Length;
+        }
     }
 }

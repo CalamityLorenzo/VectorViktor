@@ -20,6 +20,7 @@ namespace World.Rendering
         private readonly Terrain _terrain;
         private readonly float _shore;
         private readonly Func<float, float, bool>? _bare;  // where the ground gets no grid lines (see TerrainMesh)
+        private readonly Func<float, float, bool>? _covered;   // where it isn't drawn at all (see TerrainMesh)
         private readonly Color[] _palette = TerrainMesh.Palette();
         private readonly Dictionary<(int ci, int cj), (MeshData mesh, MeshInstance view)> _chunks =
             new Dictionary<(int, int), (MeshData, MeshInstance)>();
@@ -40,12 +41,14 @@ namespace World.Rendering
         public TimeSpan BuildTime => _buildTime.Elapsed;
         private readonly System.Diagnostics.Stopwatch _buildTime = new System.Diagnostics.Stopwatch();
 
-        public TerrainView(Terrain terrain, float shore, float drawDistance, Func<float, float, bool>? bare = null)
+        public TerrainView(Terrain terrain, float shore, float drawDistance, Func<float, float, bool>? bare = null,
+                           Func<float, float, bool>? covered = null)
         {
             _terrain = terrain;
             _shore = shore;
             DrawDistance = drawDistance;
             _bare = bare;
+            _covered = covered;
         }
 
         // How far a chunk's patch of ground is from the nearest camera, across the ground (0 if it's over it).
@@ -121,7 +124,7 @@ namespace World.Rendering
         {
             _buildTime.Start();
             var (i0, j0, cellsX, cellsZ) = _terrain.ChunkCellsOf(ci, cj);
-            var mesh = TerrainMesh.Build(device, _terrain, _shore, i0, j0, cellsX, cellsZ, _bare);
+            var mesh = TerrainMesh.Build(device, _terrain, _shore, i0, j0, cellsX, cellsZ, _bare, _covered);
             _chunks[(ci, cj)] = (mesh, new MeshInstance(mesh, _palette));   // in world coordinates already
             _buildTime.Stop();
         }

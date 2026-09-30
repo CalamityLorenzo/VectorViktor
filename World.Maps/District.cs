@@ -53,5 +53,10 @@ namespace World.Maps
 
         // Where the terrain gets no grid lines, because something's laid over it (see TerrainMesh).
         bool Bare(float x, float z) => false;
+
+        // Where the terrain isn't drawn at all, because something's laid over it that's the ground there as drawn (a
+        // road, winding over bumpier ground than it's flat on, that the ground would show through). Only whole
+        // triangles of it with every corner here are left out, so what's here must be covered edge to edge.
+        bool Covered(float x, float z) => false;
     }
 }
