@@ -196,6 +196,7 @@ namespace Basic.Levels
             p = spec.KeepInside(p, PlayerRadius);
             p = spec.PushOutOfProps(p, PlayerRadius);
             p = spec.KeepOutOfRamps(p, PlayerRadius, PlayerHeight);   // a staircase's side
+            p = spec.KeepBehindRails(p, PlayerRadius, PlayerHeight);  // round a stairwell's hatch
 
             // Pressed against a wall within a door's width: go through
             foreach (var door in spec.Doors)

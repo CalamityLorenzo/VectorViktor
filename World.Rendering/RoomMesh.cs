@@ -52,7 +52,10 @@ namespace World.Rendering
             foreach (var ramp in steppedRamps)
                 AddSteps(mesh, ramp);
             foreach (var hatch in room.FloorHatches)
+            {
                 mesh.AddLineLoop(Array.ConvertAll(hatch.Outline, p => new Vector3(p.X, 0f, p.Y)));
+                AddRails(mesh, hatch);
+            }
 
             var ceilingPieces = new List<Vector2[]> { room.Outline };
             foreach (var hatch in room.CeilingHatches)
@@ -127,6 +130,37 @@ namespace World.Rendering
                 mesh.AddQuad(Ceiling, new Vector3(a.X, bottom, a.Y), new Vector3(b.X, bottom, b.Y), new Vector3(b.X, top, b.Y), new Vector3(a.X, top, a.Y));
                 mesh.AddLine(new Vector3(a.X, bottom, a.Y), new Vector3(b.X, bottom, b.Y));
                 mesh.AddLine(new Vector3(a.X, bottom, a.Y), new Vector3(a.X, top, a.Y));
+            }
+        }
+
+        // The railings round a floor hatch (see HatchSpec.Railed): a solid panel along each railed edge, on the
+        // floor just outside the hole, thick enough for its colour to show at low resolution.
+        private static void AddRails(MeshBuilder mesh, HatchSpec hatch)
+        {
+            const float thickness = 0.06f;
+            const float top = HatchSpec.RailHeight;
+            var centre = hatch.Centre();
+            foreach (var (a, b) in hatch.Rails())
+            {
+                var along = Vector2.Normalize(b - a);
+                var across = new Vector2(-along.Y, along.X);
+                if (Vector2.Dot(across, (a + b) / 2f - centre) < 0f)
+                    across = -across;   // out of the hole
+                var oa = a + across * thickness;
+                var ob = b + across * thickness;
+                Vector3 At(Vector2 p, float y) => new Vector3(p.X, y, p.Y);
+
+                mesh.AddQuad(Frame, At(a, 0f), At(b, 0f), At(b, top), At(a, top));   // the hole's side
+                mesh.AddQuad(Frame, At(oa, 0f), At(ob, 0f), At(ob, top), At(oa, top));   // the floor's side
+                mesh.AddQuad(Frame, At(a, top), At(b, top), At(ob, top), At(oa, top));
+                mesh.AddQuad(Frame, At(a, 0f), At(oa, 0f), At(oa, top), At(a, top));
+                mesh.AddQuad(Frame, At(b, 0f), At(ob, 0f), At(ob, top), At(b, top));
+                mesh.AddLineLoop(At(a, top), At(b, top), At(ob, top), At(oa, top));
+                mesh.AddLine(At(a, 0f), At(a, top));
+                mesh.AddLine(At(b, 0f), At(b, top));
+                mesh.AddLine(At(oa, 0f), At(oa, top));
+                mesh.AddLine(At(ob, 0f), At(ob, top));
+                mesh.AddLine(At(oa, 0f), At(ob, 0f));
             }
         }
 

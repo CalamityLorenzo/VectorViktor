@@ -59,7 +59,7 @@ namespace World.Core.Tests
         {
             var ground = Ground();
             var walker = Walker(ground, new Vector3(0f, 0f, -4f), South);
-            var door = ground.Interact(walker.Position, walker.Heading);
+            var door = (Door)ground.Interact(walker.Position, walker.Heading);
             Assert.NotNull(door);
             Run(ground, walker, MoveInput.None, 1f);
             Assert.Equal(Door.MaxOpen, door.Angle);
@@ -74,7 +74,7 @@ namespace World.Core.Tests
         {
             var ground = Ground();
             var walker = Walker(ground, new Vector3(0f, 0f, -4f), South);
-            var door = ground.Interact(walker.Position, walker.Heading);
+            var door = (Door)ground.Interact(walker.Position, walker.Heading);
             Run(ground, walker, MoveInput.None, 1f);
             Assert.Same(door, ground.Interact(walker.Position, walker.Heading));
             Run(ground, walker, MoveInput.None, 1f);
@@ -95,7 +95,7 @@ namespace World.Core.Tests
         {
             var ground = Ground();
             var walker = Walker(ground, new Vector3(0f, 0f, -4f), South);
-            var door = ground.Interact(walker.Position, walker.Heading);
+            var door = (Door)ground.Interact(walker.Position, walker.Heading);
             Run(ground, walker, MoveInput.None, 1f);
 
             // Into the doorway, and shut it on yourself
@@ -113,7 +113,7 @@ namespace World.Core.Tests
             var world = new PhysicsWorld(ground);
             world.Add(new Body("crate", new Vector3(0.5f, 0.5f, 0.5f), 20f, new Vector3(0.1f, Floor, -2.2f)));   // just inside, in its swing
             var walker = Walker(world, new Vector3(0f, 0f, -4f), South);
-            var door = ground.Interact(walker.Position, walker.Heading);
+            var door = (Door)ground.Interact(walker.Position, walker.Heading);
             Run(ground, walker, MoveInput.None, 1f, world);
             Assert.InRange(door.Angle, 0.1f, Door.MaxOpen - 0.1f);
         }

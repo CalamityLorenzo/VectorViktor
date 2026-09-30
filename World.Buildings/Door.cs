@@ -7,7 +7,7 @@ namespace World.Buildings
     // its Hinge, Width long, from Bottom up Height. Shut, it lies across the gap; it swings open into the
     // room, a quarter turn, at SwingSpeed. It stops against anything in its way (see Step) rather than
     // pushing through it, and wherever it is, open, shut or part way, it's a wall (see Panel).
-    public sealed class Door
+    public sealed class Door : IOpenable
     {
         public const float SwingSpeed = 2.5f;                 // radians per second: open in about 0.6 s
         public const float MaxOpen = MathHelper.PiOver2;

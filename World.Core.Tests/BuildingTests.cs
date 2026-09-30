@@ -126,23 +126,26 @@ namespace World.Core.Tests
         }
 
         // Two storeys, 7 x 7, the stair climbing against the east wall then the south one, up through a
-        // hatch over its last flight.
-        private static (Building building, RoomSpec lower, RoomSpec upper, WallStair stair) House()
+        // hatch over its last flight - with `railed`, a railing round the hatch's open side and low end.
+        private static (Building building, RoomSpec lower, RoomSpec upper, WallStair stair) House(bool railed = false)
         {
             var outline = RoomSpec.Rectangle(7f, 7f);
             var stair = new WallStair(outline, firstWall: Walls.East, steps: new[] { 4, 12 }, stepsPerWall: 12, height: Height + Slab, width: 1f);
             var hatch = stair.Hatch(margin: 0.05f);
+            var rails = railed ? WallStair.HatchRails : null;
             var lower = Room("down", 7f, new Vector3(0f, Floor, 0f),
                              openings: new[] { new OpeningSpec(Walls.North, 0f, 1.0f, 2.1f, null) },
-                             ramps: stair.Ramps(), ceilingHatches: new[] { new HatchSpec(hatch, "up", Slab) });
-            var upper = Room("up", 7f, new Vector3(0f, Floor + Height + Slab, 0f), floorHatches: new[] { new HatchSpec(hatch, "down") });
+                             ramps: stair.Ramps(), ceilingHatches: new[] { new HatchSpec(hatch, "up", Slab, rails) });
+            var upper = Room("up", 7f, new Vector3(0f, Floor + Height + Slab, 0f), floorHatches: new[] { new HatchSpec(hatch, "down", Railed: rails) });
             return (new Building("house", lower, upper), lower, upper, stair);
         }
 
-        [Fact]
-        public void TheStairClimbsUpThroughTheHatchOntoTheUpperFloor()
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]   // the railing leaves the top of the stair open
+        public void TheStairClimbsUpThroughTheHatchOntoTheUpperFloor(bool railed)
         {
-            var (building, _, upper, stair) = House();
+            var (building, _, upper, stair) = House(railed);
             var ground = On(building);
             var ramps = stair.Ramps();
             var offset = new Vector3(0f, Floor, 0f);
@@ -209,6 +212,48 @@ namespace World.Core.Tests
             Grounds.Run(walker, Grounds.Forward(), 3f, ground);
             Assert.True(walker.Grounded);
             Assert.InRange(walker.Position.Y, Floor + 0.3f, upper.WorldOffset.Y - 1f);
+        }
+
+        [Fact]
+        public void ARailingRoundTheHatchStopsYouWalkingIntoIt()
+        {
+            var (building, _, upper, stair) = House(railed: true);
+            var ground = On(building);
+            var flight = stair.Ramps()[1];
+            var low = Vector3.Lerp(flight.Start, flight.End, 0.3f);
+
+            // South towards the hatch over the low part of the flight, as above: stopped at the rail, on the floor
+            var walker = Walker(ground, new Vector3(low.X, upper.WorldOffset.Y, 0f), South);
+            Grounds.Run(walker, Grounds.Forward(), 3f, ground);
+            var rail = 3.5f - 1.05f;   // the hatch's open side: the stair's width and the margin in from the south wall
+            Assert.InRange(walker.Position.Z, rail - CharacterController.Radius - 0.05f, rail - CharacterController.Radius + 0.01f);
+            Assert.Equal(upper.WorldOffset.Y, walker.Position.Y, 3);
+        }
+
+        // Room by room, the way Basic.Levels walks (its octagons' stair has the same railing)
+        [Fact]
+        public void TheRailingKeepsYouOffTheGapBesideTheStair()
+        {
+            var (_, lower, upper, stair) = House(railed: true);
+            var flight = stair.Ramps()[1];
+            var r = CharacterController.Radius;
+            var h = CharacterController.Height;
+            var rail = 3.5f - 1.05f;
+            var x = Vector3.Lerp(flight.Start, flight.End, 0.9f).X;
+
+            // On the upper floor, walking up to the hatch's open side: held back behind the rail
+            var kept = upper.KeepBehindRails(new Vector3(x, 0f, rail - 0.1f), r, h);
+            Assert.Equal(rail - r, kept.Z, 3);
+
+            // Near the top of the stair, body up through the hatch, stepping sideways over the 5 cm gap between
+            // the stair and the hatch's edge: kept on the stair, clear of the rail
+            var top = flight.HeightAt(new Vector3(x, 0f, 3f));
+            kept = lower.KeepBehindRails(new Vector3(x, top, rail + 0.02f), r, h);
+            Assert.Equal(rail + r, kept.Z, 3);
+
+            // Low on the stair, the rail's well over your head
+            var feet = new Vector3(Vector3.Lerp(flight.Start, flight.End, 0.2f).X, 0.5f, rail + 0.02f);
+            Assert.Equal(feet, lower.KeepBehindRails(feet, r, h));
         }
 
         [Fact]

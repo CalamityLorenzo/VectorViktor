@@ -30,5 +30,9 @@ namespace Droid.Playground
         public float Clock { get; internal set; }
 
         public Vector3 Feet => Player.Body.Position;
+
+        // Where the droid's rig is placed in the world: at its feet, facing the way it's heading (the rig faces +Z; a yaw of 0
+        // faces -Z, north)
+        public Matrix Placement => Matrix.CreateRotationY(MathHelper.Pi - Player.Body.Yaw) * Matrix.CreateTranslation(Player.Body.Position);
     }
 }

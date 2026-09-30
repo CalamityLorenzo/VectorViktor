@@ -4,7 +4,10 @@ using MeshRendering;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
+using System.Collections.Generic;
+using World.Buildings;
 using World.Core;
+using World.Core.Animation;
 using World.Core.Characters;
 using World.Core.Vehicles;
 
@@ -43,6 +46,16 @@ namespace World.Maps
         private readonly IGround _ground;
         private readonly Color[] _playerColors;   // dry: as drawn, they're darker where wet
 
+        // The televisions' pictures (see ScreenSpec): static, and the feeds, each what a camera sees, drawn into a small
+        // render target of its own before each frame (see Feed, DrawFeeds)
+        public const int FeedWidth = 96, FeedHeight = 72;
+        public const string DroneChannel = "drone";   // what the player's drone sees, where a game feeds it
+        private readonly BasicEffect _screenEffect;
+        private readonly StaticPicture _static;
+        private readonly Dictionary<string, (RenderTarget2D target, Func<CameraView?> camera, Action<MeshBatch> extra)> _feeds =
+            new Dictionary<string, (RenderTarget2D, Func<CameraView?>, Action<MeshBatch>)>();
+        private bool _feeding;   // drawing a feed: then the screens are left out, or one would be drawing into itself
+
         public WorldView View { get; }
 
         // The camera the last frame was drawn with: for drawing more over it (lines, markers) or picking with the mouse.
@@ -75,6 +88,12 @@ namespace World.Maps
             var needle = new MeshSource("needle", CockpitMesh.BuildNeedle, CockpitMesh.NeedlePalette(new Color(240, 120, 30)));
             for (var i = 0; i < _needles.Length; i++)
                 _needles[i] = cache.CreateInstance(device, needle);
+            _screenEffect = new BasicEffect(device)
+            {
+                TextureEnabled = true, VertexColorEnabled = false, LightingEnabled = false, World = Matrix.Identity,
+                FogEnabled = true, FogColor = RetroStyle.Background.ToVector3(), FogStart = FogStart, FogEnd = FogEnd,
+            };
+            _static = new StaticPicture(device);
             var birdPalette = BirdMesh.Palette(Color.White, new Color(140, 210, 230));
             for (var frame = 0; frame < BirdMesh.Frames; frame++)
                 _birdFrames[frame] = cache.CreateInstance(device, BirdMesh.Source(frame, birdPalette));
@@ -118,9 +137,7 @@ namespace World.Maps
                 eye = player.Drone.Position;
                 lookAt = player.Eye;
             }
-            // The meshes face +Z; a yaw of 0 here faces -Z (north), hence Pi - yaw
-            _playerView.Position = body.Position;
-            _playerView.Yaw = MathHelper.Pi - body.Yaw;
+            PlacePlayer(player);
             _droneView.Position = player.Drone.Position;
             _droneView.Yaw = MathHelper.Pi - player.Drone.Yaw;
 
@@ -146,6 +163,56 @@ namespace World.Maps
             if (View.HiddenCar is { } seat)
                 DrawCockpit(seat, colorsOn);
         }
+
+        // The walker where the player is, for a batch: seen from the drone, the bird, or a feed (see Feed).
+        public void AddPlayer(MeshBatch batch, Player player)
+        {
+            PlacePlayer(player);
+            batch.Add(_playerView);
+        }
+
+        private void PlacePlayer(Player player)
+        {
+            // The meshes face +Z; a yaw of 0 here faces -Z (north), hence Pi - yaw
+            _playerView.Position = player.Body.Position;
+            _playerView.Yaw = MathHelper.Pi - player.Body.Yaw;
+        }
+
+        // A channel (see ScreenSpec.Channel) that shows what a camera sees, drawn afresh before each frame by DrawFeeds, with
+        // whatever `extra` adds (characters: the world alone has none). Screens tuned to a channel with no feed show static.
+        public void Feed(string channel, Func<CameraView?> camera, Action<MeshBatch> extra = null)
+        {
+            if (_feeds.TryGetValue(channel, out var old))
+                old.target.Dispose();
+            var target = new RenderTarget2D(_device, FeedWidth, FeedHeight, false, SurfaceFormat.Color, DepthFormat.Depth24Stencil8,
+                                            0, RenderTargetUsage.PreserveContents);
+            _feeds[channel] = (target, camera, extra);
+        }
+
+        // Before a frame: each feed's picture, into its render target; then back to the render target that was set,
+        // cleared. `you` is where you are (see WorldView.Collect).
+        public void DrawFeeds(Vector3 you, float clock, bool colorsOn)
+        {
+            if (_feeds.Count == 0)
+                return;
+            var previous = _device.GetRenderTargets();
+            _feeding = true;
+            foreach (var (target, camera, extra) in _feeds.Values)
+            {
+                if (camera() is not { } view)
+                    continue;
+                _device.SetRenderTarget(target);
+                _device.Clear(RetroStyle.Background);
+                DrawFrom(view.Eye, view.Eye + view.Forward, view.Up, you, clock, colorsOn, extra);
+            }
+            _feeding = false;
+            _device.SetRenderTargets(previous);
+            _device.Clear(RetroStyle.Background);
+        }
+
+        // What a screen tuned to `channel` shows: its feed's latest picture, or static.
+        private Texture2D Picture(string channel) =>
+            _feeds.TryGetValue(channel, out var feed) ? feed.target : _static.Texture;
 
         // The car's inside, from the driver's seat (see CockpitMesh): over everything, so nothing outside it - a wall
         // you're scraping along - comes through, and from the eye's own frame, so it stays put on screen as the view
@@ -183,6 +250,13 @@ namespace World.Maps
             extra?.Invoke(_batch);
             View.DrawWindows(_device, _effect, eye, you, clock, RetroStyle.Background, colorsOn);
             _batch.Draw(_device, _effect, RetroStyle.Background, colorsOn);
+            if (!_feeding)
+            {
+                _static.Update(clock);
+                _screenEffect.View = _effect.View;
+                _screenEffect.Projection = _effect.Projection;
+                View.DrawScreens(_device, _screenEffect, eye, Picture);
+            }
         }
 
         private void Dampen(Player player)
@@ -203,6 +277,10 @@ namespace World.Maps
         {
             View.Dispose();
             _effect.Dispose();
+            _screenEffect.Dispose();
+            _static.Dispose();
+            foreach (var (target, _, _) in _feeds.Values)
+                target.Dispose();
         }
     }
 }

@@ -10,6 +10,7 @@ namespace World.Core.Animation
     {
         private float _fadeRate;       // weight per second: up while fading in, down while fading out
         private bool _stopping;
+        private bool _started;         // stepped at least once: before then, an event at its very start is still to come
 
         public Clip Clip { get; }
         public float Time { get; set; }
@@ -44,11 +45,15 @@ namespace World.Core.Animation
                 _fadeRate = (target - Weight) / seconds;
         }
 
-        internal void Step(float dt)
+        // Moves it on, adding the events it passes to `passed`.
+        internal void Step(float dt, List<ClipEvent> passed)
         {
+            var from = _started ? Time : Time - 1e-5f;   // so an event at the start fires on the first step
+            _started = true;
             Time += dt * Speed;
             if (!Clip.Loops)
                 Time = Math.Clamp(Time, 0f, Clip.Duration);
+            Clip.Passed(from, Time, passed);
             if (_fadeRate != 0f)
             {
                 Weight = Math.Clamp(Weight + _fadeRate * dt, 0f, 1f);
@@ -61,12 +66,19 @@ namespace World.Core.Animation
     // Plays clips on a rig, as layers: each clip played is laid over the ones before it, and only on the parts
     // it keys. So a droid can roll along (its wheels turned in code), wave (a clip on its arm) and look round
     // (another on its head) at once; and a clip faded in over another blends from one to the other.
+    //
+    // Clips' events (see Clip.Event) come out of Step: Fired lists the ones passed in the last Step, in order.
     public sealed class Animator
     {
         private readonly List<ClipPlayer> _playing = new List<ClipPlayer>();
+        private readonly List<(ClipPlayer player, ClipEvent e)> _fired = new List<(ClipPlayer, ClipEvent)>();
+        private readonly List<ClipEvent> _passed = new List<ClipEvent>();
 
         public Rig Rig { get; }
         public IReadOnlyList<ClipPlayer> Playing => _playing;
+
+        // The events the clips passed in the last Step, and which clip each was in: first the first clip played's, and so on.
+        public IReadOnlyList<(ClipPlayer player, ClipEvent e)> Fired => _fired;
 
         public Animator(Rig rig) => Rig = rig ?? throw new ArgumentNullException(nameof(rig));
 
@@ -98,8 +110,14 @@ namespace World.Core.Animation
 
         public void Step(float dt)
         {
+            _fired.Clear();
             foreach (var player in _playing)
-                player.Step(dt);
+            {
+                _passed.Clear();
+                player.Step(dt, _passed);
+                foreach (var e in _passed)
+                    _fired.Add((player, e));
+            }
             _playing.RemoveAll(p => p.Gone);
         }
 
@@ -108,6 +126,13 @@ namespace World.Core.Animation
         public void Apply()
         {
             Rig.Reset();
+            Lay();
+        }
+
+        // Every clip's pose laid on the rig as it is now, in the order they were played: over what's already been set on
+        // it this tick (its movement), so the clips win where they key a part, and the rest is left as it was.
+        public void Lay()
+        {
             foreach (var player in _playing)
                 player.Clip.Apply(Rig, player.Time, player.Weight);
         }

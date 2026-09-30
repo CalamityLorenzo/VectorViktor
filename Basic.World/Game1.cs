@@ -5,6 +5,7 @@ using Microsoft.Xna.Framework.Input;
 using System;
 using System.Linq;
 using World.Buildings;
+using World.Core.Animation;
 using World.Core.Characters;
 using World.Core.Movement;
 using World.Core.Physics;
@@ -87,6 +88,10 @@ namespace Basic.World
 
             _renderer = new WorldRenderer(_built, GraphicsDevice, MeshCache);
             _renderer.BuildTerrain(_player);
+            // The drone's camera, for the televisions tuned to it (see ScreenSpec): you, from wherever it's following
+            _renderer.Feed(WorldRenderer.DroneChannel, () => _player.Driving != null ? null
+                    : new CameraView(_player.Drone.Position, Vector3.Normalize(_player.Eye - _player.Drone.Position), Vector3.Up),
+                batch => _renderer.AddPlayer(batch, _player));
             if (Shot?.Keys.Contains('v') == true)
                 _player.ToggleView();
             _followBird |= Shot?.Keys.Contains('b') == true;
@@ -204,6 +209,7 @@ namespace Basic.World
             if ((int)MathF.Round(_player.Wetness * 100f) != _titleWetness ||
                 (_player.Driving is { } car && (int)MathF.Round(MathF.Abs(car.Speed) * 3.6f) != _titleSpeed))
                 UpdateTitle();
+            _renderer.DrawFeeds(_player.Body.Position, Clock, ColorsOn);
             _renderer.Draw(_player, Clock, ColorsOn, _bird, _followBird);
         }
 

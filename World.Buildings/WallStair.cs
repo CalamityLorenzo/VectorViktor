@@ -110,6 +110,10 @@ namespace World.Buildings
             return new[] { last.Start, last.End, last.End + across, last.Start + across };
         }
 
+        // The edges of Hatch() to rail off on the floor above (see HatchSpec.Railed): its open side and its low
+        // end. Not the one against the wall, nor the top end, where you step off the stair.
+        public static readonly int[] HatchRails = { 2, 3 };
+
         // What a walker climbs: each flight as a straight slope along its middle, and each landing as two
         // flat strips, one carrying on from each flight into the corner, which between them cover it. All
         // solid down to the stair's underside (see RampSpec.Thickness), so you can't walk into its side.

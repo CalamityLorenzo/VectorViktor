@@ -25,7 +25,8 @@ namespace Maps.Home
 
         // Two storeys, 7 m square, the front door in the north wall: four steps up the east wall downstairs,
         // a landing in the south-east corner, then twelve along the south wall, up through a hatch into the
-        // bedroom above - 16 rises of 18 cm in all. A settee and a coffee table downstairs, a sofa up.
+        // bedroom above - 16 rises of 18 cm in all. A settee, a coffee table and a cupboard downstairs, a sofa and a chest
+        // of drawers up.
         // `pitched` gives it a pitched roof (see Gable); with an `attic` as well, the roof space is a room,
         // reached by a ladder from the bedroom up through a hatch in its ceiling, with a low wall at each
         // side and headroom down the middle, under the ridge.
@@ -60,6 +61,8 @@ namespace Maps.Home
                 Openings = new[] { Doorway(North, -1.5f) },
                 CeilingHatches = new[] { new HatchSpec(hatch, upId, Slab) },
                 Ramps = stair.Ramps(),
+                // A kitchen cupboard against the west wall, north of the settee, facing east: E opens both its doors
+                Cabinets = new[] { new CabinetSpec(CabinetKind.Cupboard, new Vector3(-3.2f, 0f, -2.2f), 90f, 0.9f, 0.55f, 0.9f, 2, new Color(140, 170, 130)) },
                 Props = new[]
                 {
                     new PropSpec(WallStairMesh.Source(stair, WallStairMesh.Palette(new Color(150, 105, 60), new Color(110, 75, 40), new Color(130, 90, 50), new Color(90, 60, 35))),
@@ -92,6 +95,8 @@ namespace Maps.Home
                 Outline = outline, Height = upHeight, WorldOffset = at + Vector3.Up * (downHeight + Slab),
                 Floor = new Color(90, 70, 110), WallA = new Color(150, 170, 210), WallB = new Color(120, 140, 180), Ceiling = new Color(235, 235, 240),
                 FloorHatches = new[] { new HatchSpec(hatch, id) },
+                // A chest of four drawers against the east wall, facing west: each E opens the next one down, then shuts them all
+                Cabinets = new[] { new CabinetSpec(CabinetKind.Drawers, new Vector3(3.25f, 0f, -1.5f), -90f, 0.9f, 0.45f, 0.85f, 4, new Color(150, 105, 60)) },
                 CeilingHatches = attic ? new[] { new HatchSpec(ladderHatch, atticId, Slab) } : System.Array.Empty<HatchSpec>(),
                 Ramps = attic
                     ? new[]
@@ -114,6 +119,7 @@ namespace Maps.Home
                 GridSpacing = 0.5f,
                 Floor = new Color(150, 115, 75), WallA = new Color(170, 135, 95), WallB = new Color(150, 115, 80), Ceiling = new Color(125, 95, 65),
                 FloorHatches = new[] { new HatchSpec(ladderHatch, upId) },
+                Screens = new[] { new ScreenSpec(new Vector3(1.5f, 0.64f, 0f), 0f, ScreenSpec.Static) },   // the old set, put away up here: static
                 Props = new[]
                 {
                     new PropSpec(new MeshSource("sideboard", SideboardMesh.Build,

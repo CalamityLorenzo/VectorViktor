@@ -24,7 +24,9 @@ namespace World.Buildings
     // Ledge): level-topped strips to stand on, blocking walkers at their sides.
     //
     // Its doors (see Door) are walls too, wherever they've swung to. They swing on in StepDoors, stopping
-    // against anything in their way, and Interact opens or shuts the one a walker is facing.
+    // against anything in their way, and Interact opens or shuts the one a walker is facing. So are its chests of
+    // drawers and cupboards (see Cabinet): their carcasses always, their drawers when they're out, their doors wherever
+    // they are.
     public sealed class BuildingGround : IGround
     {
         public const float PropHeight = 1f;
@@ -40,6 +42,10 @@ namespace World.Buildings
         private readonly float _ledgeReach;     // the widest of them, either side of its line
         private readonly List<Door> _doors = new List<Door>();
         private readonly Dictionary<Building, List<Door>> _doorsOf = new Dictionary<Building, List<Door>>();
+        private readonly List<Cabinet> _cabinets = new List<Cabinet>();
+        private readonly Dictionary<Building, List<Cabinet>> _cabinetsOf = new Dictionary<Building, List<Cabinet>>();
+        private readonly List<Door> _swinging = new List<Door>();       // the doors, and the cabinets' doors
+        private readonly List<Drawer> _drawers = new List<Drawer>();    // the cabinets' drawers
         // The box round each room's roof (or the room over it) in the world, overhang and all, and how high it goes
         private readonly List<(Vector2 min, Vector2 max, float top)> _roofs = new List<(Vector2, Vector2, float)>();
 
@@ -47,6 +53,11 @@ namespace World.Buildings
 
         // The doors hung in one of its buildings.
         public IReadOnlyList<Door> DoorsOf(Building building) => _doorsOf[building];
+
+        public IReadOnlyList<Cabinet> Cabinets => _cabinets;
+
+        // The chests of drawers and cupboards in one of its buildings.
+        public IReadOnlyList<Cabinet> CabinetsOf(Building building) => _cabinetsOf[building];
 
         // A room, and the box round its floor plan in the world, to rule most rooms out quickly.
         private sealed record Placed(RoomSpec Spec, Vector2 Min, Vector2 Max)
@@ -92,7 +103,17 @@ namespace World.Buildings
                 var doors = building.HangDoors();
                 _doorsOf[building] = doors;
                 _doors.AddRange(doors);
+                var cabinets = building.FitCabinets();
+                _cabinetsOf[building] = cabinets;
+                _cabinets.AddRange(cabinets);
+                foreach (var cabinet in cabinets)
+                {
+                    _walls.AddRange(cabinet.Carcass());
+                    _swinging.AddRange(cabinet.Leaves);
+                    _drawers.AddRange(cabinet.Drawers);
+                }
             }
+            _swinging.AddRange(_doors);
             _grid = new WallGrid(_walls);
             _ledges = ledges?.ToArray() ?? Array.Empty<Ledge>();
             _ledgeGrid = new WallGrid(_ledges.Select(l => new WallSegment(l.A, l.B, l.Bottom, l.Top)).ToList());
@@ -109,40 +130,53 @@ namespace World.Buildings
         private static float DistanceFromLine(Vector2 p, Ledge ledge) =>
             Vector2.Distance(p, Geometry2D.NearestOnSegment(p, ledge.A, ledge.B));
 
-        // Swings the doors on, each stopping short of any body in its way, or any walker (feet, radius, height).
+        // Swings the doors on, and the cabinets' doors and drawers, each stopping short of any body in its way, or any
+        // walker (feet, radius, height).
         public void StepDoors(float dt, IEnumerable<Body> bodies, IEnumerable<(Vector3 feet, float radius, float height)> walkers)
         {
-            foreach (var door in _doors)
+            foreach (var door in _swinging)
                 if (!door.AtRest)   // nearly always: and so nothing to make a closure of, or to enumerate the bodies for
-                    StepDoor(door, dt, bodies, walkers);
+                    door.Step(dt, (hinge, tip) => InTheWay(hinge, tip, door.Bottom, door.Bottom + door.Height, bodies, walkers));
+            foreach (var drawer in _drawers)
+                if (!drawer.AtRest)
+                    drawer.Step(dt, (a, b) => InTheWay(a, b, drawer.Bottom, drawer.Bottom + drawer.Height, bodies, walkers));
         }
 
-        private static void StepDoor(Door door, float dt, IEnumerable<Body> bodies, IEnumerable<(Vector3 feet, float radius, float height)> walkers)
+        // Whether a wall from a to b, from `bottom` up to `top`, would be in any of the bodies or walkers.
+        private static bool InTheWay(Vector2 a, Vector2 b, float bottom, float top, IEnumerable<Body> bodies,
+                                     IEnumerable<(Vector3 feet, float radius, float height)> walkers)
         {
-            var bottom = door.Bottom;
-            var top = door.Bottom + door.Height;
-            door.Step(dt, (hinge, tip) =>
-            {
-                foreach (var body in bodies)
-                    if (body.Bottom < top && body.Top > bottom + 0.01f &&
-                        Geometry2D.SegmentHitsBox(hinge, tip, body.Footprint - body.Half, body.Footprint + body.Half))
-                        return true;
-                foreach (var (feet, radius, height) in walkers)
-                    if (feet.Y < top && feet.Y + height > bottom &&
-                        Vector2.Distance(new Vector2(feet.X, feet.Z), Geometry2D.NearestOnSegment(new Vector2(feet.X, feet.Z), hinge, tip)) < radius)
-                        return true;
-                return false;
-            });
+            foreach (var body in bodies)
+                if (body.Bottom < top && body.Top > bottom + 0.01f &&
+                    Geometry2D.SegmentHitsBox(a, b, body.Footprint - body.Half, body.Footprint + body.Half))
+                    return true;
+            foreach (var (feet, radius, height) in walkers)
+                if (feet.Y < top && feet.Y + height > bottom &&
+                    Vector2.Distance(new Vector2(feet.X, feet.Z), Geometry2D.NearestOnSegment(new Vector2(feet.X, feet.Z), a, b)) < radius)
+                    return true;
+            return false;
         }
 
         // Opens or shuts the nearest door whose leaf is within DoorReach of a walker at `feet`, in front of
-        // them as they face along `heading`, and at the height of their floor. Returns it, or null if none is.
-        public Door? Interact(Vector3 feet, Vector3 heading)
+        // them as they face along `heading`, and at the height of their floor - or the nearest cabinet, if that's nearer,
+        // its front within reach and them standing before it (see Cabinet.Toggle). Returns it, or null if none is.
+        public IOpenable? Interact(Vector3 feet, Vector3 heading)
         {
             var p = new Vector2(feet.X, feet.Z);
             var ahead = new Vector2(heading.X, heading.Z);
-            Door? best = null;
+            IOpenable? best = null;
             var bestDistance = DoorReach;
+            foreach (var cabinet in _cabinets)
+            {
+                if (MathF.Abs(feet.Y - cabinet.Floor) > 0.5f || Vector2.Dot(p - cabinet.FrontLeft, cabinet.Facing) <= 0f)
+                    continue;
+                var nearest = Geometry2D.NearestOnSegment(p, cabinet.FrontLeft, cabinet.FrontRight);
+                var distance = Vector2.Distance(p, nearest);
+                if (distance > bestDistance || Vector2.Dot(nearest - p, ahead) <= 0f)
+                    continue;
+                best = cabinet;
+                bestDistance = distance;
+            }
             foreach (var door in _doors)
             {
                 if (MathF.Abs(feet.Y - door.Bottom) > 0.5f)
@@ -277,8 +311,11 @@ namespace World.Buildings
                 var reach = radius + PushMargin;
                 foreach (var index in _grid.Near(new Vector2(p.X - reach, p.Z - reach), new Vector2(p.X + reach, p.Z + reach)))
                     p = PushOutOfWall(p, _grid[index], radius, height);
-                foreach (var door in _doors)
+                foreach (var door in _swinging)
                     p = PushOutOfWall(p, door.Panel, radius, height);
+                foreach (var drawer in _drawers)
+                    for (var k = 0; k < drawer.Panels; k++)
+                        p = PushOutOfWall(p, drawer.Panel(k), radius, height);
                 // Out from the side of a ledge too high to step up onto, as from a wall as thick as it is
                 foreach (var index in LedgesNear(new Vector2(p.X, p.Z), radius))
                 {
@@ -336,9 +373,13 @@ namespace World.Buildings
             foreach (var index in _grid.Near(min, max))
                 if (Blocks(_grid[index]))
                     return true;
-            foreach (var door in _doors)
+            foreach (var door in _swinging)
                 if (Blocks(door.Panel))
                     return true;
+            foreach (var drawer in _drawers)
+                for (var k = 0; k < drawer.Panels; k++)
+                    if (Blocks(drawer.Panel(k)))
+                        return true;
             return _terrain.Obstructs(bottomCentre, size);
         }
 
@@ -368,8 +409,11 @@ namespace World.Buildings
             var end = p + r;
             foreach (var index in _grid.Near(Vector2.Min(p, end), Vector2.Max(p, end)))
                 Cross(_grid[index]);
-            foreach (var door in _doors)
+            foreach (var door in _swinging)
                 Cross(door.Panel);
+            foreach (var drawer in _drawers)
+                for (var k = 0; k < drawer.Panels; k++)
+                    Cross(drawer.Panel(k));
 
             // Floors it passes through, where there's no hatch
             foreach (var room in _rooms)

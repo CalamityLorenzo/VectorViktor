@@ -311,6 +311,20 @@ namespace World.Core.Tests
             Assert.True(forward.Z > 0f);
         }
 
+        // Straight down at most, and 60 degrees up: when the head can't move, the camera does the looking
+        [Fact]
+        public void TheHeadCameraTiltsFromStraightDownToSixtyDegreesUp()
+        {
+            var rig = Droid();
+            DroidRig.Look(rig, 0f, up: -2f);
+            rig.Solve(Matrix.Identity);
+            Near(-Vector3.UnitY, DroidRig.CameraView(rig).forward);
+
+            DroidRig.Look(rig, 0f, up: 2f);
+            rig.Solve(Matrix.Identity);
+            Near(MathF.Sin(MathHelper.ToRadians(60f)), DroidRig.CameraView(rig).forward.Y);
+        }
+
         [Fact]
         public void TheWheelsTurnAsFarRoundAsItRolls()
         {

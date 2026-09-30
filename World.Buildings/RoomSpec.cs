@@ -40,9 +40,34 @@ namespace World.Buildings
     // SlabThickness (ceiling hatches only) is how thick the floor between the two rooms is: the room above
     // must sit that far above this one's ceiling (its WorldOffset.Y == WorldOffset.Y + Height + SlabThickness),
     // and the hatch is lined with the slab's cut edge. See RoomSpec.CeilingHatches for why it can't be zero.
-    public record HatchSpec(Vector2[] Outline, string TargetRoom, float SlabThickness = 0f)
+    //
+    // Railed lists the Outline's edges (edge i runs from Outline[i] to the next point) guarded by a railing
+    // RailHeight tall, standing on the upper room's floor, so nobody walks off the floor into the hole there
+    // (see WallStair.HatchRails). Give both rooms' HatchSpecs the same list: the one below needs it too, for
+    // someone climbing the stair with their body up through the hatch.
+    public record HatchSpec(Vector2[] Outline, string TargetRoom, float SlabThickness = 0f, int[]? Railed = null)
     {
+        public const float RailHeight = 0.9f;
+
         public bool Contains(Vector3 local) => Geometry2D.InPolygon(Outline, new Vector2(local.X, local.Z));
+
+        // Each railed edge, as its two ends.
+        public IEnumerable<(Vector2 a, Vector2 b)> Rails()
+        {
+            if (Railed == null)
+                yield break;
+            foreach (var edge in Railed)
+                yield return (Outline[edge], Outline[(edge + 1) % Outline.Length]);
+        }
+
+        // The middle of the Outline: which side of a rail is the hole.
+        public Vector2 Centre()
+        {
+            var sum = Vector2.Zero;
+            foreach (var p in Outline)
+                sum += p;
+            return sum / Outline.Length;
+        }
 
         // Whether any of `hatches` is over or under `local`: a loop, not Array.Exists, which would make a closure of `local` each time.
         public static bool AnyContain(HatchSpec[] hatches, Vector3 local)
@@ -198,6 +223,13 @@ namespace World.Buildings
         public Vector2 Across => AlongX ? Vector2.UnitY : Vector2.UnitX;
     }
 
+    // A television's screen showing a picture: the set (MeshProps' TelevisionMesh) at Position, turned YawDegrees, as its
+    // PropSpec is, tuned to Channel - static, or what a camera sees (see World.Maps' WorldRenderer.Feed).
+    public record ScreenSpec(Vector3 Position, float YawDegrees, string Channel)
+    {
+        public const string Static = "static";
+    }
+
     // A piece of furniture standing in a room: its mesh, and where. Position is where the mesh's origin goes,
     // YawDegrees turns its front (+Z) round the vertical. Half is the half-extent (X, Z) of the floor area it
     // blocks, already turned to the room's axes; leave it at zero for something you can't walk into (a TV on a sideboard).
@@ -238,6 +270,12 @@ namespace World.Buildings
 
         public DoorSpec[] Doors { get; init; } = Array.Empty<DoorSpec>();
         public PropSpec[] Props { get; init; } = Array.Empty<PropSpec>();
+
+        // Chests of drawers and cupboards, whose drawers and doors open (see Cabinet)
+        public CabinetSpec[] Cabinets { get; init; } = Array.Empty<CabinetSpec>();
+
+        // Television screens showing a picture (see ScreenSpec)
+        public ScreenSpec[] Screens { get; init; } = Array.Empty<ScreenSpec>();
         public OpeningSpec[] Openings { get; init; } = Array.Empty<OpeningSpec>();
 
         // Holes through to rooms stacked directly above or below (see HatchSpec). Stacked rooms need a real
@@ -380,6 +418,38 @@ namespace World.Buildings
                 if (distance >= radius)
                     continue;
                 var pushed = new Vector2(nearest.X, nearest.Z) + gap / distance * radius;
+                local = new Vector3(pushed.X, local.Y, pushed.Y);
+            }
+            return local;
+        }
+
+        // A walker (a circle of `radius`, `height` tall, its feet at local.Y) kept back from any hatch railing
+        // (see HatchSpec.Railed) its body is level with: round the room's floor hatches, and round its ceiling
+        // hatches, where the rails stand on the floor above.
+        public Vector3 KeepBehindRails(Vector3 local, float radius, float height)
+        {
+            foreach (var hatch in FloorHatches)
+                local = KeepBehindRails(hatch, 0f, local, radius, height);
+            foreach (var hatch in CeilingHatches)
+                local = KeepBehindRails(hatch, Height + hatch.SlabThickness, local, radius, height);
+            return local;
+        }
+
+        private static Vector3 KeepBehindRails(HatchSpec hatch, float floor, Vector3 local, float radius, float height)
+        {
+            if (hatch.Railed == null || local.Y >= floor + HatchSpec.RailHeight || local.Y + height <= floor)
+                return local;
+            foreach (var (a, b) in hatch.Rails())
+            {
+                var q = new Vector2(local.X, local.Z);
+                var nearest = Geometry2D.NearestOnSegment(q, a, b);
+                var gap = q - nearest;
+                var distance = gap.Length();
+                if (distance >= radius)
+                    continue;
+                // Right on the rail's line: back onto the floor, away from the hole
+                var away = distance > 1e-6f ? gap / distance : Vector2.Normalize(nearest - hatch.Centre());
+                var pushed = nearest + away * radius;
                 local = new Vector3(pushed.X, local.Y, pushed.Y);
             }
             return local;

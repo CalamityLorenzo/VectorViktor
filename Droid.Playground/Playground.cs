@@ -25,7 +25,8 @@ namespace Droid.Playground
     // Keys (when no panel has the keyboard): arrows (and W, A, S, D outside the free camera) drive; Shift goes faster;
     // P pauses, N steps a tick while paused, [ and ] slow and speed time; F1 head camera, F2 drone, F3 free camera;
     // Q/E run the head camera round its visor, R/F tilt it, Home puts it back; T drops the droid under the free camera;
-    // Ctrl+click drops it on the ground clicked; Enter opens or shuts a door; C colours, L low resolution, Esc exits.
+    // Ctrl+click drops it on the ground clicked; Enter opens or shuts a door (or a drawer, a cupboard); K skips to the end
+    // of a cut scene; C colours, L low resolution, Esc exits.
     //
     // On a controller: the left stick drives (outside the free camera), the right stick turns and tilts the head
     // camera, the right trigger goes faster; the shoulders run the head camera round its visor, a click of the right
@@ -92,6 +93,8 @@ namespace Droid.Playground
             _rigView = new RigView(_rig, DroidMesh.Sources(palette), DroidMesh.CableSource(palette), GraphicsDevice, MeshCache);
             _renderer = new WorldRenderer(_built, GraphicsDevice, MeshCache);
             _renderer.BuildTerrain(_player);
+            // The drone's camera, for the televisions tuned to it (see ScreenSpec): the droid, from wherever it's following
+            _renderer.Feed(WorldRenderer.DroneChannel, () => DroneView(), batch => _rigView.Add(batch));
             _lines = new DebugLines(GraphicsDevice);
             _imgui = new ImGuiRenderer(GraphicsDevice, Window);
             _free.LookFrom(_player.Body.Position + new Vector3(3f, 2f, 3f), _player.Body.Position + Vector3.Up);
@@ -141,8 +144,9 @@ namespace Droid.Playground
                 if (Pressed(keyboard, Keys.Home)) _around = _up = 0f;
                 if (Pressed(keyboard, Keys.T)) DropUnder(_free.Position);
                 if (Pressed(keyboard, Keys.Enter)) _built.Ground.Interact(_player.Body.Position, _player.Body.Heading);
+                if (Pressed(keyboard, Keys.K)) _experiment.Skip(_session);
                 _around = MathHelper.WrapAngle(_around + Axis(keyboard, Keys.Q, Keys.E) * 2f * _frameSeconds);
-                _up = Math.Clamp(_up + Axis(keyboard, Keys.R, Keys.F) * 1f * _frameSeconds, -0.45f, 0.45f);
+                _up = Math.Clamp(_up + Axis(keyboard, Keys.R, Keys.F) * 1f * _frameSeconds, -DroidRig.MaxLookDown, DroidRig.MaxLookUp);
             }
             if (IsActive)
             {
@@ -157,7 +161,7 @@ namespace Droid.Playground
                 if (_camera != CameraMode.Free)   // there the shoulders and the right stick are the camera's
                 {
                     _around = MathHelper.WrapAngle(_around + Axis(pad, Buttons.LeftShoulder, Buttons.RightShoulder) * 2f * _frameSeconds);
-                    _up = Math.Clamp(_up + pad.ThumbSticks.Right.Y * 1f * _frameSeconds, -0.45f, 0.45f);
+                    _up = Math.Clamp(_up + pad.ThumbSticks.Right.Y * 1f * _frameSeconds, -DroidRig.MaxLookDown, DroidRig.MaxLookUp);
                 }
             }
             if (_camera == CameraMode.Free)
@@ -273,31 +277,44 @@ namespace Droid.Playground
             _motion.Pose(_rig, _session.Clock);
             DroidRig.Look(_rig, _around, _up);
             _experiment.Pose(_session, _rig);
-            _rig.Solve(Matrix.CreateRotationY(MathHelper.Pi - body.Yaw) * Matrix.CreateTranslation(body.Position));
+            _rig.Solve(_session.Placement);
 
+            // A cut scene's camera, if one's playing; else the one picked
             Vector3 eye, forward, up;
-            switch (_camera)
-            {
-                case CameraMode.Head:
-                    (eye, forward, up) = DroidRig.CameraView(_rig);
-                    if (_levelHorizon)
-                        up = Vector3.Up;
-                    break;
-                case CameraMode.Drone:
-                    eye = _player.Drone.Position;
-                    forward = body.Position + Vector3.Up * 1.1f - eye;
-                    up = Vector3.Up;
-                    break;
-                default:
-                    (eye, forward, up) = (_free.Position, _free.Forward, Vector3.Up);
-                    break;
-            }
-            // From its own head camera, the camera's own mesh would be all round the eye: leave it out
+            var camera = _camera;
+            if (_experiment.Camera(_session) is { } scene)
+                ((eye, forward, up), camera) = ((scene.view.Eye, scene.view.Forward, scene.view.Up), scene.mode);
+            else
+                switch (_camera)
+                {
+                    case CameraMode.Head:
+                        (eye, forward, up) = DroidRig.CameraView(_rig);
+                        if (_levelHorizon)
+                            up = Vector3.Up;
+                        break;
+                    case CameraMode.Drone:
+                        var drone = DroneView();
+                        (eye, forward, up) = (drone.Eye, drone.Forward, drone.Up);
+                        break;
+                    default:
+                        (eye, forward, up) = (_free.Position, _free.Forward, Vector3.Up);
+                        break;
+                }
+            // The televisions' feeds first; then, from its own head camera, the camera's own mesh would be all round the eye:
+            // leave it out
+            _renderer.DrawFeeds(body.Position, _session.Clock, ColorsOn);
             _renderer.DrawFrom(eye, eye + forward, up, body.Position, _session.Clock, ColorsOn,
-                batch => _rigView.Add(batch, node => _camera != CameraMode.Head || node.Part != DroidRig.CameraPart));
+                batch => _rigView.Add(batch, node => camera != CameraMode.Head || node.Part != DroidRig.CameraPart));
 
             AddOverlays(eye);
             _lines.Draw(GraphicsDevice, _renderer.ViewMatrix, _renderer.Projection);
+        }
+
+        // The droid's drone looking at it, from wherever it's following.
+        private CameraView DroneView()
+        {
+            var eye = _player.Drone.Position;
+            return new CameraView(eye, Vector3.Normalize(_player.Body.Position + Vector3.Up * 1.1f - eye), Vector3.Up);
         }
 
         private void AddOverlays(Vector3 eye)
@@ -384,7 +401,7 @@ namespace Droid.Playground
                 ImGui.RadioButton("free (F3)", ref camera, (int)CameraMode.Free);
                 _camera = (CameraMode)camera;
                 ImGui.SliderAngle("round visor (Q/E)", ref _around, -180f, 180f);
-                ImGui.SliderAngle("tilt (R/F)", ref _up, -25f, 25f);
+                ImGui.SliderAngle("tilt (R/F)", ref _up, -90f, 60f);
                 ImGui.Checkbox("level horizon", ref _levelHorizon);
             }
 

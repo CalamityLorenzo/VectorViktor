@@ -60,6 +60,8 @@ namespace World.Rendering
             [DroidRig.EarPart] = new MeshSource(DroidRig.EarPart, BuildEar, palette),
             [DroidRig.DishPart] = new MeshSource(DroidRig.DishPart, BuildDish, palette),
             [DroidRig.CameraPart] = new MeshSource(DroidRig.CameraPart, BuildCamera, palette),
+            [DroidRig.ServoMountPart] = new MeshSource(DroidRig.ServoMountPart, BuildServoMount, palette),
+            [DroidRig.LimbPart] = new MeshSource(DroidRig.LimbPart, BuildLimb, palette),
         };
 
         // What each stretch of its cables is drawn with.
@@ -185,6 +187,35 @@ namespace World.Rendering
             {
                 (0f, -DroidRig.ArmLength, false),
                 (r * 0.85f, -DroidRig.ArmLength, true),
+                (r, 0f, true),
+                (0f, 0f, false),
+            }, new[] { Wood + MeshBuilder.Dim, Wood + MeshBuilder.Side, Wood + MeshBuilder.Top });
+            return mesh.Build(device);
+        }
+
+        // A jointed arm's servo (see DroidRig.JointedArm), about its fitting on the broom's axis: its box clamped against
+        // the broom's left, its shaft boss facing out, where the upper arm hangs.
+        public static MeshData BuildServoMount(GraphicsDevice device)
+        {
+            var mesh = new MeshBuilder();
+            const float radius = DroidRig.SpineRadius, w = DroidRig.ServoWidth, h = DroidRig.ServoHeight, d = DroidRig.ServoDepth;
+            mesh.AddBox(Servo, new Vector3(radius + w / 2f, -h / 2f, 0f), d, w, h, sealBottom: true);
+            mesh.AddBox(Metal, new Vector3(radius - 0.004f, -h / 2f - 0.004f, 0f), d + 0.008f, 0.008f, h + 0.008f);   // the bracket against the broom
+            mesh.AddTube(new Vector3(radius + w, 0f, 0f), new Vector3(radius + w + 0.006f, 0f, 0f), 0.01f, 0.01f, 6,
+                Metal + MeshBuilder.Top, ringEdges: true);
+            return mesh.Build(device);
+        }
+
+        // One stick of a jointed arm, upper arm or forearm: a boss at its joint, and LimbLength of wood hanging down -Y.
+        public static MeshData BuildLimb(GraphicsDevice device)
+        {
+            var mesh = new MeshBuilder();
+            const float r = DroidRig.ArmRadius;
+            mesh.AddTube(new Vector3(r, 0f, 0f), new Vector3(-r, 0f, 0f), r * 1.1f, r * 1.1f, 6, Metal + MeshBuilder.Side, ringEdges: true);
+            Lathe(mesh, Matrix.Identity, new Vector3(0f, -DroidRig.LimbLength / 2f, 0f), 8, new (float, float, bool)[]
+            {
+                (0f, -DroidRig.LimbLength, false),
+                (r * 0.9f, -DroidRig.LimbLength, true),
                 (r, 0f, true),
                 (0f, 0f, false),
             }, new[] { Wood + MeshBuilder.Dim, Wood + MeshBuilder.Side, Wood + MeshBuilder.Top });

@@ -46,6 +46,9 @@ namespace Maps.Home
             ["bedroom"] = new(HouseCentre + new Vector2(-2f, -2f), MathHelper.Pi, Above: 4.5f),   // in the house's bedroom, facing the ladder up to the attic
             ["attic"] = new(HouseCentre, MathHelper.PiOver2, Above: 100f),                 // up in the house's attic, facing its east end
             ["barn"] = new(BarnCentre + new Vector2(0f, -8f), MathHelper.Pi),              // outside the barn's
+            ["telly"] = new(CottageCentre + new Vector2(1.4f, 0f), MathHelper.PiOver2),      // in the cottage, facing its television
+            ["kitchen"] = new(HouseCentre + new Vector2(-2.1f, -1.3f), -MathHelper.PiOver2), // in the house, facing its cupboard
+            ["drawers"] = new(HouseCentre + new Vector2(2.2f, -0.9f), MathHelper.PiOver2, Above: 4.5f),   // in the bedroom, facing its chest of drawers
         };
 
         public IEnumerable<Thing> Things(PhysicsWorld world, Terrain terrain)
@@ -76,6 +79,8 @@ namespace Maps.Home
                 Outline = RoomSpec.Rectangle(CottageWidth, CottageDepth), Height = 2.6f, WorldOffset = at,
                 Floor = new Color(150, 95, 50), WallA = new Color(230, 220, 190), WallB = new Color(200, 190, 160), Ceiling = new Color(240, 240, 235),
                 Openings = new[] { Doorway(-2f) },
+                // The television shows what your drone sees: sit on the sofa and watch yourself
+                Screens = new[] { new ScreenSpec(new Vector3(3.7f, 0.64f, 0f), -90f, WorldRenderer.DroneChannel) },
                 Props = new[]
                 {
                     // Against the east wall facing west: 0.46 along X, 1.46 along Z; the television on top of it

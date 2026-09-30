@@ -8,7 +8,7 @@ using World.Buildings;
 namespace World.Rendering
 {
     // A building as drawn: its shell (see BuildingMesh), its doors, and its rooms' insides (see RoomView) with
-    // their furniture. Nothing of it is drawn when its shell is out of view. Its insides are left out when they
+    // their furniture, and their chests of drawers and cupboards (see CabinetView). Nothing of it is drawn when its shell is out of view. Its insides are left out when they
     // can't be seen: from outside, more than InteriorReach off, with every door shut - and every doorway has
     // one. Nearer than that they're drawn anyway, so nothing's lost through the gap round a shut door.
     public sealed class BuildingView
@@ -18,12 +18,13 @@ namespace World.Rendering
         private readonly MeshInstance _shell;
         private readonly List<MeshInstance> _insides = new List<MeshInstance>();
         private readonly List<(Door door, MeshInstance view)> _doors = new List<(Door, MeshInstance)>();
+        private readonly List<CabinetView> _cabinets = new List<CabinetView>();
         private readonly bool _doorless;   // a way in with no door in it: always open
 
         // Round the shell, roof and plinth and all, so round everything inside it too.
         public BoundingBox Bounds => _shell.Mesh.Bounds;   // the shell's mesh is in world coordinates
 
-        public BuildingView(Building building, IReadOnlyList<Door> doors, GraphicsDevice device, MeshCache cache)
+        public BuildingView(Building building, IReadOnlyList<Door> doors, IReadOnlyList<Cabinet> cabinets, GraphicsDevice device, MeshCache cache)
         {
             _shell = cache.CreateInstance(device, BuildingMesh.Source(building));
             foreach (var room in building.Rooms)
@@ -33,6 +34,8 @@ namespace World.Rendering
             }
             foreach (var door in doors)
                 _doors.Add((door, cache.CreateInstance(device, DoorMesh.Source(door))));
+            foreach (var cabinet in cabinets)
+                _cabinets.Add(new CabinetView(cabinet, device, cache));
         }
 
         public void Collect(MeshBatch batch, Vector3 eye)
@@ -46,8 +49,12 @@ namespace World.Rendering
                 batch.Add(view);
             }
             if (InsideVisible(eye))
+            {
                 foreach (var inside in _insides)
                     batch.Add(inside);
+                foreach (var cabinet in _cabinets)
+                    cabinet.Collect(batch);
+            }
         }
 
         private bool InsideVisible(Vector3 eye)

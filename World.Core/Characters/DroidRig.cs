@@ -12,6 +12,7 @@ namespace World.Core.Characters
     //
     //   root ─ axle ─┬ wheel-left, wheel-right         turn with Roll
     //                └ lean ─ spine ─┬ shoulder ─ arm ─ hand
+    //                                ├ shoulder-left                     a socket: a limb can be fitted here (see JointedArm)
     //                                └ head ─┬ ear-left ─ dish-left      dishes wander with Listen
     //                                        ├ ear-right ─ dish-right
     //                                        └ rail ─ camera             round the visor with Look
@@ -30,13 +31,14 @@ namespace World.Core.Characters
     {
         // Its parts' names, for clips and the meshes (see World.Rendering's DroidMesh)
         public const string Root = "root", Axle = "axle", WheelLeft = "wheel-left", WheelRight = "wheel-right",
-            Lean = "lean", Spine = "spine", Shoulder = "shoulder", Arm = "arm", Hand = "hand",
+            Lean = "lean", Spine = "spine", Shoulder = "shoulder", Arm = "arm", Hand = "hand", ShoulderLeft = "shoulder-left",
             Head = "head", EarLeft = "ear-left", EarRight = "ear-right", DishLeft = "dish-left", DishRight = "dish-right",
             Rail = "rail", Camera = "camera";
 
         // What's drawn at them: the part names a mesh is found by. Both wheels are the same wheel, both ears the same ear.
         public const string AxlePart = "droid-axle", WheelPart = "droid-wheel", SpinePart = "droid-broom", ArmPart = "droid-stick-arm",
-            HandPart = "droid-sporks", HeadPart = "droid-urn-head", EarPart = "droid-ear", DishPart = "droid-dish", CameraPart = "droid-camera";
+            HandPart = "droid-sporks", HeadPart = "droid-urn-head", EarPart = "droid-ear", DishPart = "droid-dish", CameraPart = "droid-camera",
+            ServoMountPart = "droid-servo-mount", LimbPart = "droid-limb";
 
         // Hoverboard wheels, either side of the axle
         public const float WheelRadius = 0.14f, WheelWidth = 0.06f, Track = 0.40f;   // Track: between the wheels' middles
@@ -50,6 +52,8 @@ namespace World.Core.Characters
         public const float NeckRadius = 0.10f, NeckHeight = 0.05f;
         public const float HeadRadius = 0.17f, HeadHeight = 0.34f, Bevel = 0.04f;
         public const float VisorBottom = 0.19f, VisorTop = 0.30f, VisorProud = 0.012f;
+        // How far the head camera tilts from level: sometimes the head can't move, so the camera has to do the looking
+        public static readonly float MaxLookUp = MathHelper.ToRadians(60f), MaxLookDown = MathHelper.ToRadians(90f);
         public const float EarRadius = 0.045f, EarHeight = 0.14f;
 
         // The arm: a stick hanging from the servo's shaft, the servo clamped to the broom on its right, ShoulderHeight up it
@@ -73,6 +77,12 @@ namespace World.Core.Characters
         // don't run together at low resolution
         public static readonly Quaternion Hanging = Pose.Turn(Vector3.UnitZ, -0.12f) * Pose.Turn(Vector3.UnitX, -0.25f);
 
+        // A jointed arm (see JointedArm): each of its two sticks LimbLength long, hanging as the stick arm does but on the
+        // left, bent a little at the elbow
+        public const float LimbLength = 0.22f;
+        public static readonly Quaternion HangingLeft = Pose.Turn(Vector3.UnitZ, 0.12f) * Pose.Turn(Vector3.UnitX, -0.25f);
+        public static readonly Quaternion ElbowRest = Pose.Turn(Vector3.UnitX, -0.3f);
+
         public static float VisorRadius => HeadRadius + VisorProud;
         public static float VisorMiddle => NeckHeight + (VisorBottom + VisorTop) / 2f;   // up from the head's joint
         public static float EarOut => HeadRadius + EarRadius * 0.8f;                     // the hoop sits against the head's side
@@ -92,6 +102,7 @@ namespace World.Core.Characters
             rig.Add(Shoulder, Spine, Pose.At(new Vector3(-(SpineRadius + ServoWidth + ArmRadius), ShoulderHeight, 0f)));   // the servo's shaft, on its right
             rig.Add(Arm, Shoulder, Pose.At(Vector3.Zero, Hanging), ArmPart);
             rig.Add(Hand, Arm, Pose.At(new Vector3(0f, -ArmLength, 0f)), HandPart);
+            rig.Add(ShoulderLeft, Spine, Pose.At(new Vector3(0f, ShoulderHeight, 0f)));   // the broom's middle: a limb brings its own servo
 
             rig.Add(Head, Spine, Pose.At(new Vector3(0f, SpineLength, 0f)), HeadPart);
             var ears = NeckHeight + EarHeight;
@@ -106,6 +117,20 @@ namespace World.Core.Characters
 
             Wiring(rig);
             return rig;
+        }
+
+        // A second arm, with an elbow, to fit at ShoulderLeft (see Rig.Attach): a servo of its own clamped to the broom's left
+        // (the limb's root, `prefix`), an upper arm hanging from its shaft (`prefix`-upper), a forearm from the elbow
+        // (`prefix`-forearm) and a pair of sporks for a hand (`prefix`-hand). `fitting` is where its root rests relative to
+        // what it's fitted to: at a socket, nothing; carried in a hand, wherever it's held.
+        public static Rig JointedArm(string prefix, Pose? fitting = null)
+        {
+            var arm = new Rig();
+            arm.Add(prefix, null, fitting ?? Pose.Identity, ServoMountPart);
+            arm.Add(prefix + "-upper", prefix, Pose.At(new Vector3(SpineRadius + ServoWidth + ArmRadius, 0f, 0f), HangingLeft), LimbPart);
+            arm.Add(prefix + "-forearm", prefix + "-upper", Pose.At(new Vector3(0f, -LimbLength, 0f), ElbowRest), LimbPart);
+            arm.Add(prefix + "-hand", prefix + "-forearm", Pose.At(new Vector3(0f, -LimbLength, 0f)), HandPart);
+            return arm;
         }
 
         // The sporks close front to back, so from in front the front one's bowl is seen, not their edges.
@@ -189,9 +214,11 @@ namespace World.Core.Characters
             rig.Change(Lean, p => p with { Rotation = Pose.Turn(Vector3.UnitX, angle) });
 
         // The head camera `around` radians round the visor from straight ahead (towards the droid's left is more), looking
-        // `up` radians above level and `aside` radians along the rail's tangent from straight out.
+        // `up` radians above level (held to MaxLookUp, and MaxLookDown below) and `aside` radians along the rail's
+        // tangent from straight out.
         public static void Look(Rig rig, float around, float up = 0f, float aside = 0f)
         {
+            up = Math.Clamp(up, -MaxLookDown, MaxLookUp);
             rig.Change(Rail, p => p with { Rotation = Pose.Turn(Vector3.Up, around) });
             rig.Change(Camera, p => p with { Rotation = Pose.Turn(Vector3.Up, aside) * Pose.Turn(Vector3.UnitX, -up) });
         }

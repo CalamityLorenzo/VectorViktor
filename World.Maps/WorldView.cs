@@ -20,6 +20,7 @@ namespace World.Maps
         private readonly List<MeshInstance> _fixed = new List<MeshInstance>();   // the water, the street's road, fences, paving and billboard
         private readonly List<(MeshInstance view, Func<Vector3, bool> shownTo)> _nearOrFar = new List<(MeshInstance, Func<Vector3, bool>)>();   // fixtures seen only from some places
         private readonly List<BuildingView> _buildings = new List<BuildingView>();
+        private readonly List<ScreenView> _screens = new List<ScreenView>();
         private readonly List<(Body body, MeshInstance view, float turn)> _things = new List<(Body, MeshInstance, float)>();
         private readonly List<(Window window, (ScenePart part, MeshInstance view)[] beyond, MeshBatch batch)> _windows =
             new List<(Window, (ScenePart, MeshInstance)[], MeshBatch)>();
@@ -65,7 +66,12 @@ namespace World.Maps
                     _fixed.Add(view);
             }
             foreach (var building in world.Buildings)
-                _buildings.Add(new BuildingView(building, world.Ground.DoorsOf(building), device, cache));
+            {
+                _buildings.Add(new BuildingView(building, world.Ground.DoorsOf(building), world.Ground.CabinetsOf(building), device, cache));
+                foreach (var room in building.Rooms)
+                    foreach (var screen in room.Screens)
+                        _screens.Add(new ScreenView(room, screen));
+            }
             foreach (var thing in world.Things)
                 _things.Add((thing.Body, cache.CreateInstance(device, thing.Mesh), thing.Turn));
             foreach (var part in world.Moving)
@@ -150,6 +156,23 @@ namespace World.Maps
             foreach (var (window, _, _, _) in _open)
                 _sealing.Add(window.Corners());
             _portals.Seal(device, effect, _sealing);
+        }
+
+        // How near a screen must be for its picture to be drawn: further off, it's too small to make out
+        public const float ScreenReach = 30f;
+
+        // After the world, with `effect` set up for textures, the camera and the fog: the pictures on the screens in view
+        // (see ScreenView), each from `picture`, given its channel.
+        public void DrawScreens(GraphicsDevice device, BasicEffect effect, Vector3 eye, Func<string, Texture2D> picture)
+        {
+            _frustum.Matrix = effect.View * effect.Projection;
+            device.SamplerStates[0] = SamplerState.PointClamp;   // hard pixels, as everything else has
+            device.DepthStencilState = DepthStencilState.Default;
+            device.RasterizerState = RasterizerState.CullNone;
+            device.BlendState = BlendState.Opaque;
+            foreach (var screen in _screens)
+                if (Vector3.Distance(eye, (screen.Bounds.Min + screen.Bounds.Max) / 2f) < ScreenReach && _frustum.Intersects(screen.Bounds))
+                    screen.Draw(device, effect, picture(screen.Channel));
         }
 
         public void Dispose()

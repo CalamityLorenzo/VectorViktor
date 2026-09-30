@@ -14,6 +14,18 @@ namespace MeshProps
         public const int CabinetBase = 0, Glass = 3, Knob = 4, GrilleBase = 5, Leg = 8, Metal = 9;
         public const int PaletteSize = 10;
 
+        // The screen: a grid of ScreenCells x ScreenCells quads bulging out towards the middle, like a CRT (see ScreenPoint)
+        public const float ScreenCentreX = -0.09f, ScreenCentreY = 0.29f, ScreenWidth = 0.30f, ScreenHeight = 0.26f, ScreenBulge = 0.03f;
+        public const int ScreenCells = 4;
+        private const float Depth = 0.42f;
+
+        // A point on the screen's glass, `u` (-1 left to 1 right) across it and `v` (-1 bottom to 1 top) up it, standing
+        // `proud` in front of it: for a picture laid over it (a ScreenView in World.Maps).
+        public static Vector3 ScreenPoint(float u, float v, float proud = 0f) => new Vector3(
+            ScreenCentreX + u * ScreenWidth / 2f,
+            ScreenCentreY + v * ScreenHeight / 2f,
+            Depth / 2f + 0.002f + ScreenBulge * (1f - u * u) * (1f - v * v) + proud);
+
         public static Color[] Palette(Color cabinet, Color glass, Color knob, Color grille, Color leg, Color metal)
         {
             var palette = new Color[PaletteSize];
@@ -28,7 +40,7 @@ namespace MeshProps
 
         public static MeshData Build(GraphicsDevice device)
         {
-            const float width = 0.50f, depth = 0.42f, cabinetHeight = 0.40f;
+            const float width = 0.50f, depth = Depth, cabinetHeight = 0.40f;
             const float legHeight = 0.05f;
             var top = legHeight + cabinetHeight;
             var frontZ = depth / 2f;
@@ -40,26 +52,17 @@ namespace MeshProps
 
             // Screen: a 4 x 4 grid of quads that bulges out towards the middle, like a CRT. Its border sits
             // 0.002 proud of the cabinet's front so it doesn't z-fight with it. Only its outline is edged.
-            const float screenCentreX = -0.09f, screenCentreY = 0.29f, screenWidth = 0.30f, screenHeight = 0.26f, bulge = 0.03f;
-            const int cells = 4;
-            Vector3 ScreenPoint(int i, int j)
-            {
-                var u = -1f + 2f * i / cells;
-                var v = -1f + 2f * j / cells;
-                return new Vector3(
-                    screenCentreX + u * screenWidth / 2f,
-                    screenCentreY + v * screenHeight / 2f,
-                    frontZ + 0.002f + bulge * (1f - u * u) * (1f - v * v));
-            }
+            const int cells = ScreenCells;
+            Vector3 Point(int i, int j) => ScreenPoint(-1f + 2f * i / cells, -1f + 2f * j / cells);
             for (var i = 0; i < cells; i++)
                 for (var j = 0; j < cells; j++)
-                    mesh.AddQuad(Glass, ScreenPoint(i, j), ScreenPoint(i + 1, j), ScreenPoint(i + 1, j + 1), ScreenPoint(i, j + 1));
+                    mesh.AddQuad(Glass, Point(i, j), Point(i + 1, j), Point(i + 1, j + 1), Point(i, j + 1));
 
             var outline = new System.Collections.Generic.List<Vector3>();
-            for (var i = 0; i < cells; i++) outline.Add(ScreenPoint(i, 0));            // bottom, left to right
-            for (var j = 0; j < cells; j++) outline.Add(ScreenPoint(cells, j));        // right, bottom to top
-            for (var i = cells; i > 0; i--) outline.Add(ScreenPoint(i, cells));        // top, right to left
-            for (var j = cells; j > 0; j--) outline.Add(ScreenPoint(0, j));            // left, top to bottom
+            for (var i = 0; i < cells; i++) outline.Add(Point(i, 0));            // bottom, left to right
+            for (var j = 0; j < cells; j++) outline.Add(Point(cells, j));        // right, bottom to top
+            for (var i = cells; i > 0; i--) outline.Add(Point(i, cells));        // top, right to left
+            for (var j = cells; j > 0; j--) outline.Add(Point(0, j));            // left, top to bottom
             mesh.AddLineLoop(outline.ToArray());
 
             // Three knobs stacked on the right, and a speaker grille of four slats under them

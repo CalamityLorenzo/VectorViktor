@@ -9,7 +9,12 @@ Each lesson ends with **an exercise** to write yourself. They're optional: nothi
 | 01 | [Sharing the world between projects](01-sharing-the-world.md) | ToolsPlan step 1 | Add a district of your own to the home map |
 | 02 | [Drawing Dear ImGui with MonoGame](02-drawing-dear-imgui.md) | ToolsPlan step 2 | A Stats window, and Dear ImGui's demo |
 | 03 | [The playground: fixed ticks, time control and experiments](03-the-playground.md) | ToolsPlan step 2 | An experiment where the head camera looks into turns |
+| 04 | [Rigs and clips](04-rigs-and-clips.md) | AnimationPlan step 1 | A clip that perks up the droid's ears |
+| 05 | [Drawers and cupboards: the simulation and the picture](05-drawers-and-cupboards.md) | AnimationPlan step 3 | A cupboard door hinged on the right |
+| 06 | [The TV: textures and render targets](06-the-tv.md) | AnimationPlan step 4 | The head camera on the attic's television |
+| 07 | [Fitting limbs, and clip events](07-fitting-limbs.md) | AnimationPlan step 5 | Predict, then test: taking the head off, counting hellos |
+| 08 | [Cut scenes: timelines and cameras](08-cut-scenes.md) | AnimationPlan step 6 | The new arm waves hello |
 
 For a picture of how the projects reference each other, see the [project map](project-map.md).
 
-Planned, as the steps they belong to are built: map files and serialisation; cameras and snap views; picking and undo. Lessons on what was built before the lessons began (meshes and outlines, the physics, rigs and clips) can be written whenever wanted.
+Planned, as the steps they belong to are built: map files and serialisation; cameras and snap views; picking and undo. Lessons on what was built before the lessons began (meshes and outlines, the physics) can be written whenever wanted.

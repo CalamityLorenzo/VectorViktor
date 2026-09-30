@@ -1,6 +1,6 @@
 # Animation: options and plan
 
-Written 2026-09-27. Step 1 (section 9) was done the same day; the rest is a plan. It answers four questions: what the options are for animating things, whether any libraries would help, whether turning the meshes into glTF would help, and how the wanted examples would each be done. The examples:
+Written 2026-09-27. Step 1 (section 9) was done the same day; Paul answered section 10's questions on 2026-09-30, and steps 3 to 6 were done that day. Step 2's droid-as-player waits on Paul, and step 7 isn't wanted yet. It answers four questions: what the options are for animating things, whether any libraries would help, whether turning the meshes into glTF would help, and how the wanted examples would each be done. The examples:
 
 - spinning wheels (the droid's, a car's)
 - opening cupboards and drawers
@@ -127,7 +127,7 @@ Sizes, in `DroidRig` (metres; the head's proportions are measured off the sketch
 | Arm | a 0.45 stick, 0.05 across, hanging from a servo clamped to the broom 0.62 up it, on its right |
 | Hand | two orange plastic sporks, bowls facing each other front to back like a pincer, bolted and wire-lashed together (0.14 long) |
 | Wheel motors | a drum just inside each wheel, on the axle, so it doesn't turn with the wheel |
-| Overall | about 1.39 m to the top of the head |
+| Overall | about 1.39 m to the top of the head, for this Segway-and-broom droid; it changes through the game (taller legs, a longer body) |
 
 The tree (facing +Z, its left is +X):
 
@@ -140,7 +140,7 @@ root ─ axle ─┬ wheel-left, wheel-right         turned by Roll (distance / 
 ```
 
 - **lean** is a bare joint at the axle: tilting it tilts everything above the wheels, Segway style (`Tilt`).
-- **rail** is a bare joint on the head's axis at the visor's middle height; turning it about y carries **camera** round the band. The camera's own turn is its pitch within the band and a little aside. `DroidRig.CameraView` gives the eye, forward and up vectors to render the head camera's view from.
+- **rail** is a bare joint on the head's axis at the visor's middle height; turning it about y carries **camera** round the band. The camera's own turn is its pitch within the band (from straight down to 60 degrees up: `MaxLookDown`, `MaxLookUp`; when the head can't move, the camera has to do the looking) and a little aside. `DroidRig.CameraView` gives the eye, forward and up vectors to render the head camera's view from.
 - **shoulder** is a bare joint (a socket): the arm hangs from it. Swapping or adding limbs means fitting parts at sockets like it (step 5).
 - **The wiring.** The head works everything, so it's cabled to it (`Cable`, strung through points fixed to parts; see `Rig.Span`). Two cords run from the back of the neck down the broom: one into the servo, and on from its bottom as filament down the back of the arm to the sporks' lashing, with a strand to each spork; the other into the axle's hub, then as filament sagging along the axle to each wheel's motor. A stretch between points on different parts is worked out afresh each frame, so the cables stay joined through the lean, the wave and the head's tilt. They're drawn as faces only (yellow, no white edges), so they show close to and are next to nothing far off.
 - Each joint names its mesh (`RigNode.Part`: `droid-urn-head`, `droid-wheel` and so on; `DroidMesh.Sources`). Both wheels share one mesh, as do both ears.
@@ -163,7 +163,7 @@ The same, with hinged leaves in place of the slide: a `Cupboard` owning one or t
 **Option E.** Two levels:
 1. *Now, nearly free*: flicker the TV's `Glass` palette slot between greys each tick (`MeshInstance.SetColor`). It reads as "it's on", not as static.
 2. *Proper static*: a `ScreenView` (World.Rendering) that draws a quad over the screen with a small `Texture2D` (about 48 x 36, point-sampled so the pixels stay hard), refilled with random greys every tick or two (`SetData` of 1,728 pixels, trivial). It's drawn after the faces, depth-tested, with a `BasicEffect` with `TextureEnabled`. `TelevisionMesh` would say where its screen is. A bulging screen could be a slightly curved 4 x 3 grid of quads instead of one.
-3. *Later*: the same screen showing a picture, such as the drone's feed or a recording from the head camera (GameDesign.md 3.2). Either a second render into a render target used as the texture, or the stencil trick `WindowPortals` already uses.
+3. *Later*: the same screen showing a picture, such as the drone's feed or a recording from the head camera (GameDesign.md 3.2). **Paul chose a render target** (2026-09-30): a second render of the world into a render target, used as the screen's texture. So `ScreenView` should take its texture from outside from the start, with static as just one source (a noise texture) and a camera's render target as another.
 
 Static is naturally black and white, which fits a world with no colour; in the wireframe view it could be white dots on the background.
 
@@ -176,7 +176,7 @@ The scene itself might be: the droid rolls to the workbench (a procedural drive 
 
 ### In-camera cut scenes generally
 A **timeline** (step 6): clips on the droid's rig and on props, a camera track, and events, all on one clock. Player input is paused; a key skips to the end state.
-- **Whose camera?** The premise says the picture is the droid's broadcast, so an in-camera cut scene is best shot from a camera that exists in the world: the **drone** (flying a keyed path), a **mirror** (GameDesign.md 3.2: how the droid sees itself, and the natural place to try on a limb), or the **head camera** running round its rail to look at itself. A free cinematic camera would break the premise; if one is used, it could be framed as a recording.
+- **Whose camera?** Both kinds (Paul, 2026-09-30): cameras that exist in the world, the **drone** (flying a keyed path), a **mirror** (GameDesign.md 3.2: how the droid sees itself, and the natural place to try on a limb) or the **head camera** running round its rail to look at itself, and a **free cinematic camera** that isn't in the world at all. The camera track keys either kind.
 - The camera track keys position and look-at (or a node in the rig to look at) with the same `Channel` and `Ease` types.
 
 ## 9. Steps
@@ -199,32 +199,43 @@ This refines the five steps suggested earlier.
 - **Tests**: 26 in `World.Core.Tests/AnimationTests.cs` (130 in that project now), including the droid's cables staying joined and short while it rolls, leans and waves. The droid's meshes are checked by `Meshes.Tests` through the world's moving parts.
 
 ### Step 2: live rigs, and the droid as the player (partly done 2026-09-27, in the playground)
-Done in [ToolsPlan.md](ToolsPlan.md) step 2: `RigView` (a live rig, following part swaps and cables), `DroidMotion` (wheels rolled each their own distance, lean from acceleration), and the droid as the player in `Droid.Playground`, with its head camera run round the visor by keys. Still to do: the droid as the player in the game itself, with its own size in place of the walker's.
+Done in [ToolsPlan.md](ToolsPlan.md) step 2: `RigView` (a live rig, following part swaps and cables), `DroidMotion` (wheels rolled each their own distance, lean from acceleration), and the droid as the player in `Droid.Playground`, with its head camera run round the visor by keys. Still to do: the droid as the player in the game itself, with its own size in place of the walker's. **Waiting** (Paul, 2026-09-30): Segway movement is only one of the ways the player will move, so the walker stays the player in the game until Paul knows more about what he wants from the player character.
 
 - A `RigView` (World.Rendering) for rigs driven by the simulation rather than by a clock: it keeps a `MeshInstance` per node, follows `RigNode.Part` changes, and adds them to the batch. `RigScene` suits things on show; this suits the player.
 - Swap the walker's `PlayerMesh` for the droid's rig. `Roll` is driven by distance moved, `Tilt` by acceleration, and the camera view comes from `DroidRig.CameraView`. This overlaps GameDesign.md 3.1's droid work (its size, its Segway movement), so it may belong there instead.
-- Head camera controls: running round the rail and pitching within the band.
+- Head camera controls: running round the rail and pitching within the band, straight down to 60 degrees up (done: `DroidRig.Look` holds it there, and so do the playground's keys).
 
-### Step 3: drawers and cupboards
-`Drawer` and `Cupboard` in World.Buildings (simulation, interaction, blocking, tests), and their rigs and meshes. Put a chest of drawers and a kitchen cupboard in a house.
+### Step 3: drawers and cupboards (done 2026-09-30)
+- **Simulation** (World.Buildings, `Cabinet.cs`): `CabinetSpec` (a chest of drawers or a cupboard in a room: `RoomSpec.Cabinets`), `Drawer` (slides out along its front's facing, stops against a body or walker as a door does), and `Cabinet`, whose cupboard doors are plain `Door`s. `IOpenable` is what `BuildingGround.Interact` now returns: a door or a cabinet. Using a chest opens its top drawer still shut, and once they're all open shuts them all; using a cupboard opens or shuts both doors.
+- **Blocking**: a cabinet's carcass is four walls; its open drawers' fronts and sides, and its doors wherever they've swung, are walls too, for walkers, bodies and the drone's line of sight. `StepDoors` steps them with the doors.
+- **Drawing**: `CabinetRig` (carcass, `drawer-i`, `door-i`) posed from the simulation each frame, the drawers eased with `Ease.InOut`; `CabinetMesh` and `CabinetView` in World.Rendering, drawn by `BuildingView` with the rooms' insides.
+- **In the world**: the two-storey houses (`Houses.TwoStorey`) have a kitchen cupboard downstairs and a chest of four drawers in the bedroom. Starts `kitchen` and `drawers`; E (Enter in the playground) uses them.
+- **Tests**: `CabinetTests` (7).
 
-### Step 4: the TV
-Palette flicker first, then `ScreenView` with a noise texture (section 8).
+### Step 4: the TV (done 2026-09-30)
+A render target, as Paul chose. `ScreenSpec` (a television's screen in a room, `RoomSpec.Screens`, tuned to a channel); `ScreenView` (World.Maps) lays a textured grid over the set's bulging glass (`TelevisionMesh.ScreenPoint`, now public). `WorldRenderer.Feed(channel, camera, extra)` gives a channel a camera, drawn into a 96 x 72 render target before each frame by `DrawFeeds` (the screens are left out of a feed, so none draws into itself); any other channel shows `StaticPicture`, 48 x 36 random greys made afresh every two ticks. Both are drawn point-sampled and fogged. The cottage's television shows the drone's camera (`WorldRenderer.DroneChannel`, fed by Basic.World and the playground: sit on the sofa and watch yourself); the old set in the attic shows static. Start `telly`.
 
-### Step 5: sockets, fitting and clip events
-`Rig.Attach`/`Detach`, reparenting that keeps the world pose, limb sub-rigs, and `Clip` events reported by the `Animator`. The first real use: a second arm fitted on the droid's left.
+### Step 5: sockets, fitting and clip events (done 2026-09-30)
+- `Rig.Attach(limb, socket)`, `Rig.Detach(part)` (its cables go with it, or are cut if they also ran to what's left), `Rig.Reparent(part, parent)` (keeps where it is in the world, as of the last Solve), and `Rig.SetRest`. The rig keeps parents before children through all of them, so Solve is still one pass.
+- `Clip.Event(time, name)`: the `Animator` reports each one passed in its `Fired` list, looping clips each time round. `Animator.Lay` lays the clips over what's already on the rig (its movement), where `Apply` resets it first.
+- `DroidRig.ShoulderLeft` (a socket on the broom) and `DroidRig.JointedArm(prefix)`: a limb with its own servo, an upper arm, an elbow, a forearm and sporks (`DroidMesh` has the servo mount and the limb stick).
+- **Tests**: `SceneTests` (events, fitting and taking off, reparenting).
 
-### Step 6: the cut-scene timeline
-Timeline, camera track, input pause and skip. The first scene: the droid fits a new arm in front of a mirror or with the drone watching (this needs mirrors, GameDesign.md 3.2, or a drone path).
+### Step 6: the cut-scene timeline (done 2026-09-30)
+- `Timeline` (World.Core/Animation): cues at times, clips played and stopped on animators, handlers for clip events (`On`), all on one clock; it steps its animators, splitting each step at the cues so a clip started mid-step plays only the rest of it. `Playing` is what the game checks to leave the player's input alone; `Skip` runs it through to the end a tick at a time, so it ends exactly as if played.
+- `CameraTrack`: cuts between the free cinematic camera (`CameraTrack.Free`, keyed eye and target) and named world cameras, which the game says where they are.
+- **The first scene**, `FittingScene` (World.Core/Characters): the droid holds the new arm in its sporks, lying back along the stick arm; lifts it round so its servo comes to the left shoulder; the "attach arm" event reparents it there and a clip fades it into the socket; the stick arm drops back; the head camera runs round and tips down at it while the elbow flexes and the ear dishes twitch; the arm stays fitted. Seen from the free camera, then the head camera, then the drone. No mirror yet (GameDesign.md 3.2), so the drone watches instead.
+- **Playground**: the `fitarm` experiment plays it on the world's clock (pause, step and slow work), K skips it; experiments can now give the camera (`Experiment.Camera`) and be skipped (`Experiment.Skip`).
+- **Tests**: `SceneTests` (the timeline, the camera track, the scene: no jumps, let go of within 25 cm of the socket, skipped ends as played).
 
-### Step 7: glTF animation import (only if keying in code gets too fiddly)
+### Step 7: glTF animation import (only if keying in code gets too fiddly; clips are keyed in code for now)
 Exporter for the droid's parts as a node tree; importer for animation channels into `Clip`s (section 6).
 
-## 10. Questions for Paul
+## 10. Questions for Paul (answered 2026-09-30)
 
-1. **The droid as the player (step 2)**: now, walking like the current walker until Segway movement exists, or only once its movement is done?
-2. **Cut-scene cameras**: kept to cameras in the world (drone, mirror, head camera), or is a free cinematic camera acceptable?
-3. **Authoring**: are clips keyed in code acceptable for now, or is Blender authoring (step 7) wanted early?
-4. **The head camera's freedom**: all the way round the rail, and how far up and down within the band? What controls it (mouse, keys)?
-5. **The head's sizes**: 0.34 m across and tall, the droid 1.39 m in all. Right, or should it be bigger or smaller relative to a door (2.1 m)?
-6. **The TV**: static only, or does it later show pictures (the drone's feed, memories)? That decides between a noise texture and a render target.
+1. **The droid as the player (step 2)**: not yet. Segway movement is one form of movement among several to come, so the walker stays the player until Paul knows more about what he wants from the player character.
+2. **Cut-scene cameras**: both. Cameras in the world (drone, mirror, head camera) and a free cinematic camera.
+3. **Authoring**: clips keyed in code for now; Blender authoring (step 7) isn't wanted yet.
+4. **The head camera's freedom**: all the way round the rail, and from looking straight ahead, up to 60 degrees up and down to 90 (straight down). There are times the head can't move, so the camera has to do the looking. Done: `DroidRig.MaxLookUp`/`MaxLookDown`, held by `Look` and the playground's keys.
+5. **The head's sizes**: 1.39 m is right for the Segway-and-broom droid, but its size changes through the game (taller legs, a longer body), so nothing should assume a fixed height: take it from the rig.
+6. **The TV**: a render target, so the screen can later show pictures (the drone's feed, recordings), with static as one of the things it shows.

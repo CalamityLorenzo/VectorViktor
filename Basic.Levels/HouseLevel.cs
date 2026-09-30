@@ -265,7 +265,7 @@ namespace Basic.Levels
                 Outline = octagonOutline, Height = octagonHeight,
                 Floor = new Color(200, 170, 30), WallA = new Color(230, 200, 50), WallB = new Color(190, 160, 20), Ceiling = new Color(140, 120, 30),
                 Doors = new[] { new DoorSpec("backroom", 0, 0f, "backroom", "octagon") },
-                CeilingHatches = new[] { new HatchSpec(hatch, "octagonupper", slab) },
+                CeilingHatches = new[] { new HatchSpec(hatch, "octagonupper", slab, WallStair.HatchRails) },
                 Props = new[]
                 {
                     new PropSpec(WallStairMesh.Source(stair, WallStairMesh.Palette(new Color(150, 105, 60), new Color(110, 75, 40), new Color(130, 90, 50), new Color(90, 60, 35))),
@@ -295,7 +295,7 @@ namespace Basic.Levels
                 Outline = octagonOutline, Height = corridorHeight,
                 Floor = new Color(40, 130, 60), WallA = new Color(70, 190, 90), WallB = new Color(50, 150, 70), Ceiling = new Color(30, 80, 40),
                 WorldOffset = octagon.WorldOffset + Vector3.Up * (octagonHeight + slab),
-                FloorHatches = new[] { new HatchSpec(hatch, "octagon") },
+                FloorHatches = new[] { new HatchSpec(hatch, "octagon", Railed: WallStair.HatchRails) },   // railed, so the gap beside the stair can't be walked into
                 CeilingHatches = new[] { new HatchSpec(ladderHatch, "octagontop", slab) },
                 // Non-blocking, like the hangar's: a Half would push you off the ladder before you could climb it
                 Props = new[]

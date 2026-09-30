@@ -113,6 +113,8 @@ namespace Meshes.Tests
                 .Concat(world.Buildings.Select(BuildingMesh.Source))
                 .Concat(world.Buildings.SelectMany(b => b.Rooms).SelectMany(r => r.Props).Select(p => p.Mesh))
                 .Concat(world.Buildings.SelectMany(b => world.Ground.DoorsOf(b)).Select(DoorMesh.Source))
+                .Concat(world.Ground.Cabinets.SelectMany(c => CabinetMesh.Sources(c.Spec).Values))
+                .Concat(DroidMesh.Sources(DroidMesh.StartingPalette()).Values)   // every part a droid can have fitted, not just the ones on show
                 .ToList();
             Assert.True(sources.Count > 20, $"only {sources.Count} sources: is the world empty?");
 

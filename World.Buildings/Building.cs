@@ -188,7 +188,23 @@ namespace World.Buildings
                     if (floor + opening.Height < shellTop)
                         yield return new WallSegment(gapLeft, gapRight, floor + opening.Height, shellTop);
                 }
+
+                // Railings round its floor hatches (see HatchSpec.Railed)
+                var offset = new Vector2(room.WorldOffset.X, room.WorldOffset.Z);
+                foreach (var hatch in room.FloorHatches)
+                    foreach (var (a, b) in hatch.Rails())
+                        yield return new WallSegment(a + offset, b + offset, floor, floor + HatchSpec.RailHeight);
             }
+        }
+
+        // Every chest of drawers and cupboard in its rooms (see RoomSpec.Cabinets), standing in the world, shut.
+        public List<Cabinet> FitCabinets()
+        {
+            var cabinets = new List<Cabinet>();
+            foreach (var room in Rooms)
+                foreach (var spec in room.Cabinets)
+                    cabinets.Add(new Cabinet(spec, room.WorldOffset));
+            return cabinets;
         }
 
         // A new door (see Door) for every leaf hung in the building's doorways (see OpeningSpec.Door), shut.

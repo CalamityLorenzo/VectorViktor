@@ -13,6 +13,8 @@ namespace Droid.Playground
     //   Drive      each tick: what the droid is told to do, from what the player asked for
     //   AfterTick  each tick, after the world has moved on
     //   Pose       each frame, after the droid's rig has been posed from its movement: anything more on the rig
+    //   Camera     each frame, after the rig's solved: a view to show instead of the harness's own (a cut scene's), or null
+    //   Skip       when K is pressed: jump to the end of whatever it's playing
     //   Panel      each frame: its own Dear ImGui panel, with its live values (sliders straight onto its fields)
     //
     // Each has a default that does nothing (Drive passes the asking straight on), so an experiment says only what's
@@ -26,6 +28,8 @@ namespace Droid.Playground
         public virtual MoveInput Drive(Session session, MoveInput asked, float dt) => asked;
         public virtual void AfterTick(Session session, float dt) { }
         public virtual void Pose(Session session, Rig rig) { }
+        public virtual (CameraView view, CameraMode mode)? Camera(Session session) => null;
+        public virtual void Skip(Session session) { }
         public virtual void Panel(Session session) { }
     }
 
@@ -36,6 +40,7 @@ namespace Droid.Playground
         {
             ("drive", () => new Drive()),
             ("segway", () => new Segway()),
+            ("fitarm", () => new FitArm()),
         };
 
         public const string Default = "drive";
