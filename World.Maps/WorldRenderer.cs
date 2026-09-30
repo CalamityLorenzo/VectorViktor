@@ -6,6 +6,7 @@ using Microsoft.Xna.Framework.Graphics;
 using System;
 using World.Core;
 using World.Core.Characters;
+using World.Core.Vehicles;
 
 namespace World.Maps
 {
@@ -35,6 +36,9 @@ namespace World.Maps
         private readonly BasicEffect _effect;
         private readonly MeshBatch _batch = new MeshBatch();
         private readonly MeshInstance _playerView, _droneView;
+        private readonly MeshInstance _cockpit, _steeringWheel;   // what you see of the car from its driver's seat
+        private readonly MeshInstance[] _needles = new MeshInstance[2];   // its dials' (see CockpitMesh.NeedleAt)
+        private readonly MeshBatch _cockpitBatch = new MeshBatch();
         private readonly MeshInstance[] _birdFrames = new MeshInstance[BirdMesh.Frames];   // one for each step through a flap
         private readonly IGround _ground;
         private readonly Color[] _playerColors;   // dry: as drawn, they're darker where wet
@@ -64,6 +68,13 @@ namespace World.Maps
             _droneView = cache.CreateInstance(device, new MeshSource("drone", DroneMesh.Build,
                 DroneMesh.Palette(new Color(90, 90, 100), new Color(60, 60, 65), new Color(40, 40, 45), new Color(120, 220, 230))));
             _droneView.Scale = 1.5f;   // so it reads at low resolution, even a few metres off
+            _cockpit = cache.CreateInstance(device, new MeshSource("cockpit", CockpitMesh.Build,
+                CockpitMesh.Palette(new Color(50, 50, 60), new Color(150, 30, 28), new Color(170, 165, 150), new Color(60, 90, 120), new Color(90, 35, 35))));
+            _steeringWheel = cache.CreateInstance(device, new MeshSource("steering wheel", CockpitMesh.BuildWheel,
+                CockpitMesh.WheelPalette(new Color(35, 35, 40), new Color(85, 85, 95))));
+            var needle = new MeshSource("needle", CockpitMesh.BuildNeedle, CockpitMesh.NeedlePalette(new Color(240, 120, 30)));
+            for (var i = 0; i < _needles.Length; i++)
+                _needles[i] = cache.CreateInstance(device, needle);
             var birdPalette = BirdMesh.Palette(Color.White, new Color(140, 210, 230));
             for (var frame = 0; frame < BirdMesh.Frames; frame++)
                 _birdFrames[frame] = cache.CreateInstance(device, BirdMesh.Source(frame, birdPalette));
@@ -81,7 +92,7 @@ namespace World.Maps
 
             var body = player.Body;
             var you = body.Position;
-            Vector3 eye, lookAt;
+            Vector3 eye, lookAt, up = Vector3.Up;
             var driving = player.Driving;
             View.HiddenCar = !followBird && driving != null && player.View == ViewMode.FirstPerson ? driving : null;
             if (followBird && bird != null)
@@ -91,9 +102,11 @@ namespace World.Maps
             }
             else if (driving != null)
             {
-                // Through the windscreen, or from the car's chase camera
+                // From the driver's seat, tipping as the car does, or from the car's chase camera
                 eye = player.View == ViewMode.FirstPerson ? driving.Eye : driving.Chase.Position;
                 lookAt = player.View == ViewMode.FirstPerson ? eye + driving.Forward : driving.Position + driving.Up * 1.4f + driving.Heading * 2f;
+                if (player.View == ViewMode.FirstPerson)
+                    up = driving.Up;
             }
             else if (player.View == ViewMode.FirstPerson)
             {
@@ -114,7 +127,7 @@ namespace World.Maps
             // Neither camera sees the thing it's in: from inside your own head (or the drone), you'd only
             // see the inside of it. Turn round in your own view, though, and the drone's there, following.
             // From the bird's chase camera, both are.
-            DrawFrom(eye, lookAt, Vector3.Up, you, clock, colorsOn, batch =>
+            DrawFrom(eye, lookAt, up, you, clock, colorsOn, batch =>
             {
                 // Driving, you're in the car, and your drone's put away
                 if (driving == null && (followBird || player.View == ViewMode.Drone))
@@ -130,6 +143,28 @@ namespace World.Maps
                     batch.Add(birdView);
                 }
             });
+            if (View.HiddenCar is { } seat)
+                DrawCockpit(seat, colorsOn);
+        }
+
+        // The car's inside, from the driver's seat (see CockpitMesh): over everything, so nothing outside it - a wall
+        // you're scraping along - comes through, and from the eye's own frame, so it stays put on screen as the view
+        // outside turns and tips.
+        private void DrawCockpit(Car car, bool colorsOn)
+        {
+            _device.Clear(ClearOptions.DepthBuffer, RetroStyle.Background, 1f, 0);
+            var view = Matrix.CreateLookAt(Vector3.Zero, Vector3.Backward, Vector3.Up);
+            _steeringWheel.Transform = CockpitMesh.WheelAt(car.SteerAngle);
+            _needles[CockpitMesh.Speedometer].Transform = CockpitMesh.NeedleAt(CockpitMesh.Speedometer, CockpitMesh.SpeedReading(car.Speed));
+            _needles[CockpitMesh.RevCounter].Transform = CockpitMesh.NeedleAt(CockpitMesh.RevCounter, CockpitMesh.RevReading(car.Speed, !car.Flooded));
+            _effect.View = view;
+            _cockpitBatch.Begin(view, Projection);
+            _cockpitBatch.Add(_cockpit);
+            _cockpitBatch.Add(_steeringWheel);
+            foreach (var needle in _needles)
+                _cockpitBatch.Add(needle);
+            _cockpitBatch.Draw(_device, _effect, RetroStyle.Background, colorsOn);
+            _effect.View = ViewMatrix;
         }
 
         // The map from a camera at `eye`, looking at `lookAt` with `up` its up, with whatever `extra` adds to the batch

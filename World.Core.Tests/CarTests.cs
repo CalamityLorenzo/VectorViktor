@@ -152,6 +152,28 @@ namespace World.Core.Tests
             Assert.True(fromCar.Length() > Car.Width / 2f && fromCar.Length() < 2.5f, $"got out {fromCar.Length():F1} m from its middle");
         }
 
+        // Flat out off the pass's road, into the mountainside: wherever it ends up - wedged against a rock face, or
+        // come down on one too steep to stand on - it can always be driven away again
+        [Theory]
+        [InlineData("firstpass", 0.2f)]
+        [InlineData("firstpass", 0.5f)]
+        public void OffTheRoadFastItNeverGetsStuck(string startName, float steer)
+        {
+            var built = WorldBuilder.Build(PassMap.Map);
+            var ground = built.Physics;
+            var start = built.Starts[startName];
+            var car = CarOn(ground, start.At, start.Yaw);
+            Drive(car, Flat, 1.5f, ground);
+            Drive(car, new DriveInput(1f, steer), 4.5f, ground);
+            Assert.False(car.Flooded);
+
+            var from = new Vector2(car.Position.X, car.Position.Z);
+            var moved = 0f;
+            foreach (var input in new[] { new DriveInput(-1f, 1f), new DriveInput(-1f, -1f), new DriveInput(1f, 1f), new DriveInput(1f, -1f) })
+                Drive(car, input, 3f, ground, c => moved = MathF.Max(moved, Vector2.Distance(from, new Vector2(c.Position.X, c.Position.Z))));
+            Assert.True(moved > 3f, $"stuck at {from}: moved only {moved:F2} m");
+        }
+
         // Driving the pass's road, on a simple autopilot: steering for a point ahead on the road, and as fast as the
         // bends ahead allow, slowing for them in time. On the road all the way, and down into the basin.
         [Fact]

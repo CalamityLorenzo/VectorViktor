@@ -21,11 +21,14 @@ namespace World.Core.Vehicles
     //  - the slope under it pulls it back down, so it rolls back on a hill if it's let go, and a climb slows it
     //  - the front wheels turn it about its back axle, less far the faster it goes (SteerFade); the tyres hold it to
     //    the way it's pointing with no more than Grip, so too fast into a bend and it slides wide - and on the
-    //    handbrake, far more
+    //    handbrake, far more. That's less, the steeper the ground (it's pressed onto it less), and across a slope the
+    //    slope pulls it sideways, so on one too steep - landed on a mountainside off a jump - it slides down it
     // It moves in sub-steps, and each is checked at the edges of the car: ground rising more than MaxClimb in the last
     // half metre in to any of them - a wall's foot, a cliff - stops it there, bouncing it back off, less whatever it
-    // was going along the wall; it can't turn into one either. Over a crest or off a ramp, where the ground falls away
-    // quicker than it would fall, it leaves the ground, and flies until it comes down - and over an edge it falls.
+    // was going along the wall; it can't turn into one either. If it's come down already in one - off a jump, onto a
+    // rock face - it's lodged, and then it can go anywhere but further in, and turn as it likes, to get out. Over a
+    // crest or off a ramp, where the ground falls away quicker than it would fall, it leaves the ground, and flies
+    // until it comes down - and over an edge it falls.
     // In water deeper than FloodDepth, the engine floods and dies, for good.
     public sealed class Car
     {
@@ -142,8 +145,9 @@ namespace World.Core.Vehicles
             else if (throttle < 0f)
                 forward += forward > 0.5f ? Braking * throttle * dt : EngineAcceleration * 0.6f * (1f + forward / ReverseSpeed) * throttle * dt;
 
-            // The slope under it, and the handbrake against it, and whatever else it's doing
+            // The slope under it, along it and across it, and the handbrake against it, and whatever else it's doing
             forward -= Gravity * Forward.Y * dt;
+            sideways -= Gravity * Vector3.Cross(Forward, Up).Y * dt;
             if (handbrake)
                 forward -= MathF.Sign(forward) * MathF.Min(MathF.Abs(forward), Braking * dt);
 
@@ -157,10 +161,11 @@ namespace World.Core.Vehicles
             // it was going, and the tyres pull it round to the new heading as far as they can grip
             Velocity = Heading2 * forward + Right2 * sideways;
             var yaw = MathHelper.WrapAngle(Yaw + forward * MathF.Tan(SteerAngle) / Wheelbase * dt);
-            if (Blocked(new Vector2(Position.X, Position.Z), yaw, ground) == null)
+            var middle = new Vector2(Position.X, Position.Z);
+            if (Blocked(middle, yaw, ground) == null || Blocked(middle, Yaw, ground) != null)
                 Yaw = yaw;
             var slip = Vector2.Dot(Velocity, Right2);
-            var grip = (handbrake ? HandbrakeGrip : Grip) * dt;
+            var grip = (handbrake ? HandbrakeGrip : Grip) * MathF.Max(Up.Y, 0f) * dt;   // as hard as it's pressed onto the ground
             Velocity -= Right2 * MathF.Sign(slip) * MathF.Min(MathF.Abs(slip), grip);
         }
 
@@ -172,8 +177,9 @@ namespace World.Core.Vehicles
             for (var k = 0; k < steps; k++)
             {
                 var step = Velocity * dt / steps;
-                var at = new Vector2(Position.X, Position.Z) + step;
-                if (Blocked(at, Yaw, ground) is { } wall)
+                var here = new Vector2(Position.X, Position.Z);
+                var at = here + step;
+                if (Blocked(at, Yaw, ground) is { } wall && (Blocked(here, Yaw, ground) is not { } lodged || Vector2.Dot(step, lodged) < 0f))
                 {
                     // Bounced back off it, and scraping along it
                     var into = Vector2.Dot(Velocity, wall);

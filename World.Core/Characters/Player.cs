@@ -14,7 +14,7 @@ namespace World.Core.Characters
     // Wading or swimming soaks you as high as the water comes up you, at once; out of it, you dry off, from
     // soaked to dry in DryingTime.
     //
-    // You can get into a car (see Car) and drive it, seen from its chase camera or through the windscreen; while
+    // You can get into a car (see Car) and drive it, seen from its chase camera or from the driver's seat (on the right: it's a British car); while
     // you do, you go where it goes. You get out beside the driver's door, once it's all but stopped.
     public sealed class Player
     {
@@ -61,11 +61,11 @@ namespace World.Core.Characters
             Driving == null && Vector2.Distance(new Vector2(car.Position.X, car.Position.Z), new Vector2(Body.Position.X, Body.Position.Z)) <= CarReach &&
             MathF.Abs(car.Position.Y - Body.Position.Y) < 1.5f;
 
-        // Into the driver's seat, seen from behind the car to begin with
+        // Into the driver's seat, seen from there to begin with (the chase camera's the other view)
         public void GetIn(Car car)
         {
             Driving = car;
-            View = ViewMode.Drone;
+            View = ViewMode.FirstPerson;
             FollowCar();
         }
 

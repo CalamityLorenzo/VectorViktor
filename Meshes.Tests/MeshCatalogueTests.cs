@@ -68,6 +68,10 @@ namespace Meshes.Tests
                 ["quarter-turn stair"] = StaircaseMesh.BuildQuarterTurn(null, 4, 4, StairTurn.Left),
                 ["seating"] = SeatingBuilder.Build(null, 3, 0.2f, 0.3f, 0.15f, 0.4f),
             };
+            foreach (var expression in Enum.GetValues<RobotExpression>())
+            {
+                meshes[$"robot head: {expression}"] = RobotHeadMesh.Build(null, expression);
+            }
             foreach (var kind in Enum.GetValues<CrateKind>())
                 meshes[$"crate: {kind}"] = CrateMesh.Build(null, kind, new Vector3(1f, 0.8f, 1.2f));
             for (var frame = 0; frame < BirdMesh.Frames; frame++)
