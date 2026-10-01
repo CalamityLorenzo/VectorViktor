@@ -69,7 +69,7 @@ namespace MapStudio
         // Its foot: where its arrows start, and the level it slides over
         private Vector3 FootOf(object entry)
         {
-            var (place, _) = Entries.Box(entry, _built.Terrain, _library);
+            var (place, _) = Entries.Box(entry, _built.Terrain, _library, _built.Ground);
             var where = Entries.Where(entry);
             return new Vector3(where.X, place.Translation.Y, where.Y);
         }
@@ -96,7 +96,7 @@ namespace MapStudio
                     var list = Entries.List(district, kind);
                     for (var i = 0; i < list.Count; i++)
                     {
-                        var (place, size) = Entries.Box(list[i]!, _built.Terrain, _library);
+                        var (place, size) = Entries.Box(list[i]!, _built.Terrain, _library, _built.Ground);
                         Consider(Picking.Box(ray, place, size), new EntryRef(path, kind, i));
                     }
                 }
@@ -256,7 +256,7 @@ namespace MapStudio
         private void Frame()
         {
             (Vector3 at, float size)? target = _selected is { } selected
-                ? (FootOf(Entry(selected)), Entries.Box(Entry(selected), _built.Terrain, _library).size.Length())
+                ? (FootOf(Entry(selected)), Entries.Box(Entry(selected), _built.Terrain, _library, _built.Ground).size.Length())
                 : _picked switch
                 {
                     Thing t => (t.Body.Position, t.Body.Size.Length()),
@@ -350,7 +350,7 @@ namespace MapStudio
             if (_selected is { } selected)
             {
                 var entry = Entry(selected);
-                var (place, size) = Entries.Box(entry, terrain, _library);
+                var (place, size) = Entries.Box(entry, terrain, _library, _built.Ground);
                 _lines.Box(place, size, Color.Yellow);
                 var foot = FootOf(entry);
                 var mouse = new Vector2(_mouse.X, _mouse.Y);
@@ -374,7 +374,7 @@ namespace MapStudio
             if (_placing != null && GroundUnderMouse() is { } ground)
             {
                 var at = new Vector2(Snap(ground.X), Snap(ground.Z));
-                var (place, size) = Entries.Box(_placing.Make(at), terrain, _library);
+                var (place, size) = Entries.Box(_placing.Make(at), terrain, _library, _built.Ground);
                 _lines.Box(place, size, Color.Orange);
             }
         }
@@ -391,7 +391,7 @@ namespace MapStudio
         // A post as tall as someone standing there, a ring round its foot, and an arrow the way they'd face
         private void StartMarker(Start start, Color colour)
         {
-            var foot = new Vector3(start.At.X, _built.Terrain.HeightAt(start.At.X, start.At.Y) + start.Above, start.At.Y);
+            var foot = new Vector3(start.At.X, Entries.StartFloor(start.At, start.Above, _built.Terrain, _built.Ground), start.At.Y);
             var facing = new Vector3(MathF.Sin(start.Yaw), 0f, -MathF.Cos(start.Yaw));
             var side = Vector3.Cross(facing, Vector3.Up);
             _lines.Circle(foot + Vector3.Up * 0.05f, 0.4f, colour);

@@ -2,7 +2,9 @@ using MapStudio;
 using Maps.Home;
 using Microsoft.Xna.Framework;
 using System;
+using System.Linq;
 using World.Core;
+using World.Maps;
 using World.Maps.Files;
 using Xunit;
 
@@ -115,6 +117,17 @@ namespace Map.Studio.Tests
             Assert.Equal(FileDistrict.PropPlace(prop, terrain), place);
             Assert.Equal(Library.Value.Item("furniture.sideboard").Size, size);
             Assert.Equal(terrain.HeightAt(3f, -2f) + 0.5f, place.Translation.Y, 0.001f);
+        }
+
+        [Fact]
+        public void AStartDroppedFromAboveIsMarkedOnTheFloorItLandsOn()
+        {
+            // The town's attic start drops you from 100 m up, onto the attic floor
+            var built = WorldBuilder.Build(HomeMap.Map);
+            var attic = built.Starts["attic"];
+            var floor = built.Buildings.SelectMany(b => b.Rooms).Single(r => r.Id == "houseattic").WorldOffset.Y;
+            Assert.Equal(floor, Entries.StartFloor(attic.At, attic.Above, built.Terrain, built.Ground), 0.01f);
+            Assert.Equal(built.Terrain.HeightAt(attic.At.X, attic.At.Y) + attic.Above, Entries.StartFloor(attic.At, attic.Above, built.Terrain, null));
         }
     }
 }

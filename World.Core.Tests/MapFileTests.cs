@@ -147,6 +147,35 @@ namespace World.Core.Tests
             Assert.Equal(middle + BuildingKind.Step, room.WorldOffset.Y, 0.001f);
         }
 
+        [Theory]
+        [InlineData(Side.North)]
+        [InlineData(Side.East)]
+        public void ALaneCottageFromAFileFacesTheWayItsDoorIs(Side door)
+        {
+            var at = new Vector2(10f, 20f);
+            var district = new DistrictFile { Buildings = { new BuildingEntry("house.lane-cottage", "filecottage", at, Door: door) } };
+            var world = WorldBuilder.Build(new IDistrict[] { new FileDistrict("test", district, Library.Value) });
+            Assert.Empty(world.Buildings);   // no insides: its walls, its mesh (shut and open) and its window
+            Assert.Equal(2, world.Fixtures.Count);
+            var walls = world.Ground.Walls.ToArray();
+            Assert.Equal(4, walls.Length);
+
+            // 9 m along its front, 4.5 m deep; its window in its front wall
+            var (along, deep) = (LaneCottage.Half.Y, LaneCottage.Half.X);
+            var half = door == Side.North ? new Vector2(along, deep) : new Vector2(deep, along);
+            Assert.Equal(at.X + half.X, walls.Max(w => MathF.Max(w.A.X, w.B.X)), 0.001f);
+            Assert.Equal(at.Y + half.Y, walls.Max(w => MathF.Max(w.A.Y, w.B.Y)), 0.001f);
+            var window = Assert.Single(world.Windows).Frame.Translation;
+            if (door == Side.North)
+                Assert.Equal(at.Y - deep, window.Z, 0.001f);
+            else
+                Assert.Equal(at.X + deep, window.X, 0.001f);
+
+            // The ground levelled under it, turned with it
+            var middle = world.Terrain.HeightAt(at.X, at.Y);
+            Assert.Equal(middle, world.Terrain.HeightAt(at.X + half.X - 0.1f, at.Y + half.Y - 0.1f), 0.001f);
+        }
+
         [Fact]
         public void ASolidPropHasWallsRoundItsBox()
         {

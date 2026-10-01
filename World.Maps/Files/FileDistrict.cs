@@ -1,3 +1,4 @@
+using MeshRendering;
 using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
@@ -66,7 +67,7 @@ namespace World.Maps.Files
             Matrix.CreateTranslation(prop.At.X, terrain.HeightAt(prop.At.X, prop.At.Y) + prop.Above, prop.At.Y);
 
         // A building's pad, under its footprint
-        public static TerrainGenerator.Pad BuildingPad(BuildingEntry building, BuildingKind kind) => new TerrainGenerator.Pad(building.At, kind.Half);
+        public static TerrainGenerator.Pad BuildingPad(BuildingEntry building, BuildingKind kind) => new TerrainGenerator.Pad(building.At, kind.HalfOf(building));
 
         public IEnumerable<TerrainGenerator.Pad> Pads =>
             _file.Pads.Select(p => new TerrainGenerator.Pad(p.Centre, p.Half, p.Apron ?? 2f, p.Blend ?? 6f, p.Raise, p.LevelWith))
@@ -75,14 +76,33 @@ namespace World.Maps.Files
         public IEnumerable<Pool> Pools(Terrain terrain) =>
             _file.Pools.Select(p => new Pool(p.Centre, p.Radius, p.Level, p.Half ?? Vector2.Zero, p.Shore));
 
-        public IEnumerable<Building> Buildings(Terrain terrain) =>
-            _file.Buildings.Select((b, i) => _kinds[i].Make(b, new Vector3(b.At.X, terrain.HeightAt(b.At.X, b.At.Y) + BuildingKind.Step, b.At.Y)));
+        private Terrain _putUpOn;
+        private IDistrict[] _putUp;
+
+        // What each building puts up (see BuildingKind), on this terrain: once, though each part of it's asked for
+        // separately, so its rooms are only ever built the once
+        private IDistrict[] PutUp(Terrain terrain)
+        {
+            if (_putUpOn != terrain)
+            {
+                _putUp = _file.Buildings.Select((b, i) => _kinds[i].Put(b, new Vector3(b.At.X, terrain.HeightAt(b.At.X, b.At.Y) + BuildingKind.Step, b.At.Y))).ToArray();
+                _putUpOn = terrain;
+            }
+            return _putUp;
+        }
+
+        public IEnumerable<Building> Buildings(Terrain terrain) => PutUp(terrain).SelectMany(b => b.Buildings(terrain));
 
         public IEnumerable<Fixture> Fixtures(Terrain terrain) =>
-            _file.Props.Select((p, i) => new Fixture(_props[i].Mesh, PropPlace(p, terrain)));
+            _file.Props.Select((p, i) => new Fixture(_props[i].Mesh, PropPlace(p, terrain)))
+                .Concat(PutUp(terrain).SelectMany(b => b.Fixtures(terrain)));
+
+        public IEnumerable<Window> Windows(Terrain terrain) => PutUp(terrain).SelectMany(b => b.Windows(terrain));
+
+        public IEnumerable<WallSegment> Walls(Terrain terrain) => PropWalls(terrain).Concat(PutUp(terrain).SelectMany(b => b.Walls(terrain)));
 
         // The four sides of each solid prop's box, to walk into
-        public IEnumerable<WallSegment> Walls(Terrain terrain)
+        private IEnumerable<WallSegment> PropWalls(Terrain terrain)
         {
             for (var i = 0; i < _file.Props.Count; i++)
             {

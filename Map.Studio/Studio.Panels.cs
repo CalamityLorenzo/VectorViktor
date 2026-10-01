@@ -16,7 +16,7 @@ namespace MapStudio
     public sealed partial class Studio
     {
         private const float PanelWidth = 340f;
-        private bool _showTerrain = true, _showWater = true, _showBuildings = true, _showFixtures = true, _showThings = true;
+        private bool _showTerrain = true, _showTerrainLines = true, _showTerrainGrid = true, _showWater = true, _showBuildings = true, _showFixtures = true, _showThings = true;
         private bool _asThing = true;            // catalogue items placed loose (things) or fixed (props)
         private string _newDistrict = "";
         private bool _districtsAdded;            // a district file added to the map since it was saved
@@ -26,6 +26,8 @@ namespace MapStudio
         protected override void DrawOverlay(GameTime gameTime)
         {
             _renderer.View.ShowTerrain = _showTerrain;
+            _renderer.View.Terrain.ShowLines = _showTerrainLines;
+            _renderer.View.Terrain.ShowGrid = _showTerrainGrid;
             _renderer.View.ShowWater = _showWater;
             _renderer.View.ShowBuildings = _showBuildings;
             _renderer.View.ShowFixtures = _showFixtures;
@@ -95,16 +97,19 @@ namespace MapStudio
                 ImGui.TextDisabled($"{_camera.Kind}{(_camera.Flat ? ", flat" : "")}, looking at {_camera.Target.X:F1}, {_camera.Target.Y:F1}, {_camera.Target.Z:F1}");
                 ImGui.Checkbox("terrain", ref _showTerrain);
                 ImGui.SameLine();
+                ImGui.Checkbox("terrain grid", ref _showTerrainGrid);     // just the squares
+                ImGui.SameLine();
+                ImGui.Checkbox("terrain lines", ref _showTerrainLines);   // its grid, and cliffs' outlines
                 ImGui.Checkbox("water", ref _showWater);
                 ImGui.SameLine();
                 ImGui.Checkbox("buildings", ref _showBuildings);
-                ImGui.Checkbox("fixtures", ref _showFixtures);
                 ImGui.SameLine();
+                ImGui.Checkbox("fixtures", ref _showFixtures);
                 ImGui.Checkbox("things", ref _showThings);
                 ImGui.SameLine();
                 ImGui.Checkbox("markers", ref _showMarkers);
-                ImGui.Checkbox("grid (G)", ref _showGrid);
                 ImGui.SameLine();
+                ImGui.Checkbox("grid (G)", ref _showGrid);
                 ImGui.Checkbox("fog, as in the game", ref _fog);
                 var snaps = Snaps.Select(s => s == 0f ? "off" : $"{s} m").ToArray();
                 ImGui.SetNextItemWidth(120f);
@@ -270,7 +275,7 @@ namespace MapStudio
             var draw = ImGui.GetBackgroundDrawList();
             foreach (var (name, start) in _built.Starts)
             {
-                var top = new Vector3(start.At.X, _built.Terrain.HeightAt(start.At.X, start.At.Y) + start.Above + Entries.StartHeight, start.At.Y);
+                var top = new Vector3(start.At.X, Entries.StartFloor(start.At, start.Above, _built.Terrain, _built.Ground) + Entries.StartHeight, start.At.Y);
                 if (Vector3.Distance(top, _camera.Target) < SeeingDistance && ToScreen(top) is { } at && PictureArea.Contains(at.X, at.Y))
                     draw.AddText(new Num.Vector2(at.X + 4, at.Y - 14), 0xff80ff80, name);
             }

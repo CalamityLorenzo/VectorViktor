@@ -22,8 +22,10 @@ namespace World.Rendering
         private readonly Func<float, float, bool>? _bare;  // where the ground gets no grid lines (see TerrainMesh)
         private readonly Func<float, float, bool>? _covered;   // where it isn't drawn at all (see TerrainMesh)
         private readonly Color[] _palette = TerrainMesh.Palette();
-        private readonly Dictionary<(int ci, int cj), (MeshData mesh, MeshInstance view)> _chunks =
-            new Dictionary<(int, int), (MeshData, MeshInstance)>();
+        // Each chunk's ground, and its grid apart from it, to draw or not (see TerrainMesh.BuildApart)
+        private readonly Dictionary<(int ci, int cj), (MeshInstance ground, MeshInstance grid)> _chunks =
+            new Dictionary<(int, int), (MeshInstance, MeshInstance)>();
+        private const float GroundTint = 0.3f;   // with colours off and no grid, how faintly the ground's shaded
 
         // Kept from one frame to the next, so looking round costs no garbage
         private readonly List<(float distance, int ci, int cj)> _wanted = new List<(float, int, int)>();
@@ -107,7 +109,7 @@ namespace World.Rendering
                     _gone.Add(key);
             foreach (var key in _gone)
             {
-                _chunks[key].mesh.Dispose();
+                Dispose(_chunks[key]);
                 _chunks.Remove(key);
             }
         }
@@ -124,24 +126,44 @@ namespace World.Rendering
         {
             _buildTime.Start();
             var (i0, j0, cellsX, cellsZ) = _terrain.ChunkCellsOf(ci, cj);
-            var mesh = TerrainMesh.Build(device, _terrain, _shore, i0, j0, cellsX, cellsZ, _bare, _covered);
-            _chunks[(ci, cj)] = (mesh, new MeshInstance(mesh, _palette));   // in world coordinates already
+            var (ground, grid) = TerrainMesh.BuildApart(device, _terrain, _shore, i0, j0, cellsX, cellsZ, _bare, _covered);
+            _chunks[(ci, cj)] = (new MeshInstance(ground, _palette), new MeshInstance(grid, _palette));   // in world coordinates already
             _buildTime.Stop();
         }
+
+        // Off: the ground's drawn without its lines, the grid, cliffs' outlines and all (see TerrainMesh).
+        public bool ShowLines { get; set; } = true;
+
+        // Off: without its grid, but still with its outlines. Without the grid, with colours off, the ground's shaded
+        // faintly, so its shape still shows (see MeshInstance.ColorsOffTint).
+        public bool ShowGrid { get; set; } = true;
 
         // Adds every chunk that's built to the batch, which leaves out those not in view.
         public void Collect(MeshBatch batch)
         {
             Drawn = 0;
-            foreach (var (_, view) in _chunks.Values)
-                if (batch.Add(view))
+            var grid = ShowLines && ShowGrid;
+            foreach (var (ground, gridLines) in _chunks.Values)
+            {
+                ground.EdgesOn = ShowLines;
+                ground.ColorsOffTint = grid ? 0f : GroundTint;
+                if (batch.Add(ground))
                     Drawn++;
+                if (grid && gridLines.Mesh.Edges != null)
+                    batch.Add(gridLines);
+            }
+        }
+
+        private static void Dispose((MeshInstance ground, MeshInstance grid) chunk)
+        {
+            chunk.ground.Mesh.Dispose();
+            chunk.grid.Mesh.Dispose();
         }
 
         public void Dispose()
         {
-            foreach (var (mesh, _) in _chunks.Values)
-                mesh.Dispose();
+            foreach (var chunk in _chunks.Values)
+                Dispose(chunk);
             _chunks.Clear();
         }
     }

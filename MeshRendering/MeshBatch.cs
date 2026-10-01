@@ -62,7 +62,8 @@ namespace MeshRendering
                 foreach (var (instance, placed) in _items)
                 {
                     instance.DrawSolids(device, effect, placed, faces);
-                    DrawCalls += instance.Mesh.SolidRanges.Length + (instance.Mesh.Edges != null ? 1 : 0) + (instance.Mesh.Outline != null ? 1 : 0);
+                    DrawCalls += instance.Mesh.SolidRanges.Length +
+                        (instance.EdgesOn ? (instance.Mesh.Edges != null ? 1 : 0) + (instance.Mesh.Outline != null ? 1 : 0) : 0);
                 }
 
                 device.RasterizerState = rasterizer;

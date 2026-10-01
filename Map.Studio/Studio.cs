@@ -89,7 +89,7 @@ namespace MapStudio
             _camera.Target = new Vector3(start.At.X, _built.Terrain.HeightAt(start.At.X, start.At.Y), start.At.Y);
             _camera.Yaw = start.Yaw;
 
-            // A screenshot's keys (see RetroGame): 1 to 4 a snap view, g the grid, m no markers, s the first entry selected,
+            // A screenshot's keys (see RetroGame): 1 to 4 a snap view, g the grid, m no markers, t no terrain lines, n no terrain grid, s the first entry selected,
             // a and z below
             if (Shot is { } shot)
             {
@@ -98,6 +98,8 @@ namespace MapStudio
                         _camera.SnapTo(kind, _camera.Target);
                 _showGrid = shot.Keys.Contains('g');
                 _showMarkers = !shot.Keys.Contains('m');
+                _showTerrainLines = !shot.Keys.Contains('t');
+                _showTerrainGrid = !shot.Keys.Contains('n');
                 if (shot.Keys.Contains('s') && _editing != null && FirstEntry(_editing) is { } first)
                     Select(first);
                 // a: a wooden crate added 3 m east of where it's looking, as a click would; z: that undone

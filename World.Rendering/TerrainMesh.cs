@@ -51,13 +51,31 @@ namespace World.Rendering
         public static MeshData Build(GraphicsDevice device, Terrain terrain, float shore, int i0, int j0, int cellsX, int cellsZ,
                                      Func<float, float, bool>? bare = null, Func<float, float, bool>? covered = null)
         {
+            var mesh = new MeshBuilder();
+            Add(mesh, mesh, terrain, shore, i0, j0, cellsX, cellsZ, bare, covered);
+            return mesh.Build(device);
+        }
+
+        // The same cells, as two meshes: the ground, its triangles and its outlines (cliffs' crests and feet, and the
+        // terrain's rim), and its grid, the lines on open ground and nothing else, to draw or not (see TerrainView).
+        public static (MeshData ground, MeshData grid) BuildApart(GraphicsDevice device, Terrain terrain, float shore, int i0, int j0,
+                                     int cellsX, int cellsZ, Func<float, float, bool>? bare = null, Func<float, float, bool>? covered = null)
+        {
+            var (ground, grid) = (new MeshBuilder(), new MeshBuilder());
+            Add(ground, grid, terrain, shore, i0, j0, cellsX, cellsZ, bare, covered);
+            return (ground.Build(device), grid.Build(device));
+        }
+
+        // The cells' triangles and outlines into `mesh`, and their grid lines into `grid` (which may be `mesh`)
+        private static void Add(MeshBuilder mesh, MeshBuilder grid, Terrain terrain, float shore, int i0, int j0, int cellsX, int cellsZ,
+                                Func<float, float, bool>? bare, Func<float, float, bool>? covered)
+        {
             // Every triangle's facing is worked out once, here, for this range's cells and the triangles the
             // lines along its north and west edges look across into - the south-west ones of the row of cells
             // north of it, the north-east ones of the column west of it (the lines on its south and east edges
             // are the next range's, unless they're the terrain's own rim). Only those, so as not to work out the
             // heights of chunks beyond them: whether it's rock (-1 off the terrain, or not needed). The range's own
             // triangles go into the mesh as they're found, each in its colour (see MeshBuilder).
-            var mesh = new MeshBuilder();
             var w = cellsX + 2;
             var rock = new sbyte[w * (cellsZ + 2) * 2];
             int RockIndex(int i, int j, bool southWest) => ((j - j0 + 1) * w + (i - i0 + 1)) * 2 + (southWest ? 1 : 0);
@@ -103,7 +121,7 @@ namespace World.Rendering
                 var middle = (a + b) / 2f;
                 if (bare != null && bare(middle.X, middle.Z))
                     return;
-                mesh.AddLine(a, b);
+                (outline || rim ? mesh : grid).AddLine(a, b);
             }
 
             // This range's own cells' north and west edges, and its south and east edges only at the terrain's
@@ -123,8 +141,6 @@ namespace World.Rendering
                     if (i < i0 + cellsX && j < j0 + cellsZ)
                         Edge(terrain.Corner(i, j), terrain.Corner(i + 1, j + 1), IsRock(i, j, false), IsRock(i, j, true), false);
                 }
-
-            return mesh.Build(device);
         }
 
         // Which colour walkable ground is (steep ground is always Rock): sand at the water's edge, or grass by height.

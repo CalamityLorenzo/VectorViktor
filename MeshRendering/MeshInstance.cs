@@ -21,8 +21,15 @@ namespace MeshRendering
 
         public MeshData Mesh { get; }
 
-        // Off: faces take the background colour (wireframe). Edges are always drawn, always white.
+        // Off: faces take the background colour (wireframe). Edges are always drawn, always white, unless EdgesOn's off.
         public bool ColorsOn { get; set; } = true;
+
+        // Off: only its faces are drawn, none of its lines (the terrain without its grid, say).
+        public bool EdgesOn { get; set; } = true;
+
+        // With colours off, its faces this far from the background colour towards their own (0 to 1): the terrain,
+        // without the grid that shows its shape when it's the background colour, faintly shaded instead.
+        public float ColorsOffTint { get; set; }
 
         // The state is the source of truth; the world matrix is rebuilt from it, never accumulated.
         public Vector3 Position { get; set; }
@@ -96,7 +103,7 @@ namespace MeshRendering
             }
         }
 
-        // The faces, placed by `world`, in their palette colours or, given one, all in `faces`. The caller sets
+        // The faces, placed by `world`, in their palette colours or, given one, all in `faces` (or tinted: see ColorsOffTint). The caller sets
         // the rasterizer state (FaceRasterizer) and turns the effect's vertex colours off.
         public void DrawSolids(GraphicsDevice gd, BasicEffect fx, Matrix world, Color? faces)
         {
@@ -106,13 +113,19 @@ namespace MeshRendering
             fx.World = world;
             gd.SetVertexBuffer(Mesh.Solids);
             foreach (var range in Mesh.SolidRanges)
-                DrawRange(gd, fx, faces ?? _palette[range.ColorSlot], PrimitiveType.TriangleList, range.Start, range.Primitives);
+            {
+                var own = _palette[range.ColorSlot];
+                var colour = faces is { } background ? (ColorsOffTint > 0f ? Color.Lerp(background, own, ColorsOffTint) : background) : own;
+                DrawRange(gd, fx, colour, PrimitiveType.TriangleList, range.Start, range.Primitives);
+            }
         }
 
         // The edges, placed by `world`, in white, and a rounded canopy's outline as seen from the camera.
         public void DrawEdges(GraphicsDevice gd, BasicEffect fx, Matrix world)
         {
             ThrowIfDisposed();
+            if (!EdgesOn)
+                return;
             fx.World = world;
             if (Mesh.Edges != null)
             {

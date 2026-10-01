@@ -147,5 +147,19 @@ namespace Meshes.Tests
                     MeshChecks.IsSound($"terrain chunk {ci + di},{cj + dj}", TerrainMesh.Build(null, terrain, 0.5f, i0, j0, cellsX, cellsZ, World.Value.Bare), TerrainMesh.Palette());
                 }
         }
+
+        [Fact]
+        public void The_terrain_apart_is_its_ground_and_its_grid()
+        {
+            // A chunk with cliffs in it, so it has outlines as well as grid
+            var terrain = World.Value.Terrain;
+            var (i0, j0, cellsX, cellsZ) = terrain.ChunkCellsOf(terrain.ChunksX / 2, terrain.ChunksZ / 2);
+            var whole = TerrainMesh.Build(null, terrain, 0.5f, i0, j0, cellsX, cellsZ, World.Value.Bare);
+            var (ground, grid) = TerrainMesh.BuildApart(null, terrain, 0.5f, i0, j0, cellsX, cellsZ, World.Value.Bare);
+            Assert.Equal(whole.HeadlessSolids!.Count, ground.HeadlessSolids!.Count);
+            Assert.Empty(grid.HeadlessSolids!);   // just lines
+            Assert.NotEmpty(grid.HeadlessEdges!);
+            Assert.Equal(whole.HeadlessEdges!.Count, ground.HeadlessEdges!.Count + grid.HeadlessEdges.Count);
+        }
     }
 }

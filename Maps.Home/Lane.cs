@@ -69,8 +69,8 @@ namespace Maps.Home
         {
             ["lane"] = new(new Vector2(40f, -65f), -MathHelper.PiOver2),         // on the lane behind the plateau, heading west
             ["cottage"] = new(new Vector2(77f, -21f), -0.75f),                   // up the lane, looking down it at the cottage
-            ["window"] = new(new Vector2(OldCottage.Front + 3f, OldCottage.WindowZ), -MathHelper.PiOver2),   // in the cottage's front garden, looking in at its window
-            ["hangar"] = new(new Vector2(NextDoor.Front + 3f, NextDoor.WindowZ), -MathHelper.PiOver2),       // in the next cottage's, looking in at its
+            ["window"] = new(OldCottage.OnFront(LaneCottage.WindowAlong, 3f), -MathHelper.PiOver2),   // in the cottage's front garden, looking in at its window
+            ["hangar"] = new(NextDoor.OnFront(LaneCottage.WindowAlong, 3f), -MathHelper.PiOver2),     // in the next cottage's, looking in at its
             ["corridor"] = new(new Vector2(Corridor.WorldOffset.X, Corridor.WorldOffset.Z + CorridorLength / 2f - ArrivalDistance), 0f),   // just inside, looking up it
             ["hangarfloor"] = ArrivingBy(Hangar.Room, Hangar.Room.Doors[0]),     // in the hangar, just in from its door, looking at the trees
             ["hangarwindow"] = new(Hangar.WindowStart, 0f),                      // in the hangar, looking out of its window
@@ -95,9 +95,10 @@ namespace Maps.Home
             var toCottage = Corridor.Doors[0];
             var toHangar = Corridor.Doors[1];
             var toCorridor = Hangar.Room.Doors[0];
-            yield return new Portal(new Vector2(OldCottage.Front, OldCottage.DoorZ - LaneCottage.DoorHalf), new Vector2(OldCottage.Front, OldCottage.DoorZ + LaneCottage.DoorHalf),
+            yield return new Portal(OldCottage.OnFront(LaneCottage.DoorAlong - LaneCottage.DoorHalf), OldCottage.OnFront(LaneCottage.DoorAlong + LaneCottage.DoorHalf),
                 OldCottage.Ground(terrain), ArrivalBy(Corridor, toCottage), ArrivingBy(Corridor, toCottage).Yaw);
-            yield return Through(Corridor, toCottage, new Vector3(OldCottage.Front + ArrivalDistance, OldCottage.Ground(terrain), OldCottage.DoorZ), MathHelper.PiOver2);
+            var outside = OldCottage.OnFront(LaneCottage.DoorAlong, ArrivalDistance);
+            yield return Through(Corridor, toCottage, new Vector3(outside.X, OldCottage.Ground(terrain), outside.Y), OldCottage.Facing);
             yield return Through(Corridor, toHangar, ArrivalBy(Hangar.Room, toCorridor), ArrivingBy(Hangar.Room, toCorridor).Yaw);
             yield return Through(Hangar.Room, toCorridor, ArrivalBy(Corridor, toHangar), ArrivingBy(Corridor, toHangar).Yaw);
         }
@@ -132,7 +133,7 @@ namespace Maps.Home
                 .Concat(Hangar.WindowFixtures(terrain, NextDoor));
 
         public IEnumerable<Window> Windows(Terrain terrain) =>
-            Cottages.Select(cottage => cottage.FrontWindow(terrain)).Append(Hangar.LookingOut(terrain, NextDoor));
+            Cottages.SelectMany(cottage => cottage.Windows(terrain)).Append(Hangar.LookingOut(terrain, NextDoor));
 
         public IEnumerable<ScenePart> Moving(Terrain terrain) => Hangar.InTheWorld();
 

@@ -94,9 +94,18 @@ namespace MapStudio
 
         public const float StartWidth = 0.6f, StartHeight = 1.8f;   // a start's marker: about the size of someone standing there
 
+        // Where someone starting at `at` stands: on the ground, or, with `above`, on the highest floor under the point
+        // that far above it, which is where the game drops them (see Start). Without `ground` (the buildings' floors),
+        // in the air there.
+        public static float StartFloor(Vector2 at, float above, Terrain terrain, IGround? ground)
+        {
+            var height = terrain.HeightAt(at.X, at.Y) + above;
+            return above > 0f && ground?.GroundBelow(new Vector3(at.X, height, at.Y), 0f) is { } floor ? floor : height;
+        }
+
         // The box it fills, for drawing round it and picking it with the mouse: placed by `place` (its foot at y = 0,
         // centred), `size` big. A pad or a pool is a thin slab at its level.
-        public static (Matrix place, Vector3 size) Box(object entry, Terrain terrain, MapLibrary library)
+        public static (Matrix place, Vector3 size) Box(object entry, Terrain terrain, MapLibrary library, IGround? ground = null)
         {
             float Ground(Vector2 at) => terrain.HeightAt(at.X, at.Y);
             Matrix At(Vector2 at, float y, float turn = 0f) => Matrix.CreateRotationY(turn) * Matrix.CreateTranslation(at.X, y, at.Y);
@@ -108,8 +117,8 @@ namespace MapStudio
                     var across = p.Half is { } half ? half * 2f : new Vector2(p.Radius * 2f);
                     return (At(p.Centre, p.Level - 0.05f), new Vector3(across.X, 0.1f, across.Y));
                 case BuildingEntry b:
-                    var kind = library.BuildingKind(b.Kind);
-                    return (At(b.At, Ground(b.At)), new Vector3(kind.Half.X * 2f, 6f, kind.Half.Y * 2f));
+                    var footprint = library.BuildingKind(b.Kind).HalfOf(b);
+                    return (At(b.At, Ground(b.At)), new Vector3(footprint.X * 2f, 6f, footprint.Y * 2f));
                 case PropEntry p:
                     return (FileDistrict.PropPlace(p, terrain), library.Item(p.Item).Size);
                 case ThingEntry t:
@@ -117,7 +126,7 @@ namespace MapStudio
                     // Its body's box, which doesn't turn; the mesh turns inside it
                     return (At(t.At, Ground(t.At) + t.Above), size);
                 case StartEntry s:
-                    return (At(s.At, Ground(s.At) + s.Above, FileDistrict.MeshTurn(s.Yaw)), new Vector3(StartWidth, StartHeight, StartWidth));
+                    return (At(s.At, StartFloor(s.At, s.Above, terrain, ground), FileDistrict.MeshTurn(s.Yaw)), new Vector3(StartWidth, StartHeight, StartWidth));
                 case PortalEntry p:
                     var along = p.B - p.A;
                     return (At((p.A + p.B) / 2f, p.Floor, MathF.Atan2(-along.Y, along.X)),   // its width along the door

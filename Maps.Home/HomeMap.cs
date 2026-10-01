@@ -1,3 +1,4 @@
+using MeshProps;
 using Microsoft.Xna.Framework;
 using System.IO;
 using World.Buildings;
@@ -24,8 +25,18 @@ namespace Maps.Home
 
         private static readonly Gable Pitched = Gable.Pitched(35f, alongX: true);
 
+        // The way a wall faces, out from the building, clockwise from north (as a start's yaw)
+        private static float Facing(Side side) => side switch
+        {
+            Side.North => 0f,
+            Side.East => MathHelper.PiOver2,
+            Side.South => MathHelper.Pi,
+            _ => -MathHelper.PiOver2,
+        };
+
         // Everything of the home map's that a map file can name (see MapLibrary): its terrain, "home"; its districts,
-        // "home.countryside" and so on; its houses, "house.two-storey" and "house.bungalow" (see Houses); and the map itself.
+        // "home.countryside" and so on; its houses, "house.two-storey" and "house.bungalow" (see Houses), and a cottage
+        // like the lane's, "house.lane-cottage" (see LaneCottage); and the map itself.
         public static void AddTo(MapLibrary library)
         {
             library.AddTerrain("home", (seed, pads) => TerrainGenerator.Create(seed, pads));
@@ -47,6 +58,11 @@ namespace Maps.Home
                         _ => throw new InvalidDataException($"Bungalow '{b.Id}': its door can be in its north or south wall, not its {b.Door.ToString().ToLowerInvariant()}."),
                     }, b.Walls ?? new Color(230, 215, 150), b.Roof ?? new Color(150, 70, 50), b.Flat ? null : Pitched),
                 "one storey, 9 m across and 6 deep, its door in its north or south wall"));
+            library.Add(new BuildingKind("house.lane-cottage", new Vector2(LaneCottage.Half.Y, LaneCottage.Half.X) + new Vector2(wall),
+                (b, at) => new LaneCottage(b.Id, b.At, HouseMesh.Palette(b.Walls ?? new Color(235, 225, 205), b.Roof ?? new Color(150, 60, 45),
+                    new Color(60, 90, 60), new Color(90, 130, 190), new Color(130, 75, 55)), Parlour.Parts, Facing(b.Door)),
+                "a cottage like the lane's, 9 m along its front and 4.5 deep: no insides, but a parlour through its window; " +
+                "its front, door and window, in the wall its door's in", TurnsWithDoor: true));
             library.Add(Map);
         }
     }

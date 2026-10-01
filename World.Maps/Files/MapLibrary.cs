@@ -78,11 +78,32 @@ namespace World.Maps.Files
     }
 
     // A kind of building a file can put up by name (see BuildingEntry): `Half` is how far its ground floor's footprint
-    // reaches either side of its middle, walls and all, for the ground to be levelled under it; `Make` puts one up,
+    // reaches either side of its middle, walls and all, for the ground to be levelled under it; `Put` puts one up,
     // given where its ground floor is (the levelled ground's height, and a step up).
-    public sealed record BuildingKind(string Name, Vector2 Half, Func<BuildingEntry, Vector3, Building> Make, string About = "")
+    //
+    // What it puts up is a district of its own (see IDistrict): most kinds, a Building, with rooms to go in, and
+    // nothing else; but one with no insides can be walls to walk into, a mesh and a window (see Maps.Home.LaneCottage).
+    // With `TurnsWithDoor`, its footprint is `Half` with its door in the north or south wall, turned a quarter with it
+    // in the east or west.
+    public sealed record BuildingKind(string Name, Vector2 Half, Func<BuildingEntry, Vector3, IDistrict> Put, string About = "",
+        bool TurnsWithDoor = false)
     {
         public const float Step = 0.15f;   // its floor above the ground round it
+
+        // A kind that puts up a Building, and nothing else
+        public BuildingKind(string name, Vector2 half, Func<BuildingEntry, Vector3, Building> make, string about = "")
+            : this(name, half, (b, at) => new JustABuilding(make(b, at)), about)
+        {
+        }
+
+        // How far the footprint of `building`, one of these, reaches either side of its middle
+        public Vector2 HalfOf(BuildingEntry building) =>
+            TurnsWithDoor && building.Door is Side.East or Side.West ? new Vector2(Half.Y, Half.X) : Half;
+
+        private sealed class JustABuilding(Building building) : IDistrict
+        {
+            public IEnumerable<Building> Buildings(Terrain terrain) => new[] { building };
+        }
     }
 
     // Something to put about a map, by name: its mesh (standing on y = 0, centred, facing +Z as all meshes do), how heavy
