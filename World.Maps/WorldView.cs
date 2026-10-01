@@ -55,7 +55,7 @@ namespace World.Maps
         // are used as they are.
         public WorldView(BuiltWorld world, GraphicsDevice device, MeshCache cache, float drawDistance, TerrainView terrain = null)
         {
-            Terrain = terrain ?? new TerrainView(world.Terrain, shore: 0.5f, drawDistance, bare: world.Bare, covered: world.Covered);
+            Terrain = terrain ?? new TerrainView(world.Terrain, shore: 0.5f, drawDistance, bare: world.Bare, covered: world.Covered, rocky: world.Rocky);
             _cars = world.Cars;
             _device = device;
             _cache = cache;

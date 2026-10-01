@@ -253,8 +253,10 @@ something on its own map, and with no map named it's the `home` map: `town` on i
 | Start | Where |
 |---|---|
 | `trailhead` | In the car, at the start of the road |
+| `jump` | In the car, on the straight up to the jump: a ramp and a pit, cleared at about 55 km/h and up |
 | `firstpass` | In the car, at the first pass |
 | `lake` | In the car, on the shelf above the lake |
+| `ford` | In the car, on the shelf, heading for the ford: a river across the road, too fast to wade (a stair climbs back up from the lake) |
 | `secondpass` | In the car, at the second pass |
 | `town` | On foot in the basin, north of the town's lake, looking over it |
 
@@ -292,6 +294,8 @@ BASIC_WORLD_SHOT="file.png;seconds;keys"
 | `1` `2` `3` `4` | Map.Studio | Overhead, front, side or three-quarter view |
 | `g` | Map.Studio | The snapping grid on |
 | `m` | Map.Studio | Markers off |
+| `n` | Basic.World, Map.Studio | The grid on the ground off (`G` in the game, "terrain grid" in the studio) |
+| `t` | Map.Studio | All the lines on the ground off ("terrain lines") |
 | `s` | Map.Studio | Select the first entry of the first district file |
 | `a` | Map.Studio | Add a wooden crate 3 m east of where it's looking, as a click would (`z` as well: then undo it) |
 

@@ -85,10 +85,43 @@ namespace World.Maps.Files
     // nothing else; but one with no insides can be walls to walk into, a mesh and a window (see Maps.Home.LaneCottage).
     // With `TurnsWithDoor`, its footprint is `Half` with its door in the north or south wall, turned a quarter with it
     // in the east or west.
+    //
+    // Which of a BuildingEntry's settings it uses, besides its colours, which every kind does: the walls its door can be
+    // in (none: it's always in the same one, and Door's not used), whether it can have a flat roof or an attic, and
+    // what its window can look onto (the first, if the entry doesn't say). The map studio offers only these, and a
+    // file asking for another is a mistake (see FileDistrict).
     public sealed record BuildingKind(string Name, Vector2 Half, Func<BuildingEntry, Vector3, IDistrict> Put, string About = "",
         bool TurnsWithDoor = false)
     {
         public const float Step = 0.15f;   // its floor above the ground round it
+
+        public Side[] Doors { get; init; } = Array.Empty<Side>();
+        public bool CanBeFlat { get; init; }
+        public bool CanHaveAttic { get; init; }
+        public string[] Views { get; init; } = Array.Empty<string>();
+
+        // Where its door is, for a kind whose door doesn't open (it has no insides) but can be made a door to elsewhere
+        // (see PortalEntry): the door's two sides, on the ground. Null if it has no such door.
+        public Func<BuildingEntry, (Vector2 A, Vector2 B)> Doorway { get; init; }
+
+        // What `building`'s window looks onto: what it says, or the first there is
+        public string ViewOf(BuildingEntry building) => building.View ?? Views.FirstOrDefault();
+
+        // Why `building` can't be one of these, or null if it can
+        public string Mistake(BuildingEntry building)
+        {
+            if (Doors.Length > 0 && !Doors.Contains(building.Door))
+                return $"a {Name}'s door can be in its {string.Join(" or ", Doors.Select(Lower))} wall, not its {Lower(building.Door)}.";
+            if (building.Flat && !CanBeFlat)
+                return $"a {Name} can't have a flat roof.";
+            if (building.Attic && !CanHaveAttic)
+                return $"a {Name} can't have an attic.";
+            if (building.View != null && !Views.Contains(building.View))
+                return Views.Length == 0 ? $"a {Name} has no window to look through." : MapJson.Unknown("view", building.View, Views);
+            return null;
+        }
+
+        private static string Lower(Side side) => side.ToString().ToLowerInvariant();
 
         // A kind that puts up a Building, and nothing else
         public BuildingKind(string name, Vector2 half, Func<BuildingEntry, Vector3, Building> make, string about = "")

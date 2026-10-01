@@ -9,7 +9,7 @@ namespace World.Rendering
 {
     // A pool's surface (see Pool): a flat disc at its level, as wide as the pool's circle - the terrain
     // rising out of it hides whatever's past the shore - with a few ripple rings on it in white, so it
-    // still shows with the colours off. A rectangular pool's is its rectangle, rippled the same way, and drawn
+    // still shows with the colours off. A rectangular pool's is its rectangle (turned as it is), rippled the same way, and drawn
     // in tiles no more than Tile across, its ripples in pieces as long: fog is worked out at the corners of what's
     // drawn and blended between them, so a sea drawn as one rectangle, its corners far off in the fog, would hardly
     // be fogged at all. In world coordinates.
@@ -34,23 +34,26 @@ namespace World.Rendering
                 return ring;
             }
 
+            // A point in a rectangle's own frame (from its centre, along its Half.X and Half.Y), in the world
+            Vector3 World(float x, float y)
+            {
+                var (along, across) = pool.Axes;
+                var p = pool.Centre + along * x + across * y;
+                return new Vector3(p.X, pool.Level, p.Y);
+            }
+
             Vector3[] Box(float fraction)
             {
                 var h = pool.Half * fraction;
-                return new[]
-                {
-                    new Vector3(pool.Centre.X - h.X, pool.Level, pool.Centre.Y - h.Y), new Vector3(pool.Centre.X + h.X, pool.Level, pool.Centre.Y - h.Y),
-                    new Vector3(pool.Centre.X + h.X, pool.Level, pool.Centre.Y + h.Y), new Vector3(pool.Centre.X - h.X, pool.Level, pool.Centre.Y + h.Y),
-                };
+                return new[] { World(-h.X, -h.Y), World(h.X, -h.Y), World(h.X, h.Y), World(-h.X, h.Y) };
             }
 
             var mesh = new MeshBuilder();
             if (pool.IsRectangle)
             {
-                var min = pool.Centre - pool.Half;
                 var across = (int)MathF.Ceiling(2f * pool.Half.X / Tile);
                 var down = (int)MathF.Ceiling(2f * pool.Half.Y / Tile);
-                Vector3 At(int i, int j) => new Vector3(min.X + 2f * pool.Half.X * i / across, pool.Level, min.Y + 2f * pool.Half.Y * j / down);
+                Vector3 At(int i, int j) => World(-pool.Half.X + 2f * pool.Half.X * i / across, -pool.Half.Y + 2f * pool.Half.Y * j / down);
                 for (var j = 0; j < down; j++)
                     for (var i = 0; i < across; i++)
                         mesh.AddQuad(0, At(i, j), At(i + 1, j), At(i + 1, j + 1), At(i, j + 1));

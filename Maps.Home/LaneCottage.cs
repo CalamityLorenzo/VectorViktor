@@ -12,8 +12,8 @@ namespace Maps.Home
 {
     // A cottage like the ones by the lane: HouseMesh scaled up to 9 m along its front, which faces `Facing` (the lane's
     // face east, onto it). It has no insides, just its four walls to walk into, and a window onto somewhere else (see
-    // Window): what's beyond it, `Beyond`, as if behind it. Its door, in its front, is a Portal if the district makes
-    // it one.
+    // Window): what's beyond it, `beyond`, as if behind it, or with nothing beyond it, a pane always shut. Its door, in
+    // its front, is a Portal if the district makes it one.
     //
     // It's a district of its own, its walls, its mesh and its window, so a map file can put one up anywhere as a kind
     // of building (see HomeMap.AddTo), and the lane gathers its two into its own.
@@ -57,6 +57,9 @@ namespace Maps.Home
         // The point `along` its front from the middle (see DoorAlong), `out` in front of it
         public Vector2 OnFront(float along, float @out = 0f) => Place(Half.X + @out, along);
 
+        // Its front door's two sides, on the ground: for a Portal
+        public (Vector2 A, Vector2 B) Doorway => (OnFront(DoorAlong - DoorHalf), OnFront(DoorAlong + DoorHalf));
+
         public float Ground(Terrain terrain) => terrain.HeightAt(At.X, At.Y);
 
         // Half its footprint as it stands, across the world's X and Z
@@ -88,11 +91,13 @@ namespace Maps.Home
         public Window FrontWindow(Terrain terrain) =>
             new Window(Matrix.CreateRotationY(-MathHelper.PiOver2) * Matrix.CreateTranslation(Half.X, 0f, WindowAlong) * Standing(terrain),
                 HouseMesh.WindowWidth * Scale, HouseMesh.WindowSill * Scale, HouseMesh.WindowHeight * Scale,
-                Palette[HouseMesh.WindowBase + MeshBuilder.Dim], _beyond());
+                Palette[HouseMesh.WindowBase + MeshBuilder.Dim], _beyond?.Invoke() ?? Array.Empty<ScenePart>());
 
+        // Its window, if it looks onto anything: with nothing beyond it, it's only ever its pane, shut
         public IEnumerable<Window> Windows(Terrain terrain)
         {
-            yield return FrontWindow(terrain);
+            if (_beyond != null)
+                yield return FrontWindow(terrain);
         }
 
         // Its front turned to face the way it does (the mesh's front faces -Z: turned a quarter, east), stood on its
@@ -101,8 +106,14 @@ namespace Maps.Home
         {
             var at = Matrix.CreateScale(Scale) * Matrix.CreateRotationY(-MathHelper.PiOver2) *
                 Matrix.CreateTranslation(0f, HouseMesh.Height / 2f * Scale, 0f) * Standing(terrain);
+            var shut = new MeshSource(Id, HouseMesh.Build, Palette);
+            if (_beyond == null)
+            {
+                yield return new Fixture(shut, at);
+                yield break;
+            }
             var window = FrontWindow(terrain);
-            yield return new Fixture(new MeshSource(Id, HouseMesh.Build, Palette), at, you => !window.Open(you));
+            yield return new Fixture(shut, at, you => !window.Open(you));
             yield return new Fixture(new MeshSource(Id + "-open", d => HouseMesh.Build(d, openWindow: true), Palette), at, window.Open);
         }
 

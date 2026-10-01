@@ -207,6 +207,27 @@ namespace MapStudio
             _history.Do(new RemoveEntry(FileOf(selected), selected, entry, "remove " + Entries.Describe(entry)));
         }
 
+        // A portal in a building's door (see BuildingKind.Doorway), in the same file, selected, to say where it takes you:
+        // until then, a couple of metres out from the door, facing away from it
+        private void DoorPortal(BuildingEntry building, (Vector2 A, Vector2 B) door)
+        {
+            var file = FileOf(_selected!.Value);
+            var middle = (door.A + door.B) / 2f;
+            var along = Vector2.Normalize(door.B - door.A);
+            var outward = new Vector2(-along.Y, along.X);
+            if (Vector2.Dot(outward, middle - building.At) < 0f)
+                outward = -outward;
+            var floor = _built.Terrain.HeightAt(middle.X, middle.Y);
+            var to = middle + outward * 2f;
+            var yaw = MathF.Round(MathHelper.ToDegrees(MathF.Atan2(outward.X, -outward.Y)) + 360f) % 360f;
+            static float R(float v) => MathF.Round(v, 2);
+            var portal = new PortalEntry(new Vector2(R(door.A.X), R(door.A.Y)), new Vector2(R(door.B.X), R(door.B.Y)), R(floor),
+                new Vector3(R(to.X), R(floor), R(to.Y)), yaw);
+            _history.Do(new AddEntry(file, new EntryRef(_selected.Value.File, EntryKind.Portal, file.Portals.Count), portal,
+                $"make {Entries.Describe(building)}'s door a portal"));
+            _status = "A portal in its door: set where it takes you (\"takes you to\", and which way you face).";
+        }
+
         // A copy of what's selected, a step east of it (renamed, where a name must be different)
         private void Duplicate()
         {

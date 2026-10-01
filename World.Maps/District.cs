@@ -58,5 +58,9 @@ namespace World.Maps
         // road, winding over bumpier ground than it's flat on, that the ground would show through). Only whole
         // triangles of it with every corner here are left out, so what's here must be covered edge to edge.
         bool Covered(float x, float z) => false;
+
+        // Where the terrain's drawn as rock, as a cliff is (see TerrainMesh), however gently it slopes: bare rock
+        // underfoot, a pit's floor.
+        bool Rocky(float x, float z) => false;
     }
 }

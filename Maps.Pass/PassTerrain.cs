@@ -189,15 +189,18 @@ namespace Maps.Pass
             private readonly float[] _grid;
             private readonly Vector2[] _points;
             private readonly float[] _heights;
+            private readonly float[] _along;
 
             public RoadField(Func<float, float, float> wobble, Func<float, float, float> summits)
             {
                 _points = new Vector2[PassRoute.Points.Count];
                 _heights = new float[_points.Length];
+                _along = new float[_points.Length];
                 for (var k = 0; k < _points.Length; k++)
                 {
                     _points[k] = PassRoute.Points[k];
                     _heights[k] = PassRoute.Heights[k];
+                    _along[k] = PassRoute.Along[k];
                 }
                 var segments = _points.Length - 1;
 
@@ -249,7 +252,7 @@ namespace Maps.Pass
                 {
                     var k = only != null ? only[n] : from + n;
                     var (t, distance) = PassRoute.OnSegment(p, _points[k], _points[k + 1]);
-                    var height = _heights[k] + (_heights[k + 1] - _heights[k]) * t;
+                    var height = Crossings.Surface(_along[k] + (_along[k + 1] - _along[k]) * t, _heights[k] + (_heights[k + 1] - _heights[k]) * t);
                     if (distance < nearest)
                     {
                         nearest = distance;

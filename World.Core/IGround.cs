@@ -42,5 +42,8 @@ namespace World.Core
 
         // The height of the water's surface at (point.X, point.Z), if there's water there; null where it's dry.
         float? WaterAt(Vector3 point) => null;
+
+        // How fast that water's flowing, and which way, across the ground (X, Z): nothing, in still water or none.
+        Vector2 CurrentAt(Vector3 point) => Vector2.Zero;
     }
 }

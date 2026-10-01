@@ -47,28 +47,31 @@ namespace World.Rendering
         // Cells i0 to i0 + cellsX (not including it) along X, and j0 to j0 + cellsZ along Z. Where `bare`
         // says so (under a road, say), the ground gets no grid lines: they'd show through what's on it. Where
         // `covered` says so at all three of a triangle's corners, the triangle isn't drawn at all: what's laid over
-        // it is the ground there as drawn, and it would only show through that where the two don't quite agree.
+        // it is the ground there as drawn, and it would only show through that where the two don't quite agree. Where
+        // `rocky` says so at a triangle's middle, it's drawn as rock, as if it were too steep to walk: no grid, and an
+        // outline where it meets ground that isn't.
         public static MeshData Build(GraphicsDevice device, Terrain terrain, float shore, int i0, int j0, int cellsX, int cellsZ,
-                                     Func<float, float, bool>? bare = null, Func<float, float, bool>? covered = null)
+                                     Func<float, float, bool>? bare = null, Func<float, float, bool>? covered = null, Func<float, float, bool>? rocky = null)
         {
             var mesh = new MeshBuilder();
-            Add(mesh, mesh, terrain, shore, i0, j0, cellsX, cellsZ, bare, covered);
+            Add(mesh, mesh, terrain, shore, i0, j0, cellsX, cellsZ, bare, covered, rocky);
             return mesh.Build(device);
         }
 
         // The same cells, as two meshes: the ground, its triangles and its outlines (cliffs' crests and feet, and the
         // terrain's rim), and its grid, the lines on open ground and nothing else, to draw or not (see TerrainView).
         public static (MeshData ground, MeshData grid) BuildApart(GraphicsDevice device, Terrain terrain, float shore, int i0, int j0,
-                                     int cellsX, int cellsZ, Func<float, float, bool>? bare = null, Func<float, float, bool>? covered = null)
+                                     int cellsX, int cellsZ, Func<float, float, bool>? bare = null, Func<float, float, bool>? covered = null,
+                                     Func<float, float, bool>? rocky = null)
         {
             var (ground, grid) = (new MeshBuilder(), new MeshBuilder());
-            Add(ground, grid, terrain, shore, i0, j0, cellsX, cellsZ, bare, covered);
+            Add(ground, grid, terrain, shore, i0, j0, cellsX, cellsZ, bare, covered, rocky);
             return (ground.Build(device), grid.Build(device));
         }
 
         // The cells' triangles and outlines into `mesh`, and their grid lines into `grid` (which may be `mesh`)
         private static void Add(MeshBuilder mesh, MeshBuilder grid, Terrain terrain, float shore, int i0, int j0, int cellsX, int cellsZ,
-                                Func<float, float, bool>? bare, Func<float, float, bool>? covered)
+                                Func<float, float, bool>? bare, Func<float, float, bool>? covered, Func<float, float, bool>? rocky)
         {
             // Every triangle's facing is worked out once, here, for this range's cells and the triangles the
             // lines along its north and west edges look across into - the south-west ones of the row of cells
@@ -94,11 +97,16 @@ namespace World.Rendering
                             continue;
                         }
                         var normal = terrain.TriangleNormal(i, j, southWest);
+                        var (a, b, c) = terrain.Triangle(i, j, southWest);
                         var steep = !Terrain.IsWalkableNormal(normal);
+                        if (!steep && rocky != null)
+                        {
+                            var middle = (a + b + c) / 3f;
+                            steep = rocky(middle.X, middle.Z);
+                        }
                         rock[RockIndex(i, j, southWest)] = steep ? (sbyte)1 : (sbyte)0;
                         if (!own)
                             continue;
-                        var (a, b, c) = terrain.Triangle(i, j, southWest);
                         if (covered != null && covered(a.X, a.Z) && covered(b.X, b.Z) && covered(c.X, c.Z))
                             continue;
                         var band = steep ? Rock : Band(terrain, (a + b + c) / 3f, shore);

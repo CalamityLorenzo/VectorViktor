@@ -230,6 +230,13 @@ namespace MapStudio
                     if (ImGui.Button("turn right (E)")) Turn(15f);
                     ImGui.SameLine();
                 }
+                if (entry is BuildingEntry building && _library.BuildingKinds.FirstOrDefault(k => k.Name == building.Kind)?.Doorway is { } doorway)
+                {
+                    if (ImGui.Button("make its door a portal"))
+                        DoorPortal(building, doorway(building));
+                    if (ImGui.IsItemHovered())
+                        ImGui.SetTooltip("A portal in its door, to walk into and be taken somewhere else: then say where.");
+                }
                 if (ImGui.Button("copy (Ctrl+D)")) Duplicate();
                 if (ImGui.Button("remove (Delete)")) Delete();
                 ImGui.SameLine();
@@ -321,17 +328,33 @@ namespace MapStudio
                         Above = Number("above", s.Above), InCar = Check("in a car", s.InCar),
                     };
                 case BuildingEntry b:
-                    var kinds = _library.BuildingKinds.Select(k => k.Name).ToArray();
-                    var kind = Array.IndexOf(kinds, b.Kind);
-                    ImGui.Combo("kind", ref kind, kinds, kinds.Length);
-                    var sides = Enum.GetNames<Side>().Select(n => n.ToLowerInvariant()).ToArray();
-                    var door = (int)b.Door;
-                    ImGui.Combo("door in its", ref door, sides, sides.Length);
+                    // Only the settings its kind uses (see BuildingKind); a kind changed to one that doesn't use one, it's put back
+                    var kinds = _library.BuildingKinds.ToArray();
+                    var names = kinds.Select(k => k.Name).ToArray();
+                    var index = Array.IndexOf(names, b.Kind);
+                    ImGui.Combo("kind", ref index, names, names.Length);
+                    var kind = index >= 0 ? kinds[index] : null;
+                    b = b with { Kind = kind?.Name ?? b.Kind, Id = Text("id", b.Id) ?? b.Id, Name = Text("name", b.Name), At = Point("at", b.At) };
+                    if (kind == null)
+                        return b;
+                    var door = kind.Doors.Length == 0 || kind.Doors.Contains(b.Door) ? b.Door : kind.Doors[0];
+                    if (kind.Doors.Length > 1)
+                    {
+                        var choice = Array.IndexOf(kind.Doors, door);
+                        ImGui.Combo("door in its", ref choice, kind.Doors.Select(s => s.ToString().ToLowerInvariant()).ToArray(), kind.Doors.Length);
+                        door = kind.Doors[choice];
+                    }
+                    var view = kind.Views.Contains(b.View) ? b.View : null;
+                    if (kind.Views.Length > 0)
+                    {
+                        var choice = Array.IndexOf(kind.Views, kind.ViewOf(b with { View = view }));
+                        ImGui.Combo("window onto", ref choice, kind.Views, kind.Views.Length);
+                        view = choice == 0 && view == null ? null : kind.Views[choice];   // the first is what it is unless it says
+                    }
                     return b with
                     {
-                        Kind = kind >= 0 ? kinds[kind] : b.Kind, Id = Text("id", b.Id) ?? b.Id, Name = Text("name", b.Name), At = Point("at", b.At),
-                        Door = (Side)door, Walls = Colour("walls", b.Walls), Roof = Colour("roof", b.Roof),
-                        Flat = Check("flat roof", b.Flat), Attic = Check("attic", b.Attic),
+                        Door = door, Walls = Colour("walls", b.Walls), Roof = Colour("roof", b.Roof),
+                        Flat = kind.CanBeFlat && Check("flat roof", b.Flat), Attic = kind.CanHaveAttic && Check("attic", b.Attic), View = view,
                     };
                 case PortalEntry p:
                     return p with

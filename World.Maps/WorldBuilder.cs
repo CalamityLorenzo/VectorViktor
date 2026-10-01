@@ -33,6 +33,9 @@ namespace World.Maps
 
         // Where the terrain isn't drawn at all (see IDistrict.Covered).
         public required Func<float, float, bool> Covered { get; init; }
+
+        // Where the terrain's drawn as rock (see IDistrict.Rocky).
+        public required Func<float, float, bool> Rocky { get; init; }
     }
 
     public static class WorldBuilder
@@ -83,6 +86,13 @@ namespace World.Maps
                         return true;
                 return false;
             }
+            bool Rocky(float x, float z)
+            {
+                foreach (var district in all)
+                    if (district.Rocky(x, z))
+                        return true;
+                return false;
+            }
 
             var starts = new Dictionary<string, Start>();
             foreach (var district in districts)
@@ -106,6 +116,7 @@ namespace World.Maps
                 Starts = starts,
                 Bare = Bare,
                 Covered = Covered,
+                Rocky = Rocky,
             };
         }
     }

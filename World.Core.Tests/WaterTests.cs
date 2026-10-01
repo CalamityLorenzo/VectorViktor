@@ -150,6 +150,53 @@ namespace World.Core.Tests
             Assert.Null(((IGround)dug).WaterAt(new Vector3(3.5f, 0f, 0f)));   // outside it
         }
 
+        [Fact]
+        public void ATurnedPoolIsTurned()
+        {
+            // 10 long and 2 wide, turned a quarter: so 2 across east-west and 10 north-south
+            var pool = new Pool(Vector2.Zero, 0f, 1f, new Vector2(5f, 1f), Turn: MathHelper.PiOver2);
+            Assert.True(pool.Covers(0.5f, 4.5f));
+            Assert.False(pool.Covers(4.5f, 0.5f));
+            var turnedAnEighth = pool with { Turn = MathHelper.PiOver4 };
+            Assert.True(turnedAnEighth.Covers(3f, 3f));   // along its length, south-east
+            Assert.False(turnedAnEighth.Covers(3f, -3f));
+        }
+
+        // Flat ground under water `level` deep, flowing east at `speed`
+        private static Terrain River(float level, float speed) =>
+            Grounds.Flat().Flood(new Pool(Vector2.Zero, 20f, level, Current: new Vector2(speed, 0f)));
+
+        [Fact]
+        public void ACurrentCarriesYouOffWhereverYoureGoing()
+        {
+            // Knee deep and flowing east faster than you can wade: running west, upstream, you still go east
+            var ground = River(0.6f, 6f);
+            var walker = Walker(ground, -5f, 0f, -Grounds.East);
+            Assert.Equal(new Vector2(6f, 0f), ((IGround)ground).CurrentAt(walker.Position));
+            Grounds.Run(walker, Grounds.Forward(run: true), 1f, ground);
+            Assert.True(walker.Velocity.X > 1f, $"going {walker.Velocity.X:F2} m/s east");
+
+            // Standing still in it, you go with it
+            var standing = Walker(ground, -15f, 0f);
+            Grounds.Run(standing, MoveInput.None, 1f, ground);
+            Assert.Equal(6f, standing.Velocity.X, 1);
+        }
+
+        [Fact]
+        public void TheShallowsCarryYouLessAndSwimmingAllTheWay()
+        {
+            var shallow = River(0.1f, 4f);
+            var paddler = Walker(shallow, -15f, 0f);
+            Grounds.Run(paddler, MoveInput.None, 1f, shallow);
+            Assert.Equal(4f * 0.1f / CharacterController.CarriedDepth, paddler.Velocity.X, 1);
+
+            var deep = River(3f, 1f);
+            var swimmer = Walker(deep, -15f, 0f);
+            Grounds.Run(swimmer, MoveInput.None, 2f, deep);
+            Assert.True(swimmer.Swimming);
+            Assert.Equal(1f, swimmer.Velocity.X, 1);
+        }
+
         [Theory]
         [InlineData(0)]
         [InlineData(1)]

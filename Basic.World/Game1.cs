@@ -34,7 +34,8 @@ namespace Basic.World
     // Up / W and Down / S walk (hold Shift to run), Left / Right turn, A / D sidestep, Space jumps, E opens or shuts a door.
     // Where there's a car (on the pass), E by it gets in, and E again, stopped, gets out; driving, Up / W is the
     // throttle, Down / S brakes and then reverses, Left / Right or A / D steer, and Space is the handbrake.
-    // V switches between your own view and the drone's, B to the bird's chase camera and back. C toggles colours / wireframe, L the low-resolution
+    // V switches between your own view and the drone's, B to the bird's chase camera and back. G the grid on the ground (off: just its
+    // shading, and the outlines round its cliffs). C toggles colours / wireframe, L the low-resolution
     // look, F11 full screen, Escape exits.
     //
     // A map from a file (see World.Maps.Files) is built again whenever one of its files is saved, by the map studio or
@@ -42,7 +43,7 @@ namespace Basic.World
     //
     // For development, a BASIC_WORLD_SHOT (see RetroGame) also saves where every body is beside the picture.
     // Its keys, all optional: v starts in the drone view, b following the bird, w holds walk forward (or the throttle,
-    // driving), r runs, e presses E once, halfway to the shot.
+    // driving), r runs, e presses E once, halfway to the shot, n the grid on the ground off.
     public class Game1 : RetroGame
     {
         private const int WindowWidth = 1440;
@@ -58,6 +59,7 @@ namespace Basic.World
         private MapWatcher _watcher;
         private readonly string _start;
         private bool _followBird;
+        private bool _terrainGrid = true;   // G: the squares on the ground, or just its shading and its cliffs' outlines
 
         private BuiltWorld _built;
         private PhysicsWorld _world;
@@ -98,6 +100,7 @@ namespace Basic.World
             if (Shot?.Keys.Contains('v') == true)
                 _player.ToggleView();
             _followBird |= Shot?.Keys.Contains('b') == true;
+            _terrainGrid = Shot?.Keys.Contains('n') != true;
             UpdateTitle();
         }
 
@@ -181,6 +184,8 @@ namespace Basic.World
                     _player.ToggleView();
                 UpdateTitle();
             }
+            if (Pressed(keyboard, Keys.G))
+                _terrainGrid = !_terrainGrid;
             if (Pressed(keyboard, Keys.B))
             {
                 _followBird = !_followBird;
@@ -260,6 +265,7 @@ namespace Basic.World
             if ((int)MathF.Round(_player.Wetness * 100f) != _titleWetness ||
                 (_player.Driving is { } car && (int)MathF.Round(MathF.Abs(car.Speed) * 3.6f) != _titleSpeed))
                 UpdateTitle();
+            _renderer.View.Terrain.ShowGrid = _terrainGrid;
             _renderer.DrawFeeds(_player.Body.Position, Clock, ColorsOn);
             _renderer.Draw(_player, Clock, ColorsOn, _bird, _followBird);
         }

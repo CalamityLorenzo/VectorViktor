@@ -96,6 +96,34 @@ namespace World.Core.Tests
             Assert.True(car.Speed > 5f, $"at {car.Speed:F1} m/s, x = {car.Position.X:F1}");
         }
 
+        // Backed up a slope as steep as the jump's pit floor: reverse pulls as hard as going forward
+        [Fact]
+        public void ItBacksUpAHillItCouldDriveUp()
+        {
+            var ground = Terrain.FromFunction(256, 64, 1f, (x, z) => MathF.Max(0f, -x) * 0.4f);   // rising west at 40%
+            var car = CarOn(ground, new Vector2(-2f, 0f), Grounds.East);
+            Drive(car, new DriveInput(-1f, 0f), 6f, ground);
+            Assert.True(car.Position.X < -10f, $"only backed up to x = {car.Position.X:F1}");
+        }
+
+        // Through half a metre of water it's slowed hard, but not flooded
+        [Fact]
+        public void WaterSlowsIt()
+        {
+            var dry = Airfield();
+            var wet = Airfield().Flood(Pool.Rectangle(new Vector2(0f, 0f), new Vector2(10f, 10f), 0.5f));
+            float Through(Terrain ground)
+            {
+                var car = CarOn(ground, new Vector2(-60f, 0f), Grounds.East);
+                Drive(car, Flat, 3f, ground);
+                Drive(car, DriveInput.None, 5f, ground);   // coasting through where the water is, or isn't
+                Assert.False(car.Flooded);
+                return car.Speed;
+            }
+            var (wetSpeed, drySpeed) = (Through(wet), Through(dry));
+            Assert.True(wetSpeed < drySpeed * 0.8f, $"{wetSpeed:F1} m/s after the water, {drySpeed:F1} without it");
+        }
+
         [Fact]
         public void LetGoOnAHillItRollsBackButTheHandbrakeHoldsIt()
         {
@@ -175,16 +203,18 @@ namespace World.Core.Tests
         }
 
         // Driving the pass's road, on a simple autopilot: steering for a point ahead on the road, and as fast as the
-        // bends ahead allow, slowing for them in time. On the road all the way, and down into the basin.
+        // bends ahead allow, slowing for them in time. On the road all the way - through the ford and over the jump
+        // (see Crossings) - and down into the basin.
         [Fact]
         public void TheWholePassCanBeDrivenFromTheTrailheadToTheTown()
         {
-            var built = WorldBuilder.Build(PassMap.Map);
+            var built = PassWorld.Value;
             var ground = built.Physics;
             var start = built.Starts["trailhead"];
             var car = CarOn(ground, start.At, start.Yaw);
             var seconds = 0f;
             var fastest = 0f;
+            bool forded = false, flew = false;
             while (PassTerrain.Basin.Outside(car.Position.X, car.Position.Z) > -10f)
             {
                 var here = new Vector2(car.Position.X, car.Position.Z);
@@ -192,13 +222,74 @@ namespace World.Core.Tests
                 Assert.True(distance < PassRoute.HalfWidth, $"off the road {s:F0} m along, {distance:F1} m from its middle, after {seconds:F0} s");
                 car.Step(Autopilot(car, s), Grounds.Tick, ground);
                 fastest = MathF.Max(fastest, car.Speed);
+                forded |= car.WaterDepth > 0f;
+                flew |= !car.Grounded && Crossings.InThePit(s);
                 seconds += Grounds.Tick;
                 Assert.True(seconds < 600f, $"stuck {s:F0} m along");
             }
             Assert.True(fastest > 15f, $"never faster than {fastest * 3.6f:F0} km/h");
+            Assert.True(forded, "never went through the ford");
+            Assert.True(flew, "never flew over the jump's pit");
         }
 
-        private static DriveInput Autopilot(Car car, float s)
+        // The pass's jump (see Crossings), coming at it at `kmh`: fast enough, over the pit and on down the road; too slow,
+        // down into it, against the wall - and backed out again, up its floor and over the lip
+        [Theory]
+        [InlineData(90f, true)]   // as fast as it'll go, uphill: about 73 km/h
+        [InlineData(35f, false)]
+        public void FastEnoughItJumpsThePitAndTooSlowItBacksOutOfIt(float kmh, bool clears)
+        {
+            var built = PassWorld.Value;
+            var ground = built.Physics;
+            var from = Crossings.JumpAt - 120f;   // run-up enough, uphill, for the speed asked for
+            var car = CarOn(ground, PassRoute.At(from).at, PassRoute.YawAt(from));
+            float Along() => PassRoute.Nearest(new Vector2(car.Position.X, car.Position.Z)).s;
+            for (var t = 0f; t < 20f; t += Grounds.Tick)
+            {
+                var s = Along();
+                var input = Autopilot(car, s, kmh / 3.6f);
+                car.Step(s < Crossings.JumpAt ? input : input with { Throttle = 0f }, Grounds.Tick, ground);
+            }
+            var landed = Along();
+            if (clears)
+            {
+                Assert.True(landed > Crossings.JumpFar + 10f, $"got to {landed:F0} m along, the wall's at {Crossings.JumpFar}");
+                Assert.Equal(Crossings.Surface(landed), car.Position.Y, 1);   // on the road
+                return;
+            }
+            Assert.True(landed > Crossings.JumpAt && landed < Crossings.JumpFar, $"got to {landed:F0} m along, not in the pit");
+            Drive(car, new DriveInput(-1f, 0f), 8f, ground);
+            Assert.True(Along() < Crossings.JumpAt - 2f, $"backed up only to {Along():F0} m along");
+        }
+
+        // Through the pass's ford (see Crossings), at whatever the road allows: slowed hard by the water, but on through it
+        [Fact]
+        public void ItDrivesThroughTheFordSlowedButNotFlooded()
+        {
+            var built = PassWorld.Value;
+            var ground = built.Physics;
+            var start = built.Starts["ford"];
+            var car = CarOn(ground, start.At, start.Yaw);
+            float? into = null;
+            var slowest = float.MaxValue;
+            for (var t = 0f; t < 20f && PassRoute.Nearest(new Vector2(car.Position.X, car.Position.Z)).s < Crossings.FordAt + 40f; t += Grounds.Tick)
+            {
+                car.Step(Autopilot(car, PassRoute.Nearest(new Vector2(car.Position.X, car.Position.Z)).s), Grounds.Tick, ground);
+                if (car.WaterDepth > 0f)
+                {
+                    into ??= car.Speed;
+                    slowest = MathF.Min(slowest, car.Speed);
+                }
+            }
+            Assert.True(into.HasValue, "never got into the water");
+            Assert.False(car.Flooded);
+            Assert.True(PassRoute.Nearest(new Vector2(car.Position.X, car.Position.Z)).s >= Crossings.FordAt + 40f, "didn't get through");
+            Assert.True(slowest < into.Value * 0.8f, $"into it at {into * 3.6f:F0} km/h, and never slower than {slowest * 3.6f:F0}");
+        }
+
+        private static readonly Lazy<BuiltWorld> PassWorld = new Lazy<BuiltWorld>(() => WorldBuilder.Build(PassMap.Map));
+
+        private static DriveInput Autopilot(Car car, float s, float most = 30f)
         {
             var speed = car.Speed;
             var here = new Vector2(car.Position.X, car.Position.Z);
@@ -206,7 +297,7 @@ namespace World.Core.Tests
             var steer = MathHelper.Clamp(MathHelper.WrapAngle(MathF.Atan2(to.X, -to.Y) - car.Yaw) * 3f, -1f, 1f);
 
             // As fast as it can go round every bend in the next 80 m, and still slow for each in time
-            var target = 30f;
+            var target = most;
             for (var d = 0f; d < 80f; d += 4f)
             {
                 var a = PassRoute.At(s + d).heading;

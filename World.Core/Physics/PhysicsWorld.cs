@@ -545,6 +545,7 @@ namespace World.Core.Physics
         public bool Obstructs(Vector3 bottomCentre, Vector3 size) => Terrain.Obstructs(bottomCentre, size);
         public Vector3 ClearLine(Vector3 from, Vector3 to) => Terrain.ClearLine(from, to);
         public float? WaterAt(Vector3 point) => Terrain.WaterAt(point);
+        public Vector2 CurrentAt(Vector3 point) => Terrain.CurrentAt(point);
 
         // A body's top is level, and always good to stand on.
         public Vector3 NormalAt(Vector3 feet) => TopWithinReach(feet) != null ? Vector3.Up : Terrain.NormalAt(feet);

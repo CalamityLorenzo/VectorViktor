@@ -80,11 +80,12 @@ namespace World.Maps.Files
 
     // A building from a generator (see BuildingKind): `Kind` names it ("house.bungalow"), `Id` names its rooms and
     // must be unique on the map, `At` is the middle of its ground floor. The ground under it is levelled for it. The
-    // rest are the generator's to use or not: which side its door's in, its colours, a flat roof rather than a
-    // pitched one, an attic.
+    // rest are the generator's to use or not (the kind says which: see BuildingKind): which side its door's in, its
+    // colours, a flat roof rather than a pitched one, an attic, what its window looks onto.
     public sealed record BuildingEntry(string Kind, string Id,
         [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] Vector2 At,
-        string Name = null, Side Door = Side.North, Color? Walls = null, Color? Roof = null, bool Flat = false, bool Attic = false);
+        string Name = null, Side Door = Side.North, Color? Walls = null, Color? Roof = null, bool Flat = false, bool Attic = false,
+        string View = null);
 
     // Something from the catalogue (see CatalogueItem) built into the world, standing on the ground (or `Above` it),
     // turned `Turn` degrees: it never moves, and you walk into its box (if the catalogue says it's solid).

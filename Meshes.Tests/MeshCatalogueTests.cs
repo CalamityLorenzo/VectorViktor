@@ -161,5 +161,25 @@ namespace Meshes.Tests
             Assert.NotEmpty(grid.HeadlessEdges!);
             Assert.Equal(whole.HeadlessEdges!.Count, ground.HeadlessEdges!.Count + grid.HeadlessEdges.Count);
         }
+
+        // Level ground said to be rocky (a pit's floor, say) is drawn as rock, as a cliff is: rock's colours, no grid
+        [Fact]
+        public void Rocky_ground_is_drawn_as_rock()
+        {
+            var flat = global::World.Core.Terrain.FromFunction(16, 16, 1f, (x, z) => 0f);
+            var (ground, grid) = TerrainMesh.BuildApart(null, flat, 0.5f, 0, 0, 16, 16, rocky: (x, z) => true);
+            const int rock = 4 * 3;   // the rock band's three shades (see TerrainMesh.Palette)
+            Assert.All(ground.SolidRanges, range => Assert.InRange(range.ColorSlot, rock, rock + 2));
+            Assert.Empty(grid.HeadlessEdges!);
+            var (_, grassGrid) = TerrainMesh.BuildApart(null, flat, 0.5f, 0, 0, 16, 16);
+            Assert.NotEmpty(grassGrid.HeadlessEdges!);
+        }
+
+        [Fact]
+        public void The_jumps_signs_are_sound()
+        {
+            foreach (var fixture in JumpSigns.Fixtures())
+                MeshChecks.IsSound(fixture.Mesh.Key, fixture.Mesh.Build(null), fixture.Mesh.Palette);
+        }
     }
 }

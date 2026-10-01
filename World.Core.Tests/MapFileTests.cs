@@ -276,6 +276,43 @@ namespace World.Core.Tests
         }
 
         [Fact]
+        public void ASettingABuildingsKindDoesntUseIsAnError()
+        {
+            string Mistake(BuildingEntry building) =>
+                Fails(() => new FileDistrict("x", new DistrictFile { Buildings = { building } }, Library.Value)).Message;
+            Assert.Contains("north or south", Mistake(new BuildingEntry("house.bungalow", "b", Vector2.Zero, Door: Side.East)));
+            Assert.Contains("attic", Mistake(new BuildingEntry("house.bungalow", "b", Vector2.Zero, Attic: true)));
+            Assert.Contains("no window", Mistake(new BuildingEntry("house.two-storey", "h", Vector2.Zero, View: "hangar")));
+            Assert.Contains("parlour", Mistake(new BuildingEntry("house.lane-cottage", "c", Vector2.Zero, View: "garden")));   // what there is
+            Assert.Contains("flat roof", Mistake(new BuildingEntry("house.lane-cottage", "c", Vector2.Zero, Flat: true)));
+        }
+
+        [Theory]
+        [InlineData(null, 1, 2)]       // a parlour
+        [InlineData("hangar", 1, 2)]
+        [InlineData("none", 0, 1)]     // no window: just the cottage, shut
+        public void ALaneCottagesWindowLooksOntoWhatItSays(string view, int windows, int fixtures)
+        {
+            var district = new DistrictFile { Buildings = { new BuildingEntry("house.lane-cottage", "c", Vector2.Zero, View: view) } };
+            var world = WorldBuilder.Build(new IDistrict[] { new FileDistrict("test", district, Library.Value) });
+            Assert.Equal(windows, world.Windows.Count);
+            Assert.Equal(fixtures, world.Fixtures.Count);
+            if (windows > 0)
+                Assert.Equal(view == "hangar" ? Hangar.SeenFromCottage().Length : Parlour.Parts().Length, world.Windows[0].Beyond.Count);
+        }
+
+        [Fact]
+        public void ALaneCottagesDoorwayIsInItsFront()
+        {
+            var cottage = new BuildingEntry("house.lane-cottage", "c", new Vector2(10f, 20f), Door: Side.West);
+            var (a, b) = Library.Value.BuildingKind("house.lane-cottage").Doorway(cottage);
+            Assert.Equal(10f - LaneCottage.Half.X, a.X, 0.001f);   // facing west: its front's the west wall
+            Assert.Equal(10f - LaneCottage.Half.X, b.X, 0.001f);
+            Assert.Equal(LaneCottage.DoorHalf * 2f, Vector2.Distance(a, b), 0.001f);
+            Assert.Null(Library.Value.BuildingKind("house.bungalow").Doorway);   // its door opens: it has a room behind it
+        }
+
+        [Fact]
         public void TwoStartsWithOneNameAreAnError()
         {
             var district = new DistrictFile { Starts = { new StartEntry("a", Vector2.Zero), new StartEntry("a", Vector2.One) } };

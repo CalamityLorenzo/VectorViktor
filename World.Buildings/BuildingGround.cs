@@ -463,6 +463,7 @@ namespace World.Buildings
 
         // The terrain's lakes and ponds; buildings keep dry, standing clear of them.
         public float? WaterAt(Vector3 point) => _terrain.WaterAt(point);
+        public Vector2 CurrentAt(Vector3 point) => _terrain.CurrentAt(point);
 
     }
 }

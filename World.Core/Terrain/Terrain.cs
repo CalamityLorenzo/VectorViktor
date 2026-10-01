@@ -223,8 +223,21 @@ namespace World.Core
             return level;
         }
 
+        // How the water's flowing at (x, z) (see Pool.Current): that of whichever pool WaterLevelAt finds there; still,
+        // where it's dry.
+        public Vector2 CurrentAt(float x, float z)
+        {
+            float? level = null;
+            var current = Vector2.Zero;
+            foreach (var pool in _pools)
+                if (pool.Covers(x, z) && (!level.HasValue || pool.Level > level.Value) && HeightAt(x, z) < pool.Level)
+                    (level, current) = (pool.Level, pool.Current);
+            return current;
+        }
+
         float? IGround.GroundBelow(Vector3 feet, float reach) => Contains(feet.X, feet.Z) ? HeightAt(feet.X, feet.Z) : null;
         float? IGround.WaterAt(Vector3 point) => WaterLevelAt(point.X, point.Z);
+        Vector2 IGround.CurrentAt(Vector3 point) => CurrentAt(point.X, point.Z);
         Vector3 IGround.NormalAt(Vector3 feet) => NormalAt(feet.X, feet.Z);
         bool IGround.IsWalkable(Vector3 feet) => IsWalkable(feet.X, feet.Z);
     }

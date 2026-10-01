@@ -27,6 +27,9 @@ namespace World.Maps.Files
             try
             {
                 _kinds = file.Buildings.Select(b => library.BuildingKind(b.Kind)).ToArray();
+                for (var i = 0; i < _kinds.Length; i++)
+                    if (_kinds[i].Mistake(file.Buildings[i]) is { } mistake)
+                        throw new InvalidDataException($"Building '{file.Buildings[i].Id}': {mistake}");
                 _props = file.Props.Select(p => library.Item(p.Item)).ToArray();
                 _things = file.Things.Select(t => library.Item(t.Item)).ToArray();
                 var starts = new Dictionary<string, Start>();

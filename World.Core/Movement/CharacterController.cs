@@ -20,7 +20,9 @@ namespace World.Core.Movement
     //
     // In water (see IGround.WaterAt) you wade, slower the deeper it is. Deeper than SwimDepth, you float,
     // your head out of it, and swim - slowly, and not jumping - until the bottom comes up under you again
-    // and you stand. Fall or jump into deep water and you stop sinking at the same depth.
+    // and you stand. Fall or jump into deep water and you stop sinking at the same depth. Where it flows (see
+    // IGround.CurrentAt) it carries you with it, wherever you're trying to go: swimming, or in it above your knees
+    // (CarriedDepth), at its own speed; less, shallower. Faster than you can wade, there's no going against it.
     public sealed class CharacterController
     {
         public const float WalkSpeed = WorldConstants.WalkSpeed;
@@ -42,6 +44,7 @@ namespace World.Core.Movement
         public const float SwimSpeed = 1.2f;          // metres per second
         public const float SwimRunMultiplier = 1.5f;
         public const float SwimAcceleration = 5f;
+        public const float CarriedDepth = 0.4f;       // in a current this deep (or swimming), you go with it
 
         // Against bodies (see PhysicsWorld.PushWalker): how heavy you are when one hits you, and how hard
         // and how powerfully you can push one. The force is the most you can shove with at all, so
@@ -106,6 +109,12 @@ namespace World.Core.Movement
                     wish *= 1f - WadeSlowing * MathF.Min(WaterDepth / SwimDepth, 1f);   // wading
             }
             Wish = wish;
+            if (Swimming || WaterDepth > 0f)
+            {
+                var current = ground.CurrentAt(Position);
+                var carried = Swimming ? 1f : MathF.Min(WaterDepth / CarriedDepth, 1f);
+                wish += new Vector3(current.X, 0f, current.Y) * carried;
+            }
 
             var velocity = Velocity;
             var horizontal = new Vector3(velocity.X, 0f, velocity.Z);

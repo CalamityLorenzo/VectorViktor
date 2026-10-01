@@ -17,7 +17,8 @@ namespace World.Core.Vehicles
     //
     // On the ground, each tick:
     //  - the engine pushes it along, harder at low speed than high, up to MaxSpeed; back on the throttle brakes it, and
-    //    once it's stopped, reverses it; left alone it slows, the engine and the road dragging on it
+    //    once it's stopped, reverses it, pulling as hard as going forward (it can back up any hill it can drive up), but
+    //    no faster than ReverseSpeed; left alone it slows, the engine and the road dragging on it
     //  - the slope under it pulls it back down, so it rolls back on a hill if it's let go, and a climb slows it
     //  - the front wheels turn it about its back axle, less far the faster it goes (SteerFade); the tyres hold it to
     //    the way it's pointing with no more than Grip, so too fast into a bend and it slides wide - and on the
@@ -29,7 +30,8 @@ namespace World.Core.Vehicles
     // rock face - it's lodged, and then it can go anywhere but further in, and turn as it likes, to get out. Over a
     // crest or off a ramp, where the ground falls away quicker than it would fall, it leaves the ground, and flies
     // until it comes down - and over an edge it falls.
-    // In water deeper than FloodDepth, the engine floods and dies, for good.
+    // Through water it drags, the harder the deeper it is (a ford slows it right down); deeper than FloodDepth, the
+    // engine floods and dies, for good.
     public sealed class Car
     {
         public const float Length = 4.2f, Width = 2.2f;          // the body, bumper to bumper and side to side
@@ -49,6 +51,7 @@ namespace World.Core.Vehicles
         public const float MaxClimb = 0.35f;                      // a rise it rides over, within half a metre
         public const float Bounce = 0.2f;                         // of the speed into a wall, bounced back off it
         public const float FloodDepth = 0.7f;
+        public const float WaterDrag = 0.05f;                     // slowing in water, per metre deep, per metre per second of speed, squared
         public const float Gravity = WorldConstants.Gravity;
         public const float EyeHeight = 1.1f, SeatOffset = 0.45f;  // the driver's eyes above the ground, and right of the middle
         private const float MaxSubStep = 0.25f;
@@ -143,7 +146,7 @@ namespace World.Core.Vehicles
             if (throttle > 0f)
                 forward += forward < -0.5f ? Braking * throttle * dt : EngineAcceleration * (1f - forward / MaxSpeed) * throttle * dt;
             else if (throttle < 0f)
-                forward += forward > 0.5f ? Braking * throttle * dt : EngineAcceleration * 0.6f * (1f + forward / ReverseSpeed) * throttle * dt;
+                forward += forward > 0.5f ? Braking * throttle * dt : EngineAcceleration * (1f + forward / ReverseSpeed) * throttle * dt;
 
             // The slope under it, along it and across it, and the handbrake against it, and whatever else it's doing
             forward -= Gravity * Forward.Y * dt;
@@ -151,10 +154,10 @@ namespace World.Core.Vehicles
             if (handbrake)
                 forward -= MathF.Sign(forward) * MathF.Min(MathF.Abs(forward), Braking * dt);
 
-            // The road and the air, and the engine off the throttle - none of which holds it still on a hill: the
+            // The road, the air and any water, and the engine off the throttle - none of which holds it still on a hill: the
             // rolling resistance and the engine braking fade away as it comes to a stop
             var creeping = MathF.Min(1f, MathF.Abs(forward) / 2f);
-            var drag = (RollingResistance + (throttle == 0f ? EngineBraking : 0f)) * creeping + AirDrag * forward * forward;
+            var drag = (RollingResistance + (throttle == 0f ? EngineBraking : 0f)) * creeping + (AirDrag + WaterDrag * WaterDepth) * forward * forward;
             forward -= MathF.Sign(forward) * MathF.Min(MathF.Abs(forward), drag * dt);
 
             // Turning about the back axle - unless that would swing it into a wall - while the velocity stays the way

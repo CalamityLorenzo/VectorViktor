@@ -1,6 +1,8 @@
 using MeshProps;
+using MeshRendering;
 using Microsoft.Xna.Framework;
-using System.IO;
+using System;
+using System.Collections.Generic;
 using World.Buildings;
 using World.Core;
 using World.Maps;
@@ -49,21 +51,31 @@ namespace Maps.Home
             library.Add(new BuildingKind("house.two-storey", new Vector2(Houses.TwoStoreySize / 2f + wall),
                 (b, at) => Houses.TwoStorey(b.Id, b.Name ?? b.Id, at, b.Walls ?? new Color(215, 190, 120), b.Roof ?? new Color(80, 85, 95),
                     b.Flat ? null : Pitched, b.Attic && !b.Flat),
-                "two storeys, 7 m square, its front door always in the north wall; with an attic under a pitched roof if asked"));
+                "two storeys, 7 m square, its front door always in the north wall; with an attic under a pitched roof if asked")
+                { CanBeFlat = true, CanHaveAttic = true });
             library.Add(new BuildingKind("house.bungalow", new Vector2(Houses.BungalowWidth / 2f + wall, Houses.BungalowDepth / 2f + wall),
-                (b, at) => Houses.Bungalow(b.Id, b.Name ?? b.Id, at, b.Door switch
-                    {
-                        Side.North => Walls.North,
-                        Side.South => Walls.South,
-                        _ => throw new InvalidDataException($"Bungalow '{b.Id}': its door can be in its north or south wall, not its {b.Door.ToString().ToLowerInvariant()}."),
-                    }, b.Walls ?? new Color(230, 215, 150), b.Roof ?? new Color(150, 70, 50), b.Flat ? null : Pitched),
-                "one storey, 9 m across and 6 deep, its door in its north or south wall"));
+                (b, at) => Houses.Bungalow(b.Id, b.Name ?? b.Id, at, b.Door == Side.South ? Walls.South : Walls.North,
+                    b.Walls ?? new Color(230, 215, 150), b.Roof ?? new Color(150, 70, 50), b.Flat ? null : Pitched),
+                "one storey, 9 m across and 6 deep, its door in its north or south wall")
+                { Doors = new[] { Side.North, Side.South }, CanBeFlat = true });
             library.Add(new BuildingKind("house.lane-cottage", new Vector2(LaneCottage.Half.Y, LaneCottage.Half.X) + new Vector2(wall),
                 (b, at) => new LaneCottage(b.Id, b.At, HouseMesh.Palette(b.Walls ?? new Color(235, 225, 205), b.Roof ?? new Color(150, 60, 45),
-                    new Color(60, 90, 60), new Color(90, 130, 190), new Color(130, 75, 55)), Parlour.Parts, Facing(b.Door)),
-                "a cottage like the lane's, 9 m along its front and 4.5 deep: no insides, but a parlour through its window; " +
-                "its front, door and window, in the wall its door's in", TurnsWithDoor: true));
+                    new Color(60, 90, 60), new Color(90, 130, 190), new Color(130, 75, 55)), Beyond(b.View), Facing(b.Door)),
+                "a cottage like the lane's, 9 m along its front and 4.5 deep, its front (door and window) in the wall its door's in: " +
+                "no insides, but through its window a parlour, or the hangar, or nothing (the window stays shut)", TurnsWithDoor: true)
+                {
+                    Doors = new[] { Side.North, Side.East, Side.South, Side.West }, Views = new[] { "parlour", "hangar", "none" },
+                    Doorway = b => new LaneCottage(b.Id, b.At, Array.Empty<Color>(), null, Facing(b.Door)).Doorway,
+                });
             library.Add(Map);
         }
+
+        // What a cottage's window looks onto (see LaneCottage), by name, a parlour if it doesn't say; nothing: it's shut
+        private static Func<IReadOnlyList<ScenePart>> Beyond(string view) => view switch
+        {
+            "hangar" => Hangar.SeenFromCottage,
+            "none" => null,
+            _ => Parlour.Parts,
+        };
     }
 }

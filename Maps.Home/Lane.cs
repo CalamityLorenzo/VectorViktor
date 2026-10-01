@@ -95,7 +95,7 @@ namespace Maps.Home
             var toCottage = Corridor.Doors[0];
             var toHangar = Corridor.Doors[1];
             var toCorridor = Hangar.Room.Doors[0];
-            yield return new Portal(OldCottage.OnFront(LaneCottage.DoorAlong - LaneCottage.DoorHalf), OldCottage.OnFront(LaneCottage.DoorAlong + LaneCottage.DoorHalf),
+            yield return new Portal(OldCottage.Doorway.A, OldCottage.Doorway.B,
                 OldCottage.Ground(terrain), ArrivalBy(Corridor, toCottage), ArrivingBy(Corridor, toCottage).Yaw);
             var outside = OldCottage.OnFront(LaneCottage.DoorAlong, ArrivalDistance);
             yield return Through(Corridor, toCottage, new Vector3(outside.X, OldCottage.Ground(terrain), outside.Y), OldCottage.Facing);
