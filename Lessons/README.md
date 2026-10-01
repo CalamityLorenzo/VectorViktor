@@ -14,7 +14,10 @@ Each lesson ends with **an exercise** to write yourself. They're optional: nothi
 | 06 | [The TV: textures and render targets](06-the-tv.md) | AnimationPlan step 4 | The head camera on the attic's television |
 | 07 | [Fitting limbs, and clip events](07-fitting-limbs.md) | AnimationPlan step 5 | Predict, then test: taking the head off, counting hellos |
 | 08 | [Cut scenes: timelines and cameras](08-cut-scenes.md) | AnimationPlan step 6 | The new arm waves hello |
+| 09 | [Map files: serialisation, names and versions](09-map-files.md) | ToolsPlan step 3 | A garden of your own, written by hand |
+| 10 | [Cameras: view, projection and snap views](10-cameras-and-views.md) | ToolsPlan step 4 | A view from the back |
+| 11 | [Editing: picking, handles, undo, and playing what you've made](11-picking-and-undo.md) | ToolsPlan steps 5 and 6 | Nudging with the arrow keys |
 
 For a picture of how the projects reference each other, see the [project map](project-map.md).
 
-Planned, as the steps they belong to are built: map files and serialisation; cameras and snap views; picking and undo. Lessons on what was built before the lessons began (meshes and outlines, the physics) can be written whenever wanted.
+Lessons on what was built before the lessons began (meshes and outlines, the physics, the terrain's chunks) can be written whenever wanted.

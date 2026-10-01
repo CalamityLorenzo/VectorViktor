@@ -209,6 +209,10 @@ namespace World.Core
             return this;
         }
 
+        // Empties all but the first `keep` (those it was made with, say): for a tool that builds a map again on the same
+        // terrain, with whatever water its districts have now.
+        public void Drain(int keep) => _pools.RemoveRange(keep, _pools.Count - keep);
+
         // The surface of whichever pool is over (x, z), where the ground there is below it; null where it's dry.
         public float? WaterLevelAt(float x, float z)
         {

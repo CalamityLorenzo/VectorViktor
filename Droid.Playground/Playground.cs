@@ -10,6 +10,7 @@ using World.Core.Animation;
 using World.Core.Characters;
 using World.Core.Movement;
 using World.Maps;
+using World.Maps.Files;
 using World.Rendering;
 using Num = System.Numerics;
 
@@ -41,7 +42,11 @@ namespace Droid.Playground
         private const float MaxFrame = 0.25f;
         private static readonly (float scale, string name)[] Speeds = { (1f, "full speed"), (0.5f, "half"), (0.25f, "quarter"), (0.125f, "eighth") };
 
-        private readonly Map _map;
+        private Map _map;
+        private readonly Func<Map>? _reopen;
+        private readonly (Vector2 at, float yaw)? _dropIn;
+        private MapWatcher? _watcher;
+        private string _mapStatus = "";
         private readonly string _startName;
         private string _experimentName;
 
@@ -53,6 +58,7 @@ namespace Droid.Playground
         private Experiment _experiment = null!;
         private RigView _rigView = null!;
         private WorldRenderer _renderer = null!;
+        private MeshCache _worldMeshes = null!;
         private DebugLines _lines = null!;
         private ImGuiRenderer _imgui = null!;
         private string[] _starts = Array.Empty<string>();
@@ -69,10 +75,15 @@ namespace Droid.Playground
         private MouseState _mouse;
         private float _frameSeconds;
 
-        public Playground(string experiment, Map map, string? start) : base(WindowWidth, WindowHeight, LowResWidth, LowResHeight, colorsKey: Keys.C)
+        // `reopen` opens the map again from its files when they're saved (see MapWatcher); `dropIn` puts the droid at that
+        // point on the ground, facing that way, rather than at a start (the map studio's "Play here").
+        public Playground(string experiment, Map map, string? start, Func<Map>? reopen = null, (Vector2 at, float yaw)? dropIn = null)
+            : base(WindowWidth, WindowHeight, LowResWidth, LowResHeight, colorsKey: Keys.C)
         {
             _experimentName = experiment;
             _map = map;
+            _reopen = reopen;
+            _dropIn = dropIn;
             _startName = start ?? map.DefaultStart;
         }
 
@@ -81,9 +92,10 @@ namespace Droid.Playground
 
         protected override void LoadWorld()
         {
-            _built = WorldBuilder.Build(_map);
-            _starts = _built.Starts.Keys.OrderBy(n => n, StringComparer.Ordinal).ToArray();
+            Build();
             var start = _built.Starts.TryGetValue(_startName, out var chosen) ? chosen : _built.Starts[_map.DefaultStart];
+            if (_dropIn is { } dropIn)
+                start = new Start(dropIn.at, dropIn.yaw, Above: DropInAbove);
             _player = new Player(Feet(start), start.Yaw, _built.Physics);
 
             _rig = DroidRig.Build();
@@ -91,14 +103,13 @@ namespace Droid.Playground
             _session = new Session(_built, _player, _rig, _motion);
             var palette = DroidMesh.StartingPalette();
             _rigView = new RigView(_rig, DroidMesh.Sources(palette), DroidMesh.CableSource(palette), GraphicsDevice, MeshCache);
-            _renderer = new WorldRenderer(_built, GraphicsDevice, MeshCache);
-            _renderer.BuildTerrain(_player);
-            // The drone's camera, for the televisions tuned to it (see ScreenSpec): the droid, from wherever it's following
-            _renderer.Feed(WorldRenderer.DroneChannel, () => DroneView(), batch => _rigView.Add(batch));
+            MakeRenderer();
             _lines = new DebugLines(GraphicsDevice);
             _imgui = new ImGuiRenderer(GraphicsDevice, Window);
             _free.LookFrom(_player.Body.Position + new Vector3(3f, 2f, 3f), _player.Body.Position + Vector3.Up);
             Pick(_experimentName);
+            if (_reopen != null && _map.Files.Count > 0)
+                _watcher = new MapWatcher(_map.Files);
 
             // A screenshot's keys (see RetroGame): d drone view, f free camera, o every overlay
             if (Shot is { } shot)
@@ -106,6 +117,54 @@ namespace Droid.Playground
                 _camera = shot.Keys.Contains('f') ? CameraMode.Free : shot.Keys.Contains('d') ? CameraMode.Drone : CameraMode.Head;
                 _showWalls = _showBodies = _showJoints = _showCapsule = shot.Keys.Contains('o');
             }
+        }
+
+        // Dropped in at a point (see the constructor's `dropIn`), it's from this high, to land on whatever's there: the
+        // ground, or the floor of a building standing on it
+        private const float DropInAbove = 1.5f;
+
+        private void Build()
+        {
+            _built = WorldBuilder.Build(_map);
+            _starts = _built.Starts.Keys.OrderBy(n => n, StringComparer.Ordinal).ToArray();
+        }
+
+        private void MakeRenderer()
+        {
+            // A mesh cache of its own, thrown away with it: some meshes are built from the world they're in (a fence follows
+            // the ground), so a world built again needs them built again too
+            _worldMeshes = new MeshCache();
+            _renderer = new WorldRenderer(_built, GraphicsDevice, _worldMeshes);
+            _renderer.BuildTerrain(_player);
+            // The drone's camera, for the televisions tuned to it (see ScreenSpec): the droid, from wherever it's following
+            _renderer.Feed(WorldRenderer.DroneChannel, () => DroneView(), batch => _rigView.Add(batch));
+        }
+
+        // The map's files have been saved (by the map studio, say): the map built again from them, with the droid where it
+        // was, and the experiment started again in the new world. If they don't make a map now, the world stays as it was
+        // and the panel says what's wrong.
+        private void Reload()
+        {
+            try
+            {
+                _map = _reopen!();
+                Build();
+                _watcher!.Dispose();
+                _watcher = new MapWatcher(_map.Files);   // it may have gained a district file, or lost one
+            }
+            catch (Exception e) when (e is System.IO.InvalidDataException or System.IO.IOException or InvalidOperationException)
+            {
+                _mapStatus = "The map didn't load: " + e.Message;
+                return;
+            }
+            var (feet, yaw) = (_player.Body.Position, _player.Body.Yaw);
+            _player = new Player(feet + Vector3.Up * 0.1f, yaw, _built.Physics);
+            _session = new Session(_built, _player, _rig, _motion) { Clock = _session.Clock };
+            _renderer.Dispose();
+            _worldMeshes.Dispose();
+            MakeRenderer();
+            Pick(_experimentName);
+            _mapStatus = $"Built again from its files at {DateTime.Now:HH:mm:ss}.";
         }
 
         // Where a start puts your feet: on the ground, or dropped from above it (to land on a floor up in a building)
@@ -126,6 +185,8 @@ namespace Droid.Playground
 
         protected override void UpdateWorld(GameTime gameTime, KeyboardState keyboard)
         {
+            if (_watcher?.Changed() == true)
+                Reload();
             _frameSeconds = (float)gameTime.ElapsedGameTime.TotalSeconds;
             var mouse = Mouse.GetState(Window);
             var keys = IsActive && !_imgui.WantsKeyboard;
@@ -372,6 +433,9 @@ namespace Droid.Playground
             ImGui.SetNextWindowPos(new Num.Vector2(10, 10), ImGuiCond.FirstUseEver);
             ImGui.SetNextWindowSize(new Num.Vector2(330, 0), ImGuiCond.FirstUseEver);
             ImGui.Begin("Playground");
+            ImGui.Text($"map: {_map.Name} ({(_map.Files.Count > 0 ? "from its files" : "built in code")})");
+            if (_mapStatus.Length > 0)
+                ImGui.TextWrapped(_mapStatus);
 
             var names = Experiments.All.Select(e => e.name).ToArray();
             var chosen = Array.IndexOf(names, _experimentName);
@@ -446,8 +510,10 @@ namespace Droid.Playground
             if (disposing)
             {
                 _imgui?.Dispose();
+                _watcher?.Dispose();
                 _lines?.Dispose();
                 _renderer?.Dispose();
+                _worldMeshes?.Dispose();
             }
             base.Dispose(disposing);
         }

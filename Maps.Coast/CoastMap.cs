@@ -1,4 +1,5 @@
 using World.Maps;
+using World.Maps.Files;
 
 namespace Maps.Coast
 {
@@ -13,5 +14,16 @@ namespace Maps.Coast
         public const string DefaultStart = "station";
 
         public static readonly Map Map = new Map("coast", pads => CoastTerrain.Create(1, pads), Districts, DefaultStart);
+
+        // What a map file can name of it (see MapLibrary): the terrain "coast", the districts "coast.coast",
+        // "coast.railway" and "coast.station", and the map itself.
+        public static void AddTo(MapLibrary library)
+        {
+            library.AddTerrain("coast", (seed, pads) => CoastTerrain.Create(seed, pads));
+            library.AddDistrict("coast.coast", () => new Coast());
+            library.AddDistrict("coast.railway", () => new Railway());
+            library.AddDistrict("coast.station", () => new Station());
+            library.Add(Map);
+        }
     }
 }

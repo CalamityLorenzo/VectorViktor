@@ -3,7 +3,7 @@ using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 
-namespace Droid.Playground
+namespace MeshRendering
 {
     // Coloured lines in the world, gathered through a frame and drawn at its end over the world, hidden behind what's in
     // front of them: for showing what's usually unseen (walls to walk into, bodies' boxes, a rig's joints).
@@ -14,8 +14,14 @@ namespace Droid.Playground
         private readonly List<VertexPositionColor> _points = new List<VertexPositionColor>();
         private readonly BasicEffect _effect;
 
-        public DebugLines(GraphicsDevice device) =>
+        private readonly bool _onTop;
+
+        // `onTop`: drawn over everything, never hidden (a tool's handles, to grab).
+        public DebugLines(GraphicsDevice device, bool onTop = false)
+        {
             _effect = new BasicEffect(device) { VertexColorEnabled = true, World = Matrix.Identity };
+            _onTop = onTop;
+        }
 
         public void Line(Vector3 a, Vector3 b, Color color)
         {
@@ -64,7 +70,7 @@ namespace Droid.Playground
                 return;
             _effect.View = view;
             _effect.Projection = projection;
-            device.DepthStencilState = DepthStencilState.Default;
+            device.DepthStencilState = _onTop ? DepthStencilState.None : DepthStencilState.Default;
             device.BlendState = BlendState.Opaque;
             var points = _points.ToArray();
             foreach (var pass in _effect.CurrentTechnique.Passes)

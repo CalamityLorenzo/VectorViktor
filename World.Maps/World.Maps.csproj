@@ -11,6 +11,11 @@
     <PackageReference Include="MonoGame.Framework.WindowsDX" />
   </ItemGroup>
   <ItemGroup>
+    <!-- The map files (see Files.MapFolder), copied beside every app that uses maps: a project referencing this one gets
+         them in its own output too -->
+    <None Include="..\Maps\**\*.json" Link="Maps\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\World.Core\World.Core.csproj" />
     <ProjectReference Include="..\World.Buildings\World.Buildings.csproj" />
     <ProjectReference Include="..\World.Rendering\World.Rendering.csproj" />

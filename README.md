@@ -22,7 +22,7 @@ Basic.World [2] | [map] [start] [bird]
 | Argument | Meaning |
 |---|---|
 | `2` | Runs the road-layout showcase (`Game2`) instead of the world. Only counts as the **first** argument; everything else is ignored. |
-| `home` / `coast` / `pass` | Which map to load. Default `home`. |
+| `home` / `coast` / `pass` | Which map to load: any map file in [Maps/](Maps) by its name, or a `.map.json` file by its path. Default `home`. A map from a file is built again whenever its files are saved (by the map studio, or anything else), with you where you were. |
 | *start name* | Where to start on that map (see [Maps and starts](#maps-and-starts)). Default is the map's own default start. An unknown name falls back to the default. |
 | `bird` | Begin with the camera chasing the bird that roams round the start (toggle in game with `B`). |
 
@@ -39,17 +39,20 @@ Basic.World 2
 ## Droid.Playground
 
 ```
-Droid.Playground [experiment] [map] [start]
+Droid.Playground [experiment] [map] [start] [at=x,z] [yaw=degrees]
 ```
 
-All three optional, in any order.
+All optional, in any order.
 
 | Argument | Meaning |
 |---|---|
 | `drive` | Experiment: plain driving of the droid. **Default.** |
 | `segway` | Experiment: the segway droid. |
-| `home` / `coast` / `pass` | Which map. Default `home`. |
+| `fitarm` | Experiment: the cut scene of the droid trying on a new arm. |
+| `home` / `coast` / `pass` | Which map: any map file in [Maps/](Maps) by its name, or a `.map.json` file by its path. Default `home`. Built again whenever its files are saved. |
 | *start name* | Where to start on that map (see [Maps and starts](#maps-and-starts)). Unknown names fall back to the map's default. |
+| `at=x,z` | Drop the droid at that point on the ground instead of at a start (what the map studio's **Play here** does). |
+| `yaw=degrees` | Which way it faces, with `at=`: 0 north, 90 east. |
 
 The experiment and start can also be changed from the playground's ImGui panel once it's running. New experiments are
 registered in `Experiments.All` in [Droid.Playground/Experiment.cs](Droid.Playground/Experiment.cs).
@@ -92,6 +95,51 @@ In the free camera the controls move the camera, not the droid (the arrow keys s
 | Look | Mouse, right button held | Right stick |
 | Rise / sink | Space / Ctrl | RB / LB |
 | Faster | Shift | Right trigger |
+
+## Map.Studio
+
+```
+Map.Studio [map]
+```
+
+| Argument | Meaning |
+|---|---|
+| *map* | A map file to open: its name in [Maps/](Maps) (`home`, `coast`, `pass`) or a `.map.json` file's path. Default `home`. |
+
+The map studio opens a map file with no player in it, to look round and to edit its **district files** (the districts
+built in code can be looked at and clicked on, not changed). Everything added goes into the district file picked in the
+**Map** panel; a new one can be added there too. Edits show at once and can all be undone; **Save** writes the files.
+See [Lessons 09 to 11](Lessons/README.md).
+
+```
+Map.Studio
+Map.Studio coast
+```
+
+### Controls
+
+Keys are ignored while an ImGui panel has the keyboard; the mouse, while it's over a panel.
+
+| Action | Keys and mouse |
+|---|---|
+| Fly / rise and sink | W / A / S / D, R / F (Shift: faster) |
+| Zoom | Mouse wheel |
+| Look about | Right button held |
+| Orbit round what it's looking at | Middle button held, or Alt + left button |
+| Pan | Shift + middle button |
+| Overhead / front / side / three-quarter / free view | 1 / 2 / 3 / 4 / 0 (the first three are flat: orthographic) |
+| Frame what's selected | F |
+| Snapping grid on / off | G (the step is picked in the Map panel; Ctrl while dragging ignores it) |
+| Select | Left click |
+| Move | Drag it (over the ground), or drag its red (east) or blue (south) arrow |
+| Turn | Q / E (15 degrees; Shift: a quarter turn; things always turn a quarter) |
+| Remove / copy | Delete / Ctrl+D |
+| Undo / redo | Ctrl+Z / Ctrl+Y (or Ctrl+Shift+Z) |
+| Save | Ctrl+S |
+| Place from the Add panel | Pick it, then click the ground; Escape stops |
+| Play here | P: `Droid.Playground` on this map, the droid dropped under the mouse (saves first) |
+| Colours on / off, low-resolution look | C, L |
+| Stop placing, then deselect | Escape (it doesn't exit: close the window) |
 
 ## Basic.Levels
 
@@ -153,7 +201,7 @@ runs the debug-only mesh checks.
 
 ## Maps and starts
 
-Used by `Basic.World` and `Droid.Playground`. Pick the map by name, then the start by name. A start only means
+Used by `Basic.World`, `Droid.Playground` and `Map.Studio`. Pick the map by name, then the start by name. Each map is a file in [Maps/](Maps) (see [lesson 09](Lessons/09-map-files.md)), which lists its districts: built in code, or district files of their own. A start only means
 something on its own map, and with no map named it's the `home` map: `town` on its own is the home map's town, and
 `pass town` is the one by the lake on the pass.
 
@@ -186,6 +234,7 @@ something on its own map, and with no map named it's the `home` map: `town` on i
 | `bedroom` | In the house's bedroom, facing the ladder to the attic |
 | `attic` | Up in the house's attic, facing its east end |
 | `barn` | Outside the barn |
+| `yard` | West of the start, facing a stack of crates (from the district file [Maps/districts/yard.district.json](Maps/districts/yard.district.json)) |
 
 ### `coast` (default start: `station`)
 
@@ -209,15 +258,15 @@ something on its own map, and with no map named it's the `home` map: `town` on i
 | `secondpass` | In the car, at the second pass |
 | `town` | On foot in the basin, north of the town's lake, looking over it |
 
-Starts are defined per district, in each district's `Starts` dictionary under `Maps.Home`, `Maps.Coast` and
-`Maps.Pass`; a new entry there is picked up by both programs automatically.
+Starts are defined per district: in each code district's `Starts` dictionary under `Maps.Home`, `Maps.Coast` and
+`Maps.Pass`, and in each district file's `starts`. A new one is picked up by every program automatically.
 
 ---
 
 ## Environment variable: `BASIC_WORLD_SHOT`
 
 Not a switch, but it works like one. Any game built on `RetroGame` (`Basic.World`, `Basic.Levels`,
-`Droid.Playground`) reads it, saves one frame to a file, then exits without needing anyone at the screen:
+`Droid.Playground`, `Map.Studio`) reads it, saves one frame to a file, then exits without needing anyone at the screen:
 
 ```
 BASIC_WORLD_SHOT="file.png;seconds;keys"
@@ -225,7 +274,7 @@ BASIC_WORLD_SHOT="file.png;seconds;keys"
 
 | Part | Meaning |
 |---|---|
-| `file.png` | Where to save the frame (the low-res picture; for `Droid.Playground`, the whole window with its panels). |
+| `file.png` | Where to save the frame (the low-res picture; for `Droid.Playground` and `Map.Studio`, the whole window with its panels). |
 | `seconds` | How long after starting to take it. Default `3`. |
 | `keys` | Letters for what to do first, from the table below. Optional. |
 
@@ -240,6 +289,11 @@ BASIC_WORLD_SHOT="file.png;seconds;keys"
 | `f` | Droid.Playground | Free camera |
 | `d` | Droid.Playground | Drone camera (default is head) |
 | `o` | Droid.Playground | Show the overlays: walls, bodies, joints, capsule |
+| `1` `2` `3` `4` | Map.Studio | Overhead, front, side or three-quarter view |
+| `g` | Map.Studio | The snapping grid on |
+| `m` | Map.Studio | Markers off |
+| `s` | Map.Studio | Select the first entry of the first district file |
+| `a` | Map.Studio | Add a wooden crate 3 m east of where it's looking, as a click would (`z` as well: then undo it) |
 
 PowerShell example:
 

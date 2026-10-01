@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "about": "The pass map: one road through the mountains, over two passes and down into a basin.",
+  "terrain": "pass",
+  "seed": 1,
+  "defaultStart": "trailhead",
+  "districts": [
+    {"code": "pass.pass"},
+    {"code": "pass.road"}
+  ]
+}

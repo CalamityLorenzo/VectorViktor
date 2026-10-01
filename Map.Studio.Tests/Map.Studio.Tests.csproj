@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Tests of the map studio's editing, apart from its window: undo and redo, entries moved and turned, the camera's
+       views, picking and the move arrows. It references the studio's program itself, which tests may (they're there
+       to reach into what they test); nothing else should (see Lessons/01). -->
+  <PropertyGroup>
+    <Nullable>disable</Nullable>
+    <IsPackable>false</IsPackable>
+    <RollForward>Major</RollForward>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Map.Studio\Map.Studio.csproj" />
+  </ItemGroup>
+</Project>

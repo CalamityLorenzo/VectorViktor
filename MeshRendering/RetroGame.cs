@@ -34,7 +34,7 @@ namespace MeshRendering
         protected MeshCache MeshCache { get; } = new MeshCache();
         protected ScreenShot? Shot { get; } = ReadShot();
         protected bool ColorsOn { get; private set; }            // off: faces drawn in the background colour (wireframe look)
-        protected bool LowResOn { get; private set; } = true;
+        protected bool LowResOn { get; set; } = true;
         protected float Clock { get; private set; }   // seconds drawn so far
 
         // The first controller, this frame (a circular dead zone, for sticks that steer). Back exits, Y toggles the
@@ -87,6 +87,9 @@ namespace MeshRendering
         // While true, the keyboard is someone else's (a tool's text box): Escape, F11 and the toggles are left alone.
         protected virtual bool KeyboardCaptured => false;
 
+        // Whether Escape exits: a tool may want it for itself (to cancel what it's doing).
+        protected virtual bool EscapeExits => true;
+
         // Whether a screenshot (see Shot) is of the whole window, overlay and all, rather than the low-resolution picture.
         protected virtual bool ShotOfWholeWindow => false;
 
@@ -101,7 +104,7 @@ namespace MeshRendering
                 ColorsOn = !ColorsOn;
             if (!KeyboardCaptured)
             {
-                if (keyboard.IsKeyDown(Keys.Escape))
+                if (EscapeExits && keyboard.IsKeyDown(Keys.Escape))
                     Exit();
                 if (Pressed(keyboard, Keys.F11))
                     Graphics.ToggleFullScreen();

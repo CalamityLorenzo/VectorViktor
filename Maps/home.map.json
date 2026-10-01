@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "about": "The home map: the country round where you start, the town, the street and the lane, all built in code, and the yard, from a file.",
+  "terrain": "home",
+  "seed": 1,
+  "defaultStart": "hills",
+  "districts": [
+    {"code": "home.countryside"},
+    {"code": "home.town"},
+    {"code": "home.street"},
+    {"code": "home.lane"},
+    {"file": "districts/yard.district.json"}
+  ]
+}

@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The map studio: a map file open with no player in it, to look round from any camera (free, orbiting, or snapped
+       to a flat plan or elevation) and to edit its district files - place, move, turn and remove things from the
+       catalogue, pads, pools, starts and buildings, every edit undoable - and save; then "Play here" starts the
+       playtest harness on it. See ToolsPlan.md steps 4 to 6 and Lessons/10 and 11. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>MapStudio</RootNamespace>
+    <RollForward>Major</RollForward>
+    <PublishReadyToRun>false</PublishReadyToRun>
+    <TieredCompilation>false</TieredCompilation>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Icon.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MonoGame.Framework.WindowsDX" />
+    <PackageReference Include="Hexa.NET.ImGui" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Tools.DearImGui\Tools.DearImGui.csproj" />
+    <ProjectReference Include="..\World.Maps\World.Maps.csproj" />
+    <ProjectReference Include="..\Maps.Home\Maps.Home.csproj" />
+    <ProjectReference Include="..\Maps.Coast\Maps.Coast.csproj" />
+    <ProjectReference Include="..\Maps.Pass\Maps.Pass.csproj" />
+    <ProjectReference Include="..\World.Core\World.Core.csproj" />
+    <ProjectReference Include="..\World.Buildings\World.Buildings.csproj" />
+    <ProjectReference Include="..\MeshCore.Library\MeshCore.Library.csproj" />
+    <ProjectReference Include="..\MeshRendering\MeshRendering.csproj" />
+  </ItemGroup>
+</Project>

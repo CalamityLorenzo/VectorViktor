@@ -100,7 +100,7 @@ namespace World.Maps
                 Windows = districts.SelectMany(d => d.Windows(terrain)).ToList(),
                 Moving = districts.SelectMany(d => d.Moving(terrain)).ToList(),
                 Portals = districts.SelectMany(d => d.Portals(terrain)).ToList(),
-                Things = districts.SelectMany(d => d.Things(physics, terrain)).ToList(),
+                Things = districts.SelectMany(d => d.Things(physics, terrain).Select(t => t with { From = d })).ToList(),
                 Cars = districts.SelectMany(d => d.Cars(terrain))
                     .Select(c => new Car(new Vector3(c.At.X, terrain.HeightAt(c.At.X, c.At.Y), c.At.Y), c.Yaw, physics)).ToList(),
                 Starts = starts,

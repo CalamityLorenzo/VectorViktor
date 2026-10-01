@@ -20,7 +20,7 @@ namespace World.Maps
 
         // Something from MeshProps, in a box that fits round it (its foot on y = 0, centred, like a Body).
         public static Thing Prop(PhysicsWorld world, Terrain terrain, string name, MeshSource mesh,
-                                 Vector3 size, float mass, float x, float z, float turn = 0f) =>
-            new Thing(Drop(world, terrain, name, size, mass, x, z, 0f), mesh, turn);
+                                 Vector3 size, float mass, float x, float z, float turn = 0f, float above = 0f) =>
+            new Thing(Drop(world, terrain, name, size, mass, x, z, above), mesh, turn);
     }
 }

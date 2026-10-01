@@ -1,4 +1,5 @@
 using World.Maps;
+using World.Maps.Files;
 
 namespace Maps.Pass
 {
@@ -13,5 +14,15 @@ namespace Maps.Pass
         public const string DefaultStart = "trailhead";
 
         public static readonly Map Map = new Map("pass", pads => PassTerrain.Create(1, pads), Districts, DefaultStart);
+
+        // What a map file can name of it (see MapLibrary): the terrain "pass", the districts "pass.pass" and "pass.road",
+        // and the map itself.
+        public static void AddTo(MapLibrary library)
+        {
+            library.AddTerrain("pass", (seed, pads) => PassTerrain.Create(seed, pads));
+            library.AddDistrict("pass.pass", () => new Pass());
+            library.AddDistrict("pass.road", () => new Road());
+            library.Add(Map);
+        }
     }
 }

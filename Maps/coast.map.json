@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "about": "The coast map: a station on a plateau, a river in a gorge, a cliff down to the beach and the sea, and a monorail between them.",
+  "terrain": "coast",
+  "seed": 1,
+  "defaultStart": "station",
+  "districts": [
+    {"code": "coast.coast"},
+    {"code": "coast.railway"},
+    {"code": "coast.station"}
+  ]
+}

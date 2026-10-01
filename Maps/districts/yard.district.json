@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "about": "A yard west of the start: a stack of crates to push over, a tower of boxes to knock down, a bungalow and an oak.",
+  "pads": [
+    {"centre": [-15, -11], "half": [6, 5]}
+  ],
+  "buildings": [
+    {"kind": "house.bungalow", "id": "yardbungalow", "at": [-15, -21], "name": "Yard bungalow", "door": "south", "walls": "#c8b4dc", "roof": "#5a4664"}
+  ],
+  "props": [
+    {"item": "plant.oak", "at": [-22, -9], "turn": 30},
+    {"item": "plant.spiky-bush", "at": [-8.5, -15]},
+    {"item": "furniture.sideboard", "at": [-19, -14], "turn": 90}
+  ],
+  "things": [
+    {"item": "crate.wood", "at": [-15, -10]},
+    {"item": "crate.wood", "at": [-15, -10], "above": 1},
+    {"item": "crate.wood", "at": [-15, -10], "above": 2},
+    {"item": "crate.cardboard", "at": [-12, -12]},
+    {"item": "crate.cardboard", "at": [-12, -12], "above": 0.7},
+    {"item": "crate.cardboard", "at": [-12, -12], "above": 1.4},
+    {"item": "crate.pallet", "at": [-18, -9], "turn": 90}
+  ],
+  "starts": [
+    {"name": "yard", "at": [-15, -4]}
+  ]
+}

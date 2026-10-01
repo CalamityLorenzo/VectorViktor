@@ -10,6 +10,7 @@ using World.Core;
 using World.Core.Animation;
 using World.Core.Characters;
 using World.Core.Vehicles;
+using World.Rendering;
 
 namespace World.Maps
 {
@@ -28,7 +29,7 @@ namespace World.Maps
         // The terrain's built out to where the fog has hidden it all, and a little beyond, so it's there before it shows
         public const float DrawDistance = FogEnd + 15f;
 
-        private const float FieldOfView = 70f, NearPlane = 0.1f;
+        public const float FieldOfView = 70f, NearPlane = 0.1f;   // degrees up and down, and metres
 
         // Wet clothes are darker: the legs first, as you wade in, then the body and the head (see PlayerMesh's
         // heights), as high as you've been soaked.
@@ -65,7 +66,17 @@ namespace World.Maps
         // How many meshes the last frame drew, left out and made draw calls of.
         public MeshBatch Batch => _batch;
 
-        public WorldRenderer(BuiltWorld built, GraphicsDevice device, MeshCache cache)
+        // For a tool that wants to see the map differently from the game (the map studio): without the fog; out to a
+        // farther far plane; through a projection of its own (an orthographic one, for flat views); and with the terrain
+        // built round a point of its own choosing rather than round the camera (a flat view's camera stands well back).
+        public bool Fog { get; set; } = true;
+        public float FarPlane { get; set; } = FogEnd;
+        public Matrix? ProjectionOverride { get; set; }
+        public Vector3? TerrainCentre { get; set; }
+
+        // `drawDistance` is how far out the terrain's built: as far as the fog lets you see, unless a tool wants to see further.
+        // `terrain`: the terrain as another renderer drew it, if the ground's the same (see WorldView.ReleaseTerrain).
+        public WorldRenderer(BuiltWorld built, GraphicsDevice device, MeshCache cache, float drawDistance = DrawDistance, TerrainView terrain = null)
         {
             _device = device;
             _ground = built.Ground;
@@ -75,7 +86,7 @@ namespace World.Maps
                 FogEnabled = true, FogColor = RetroStyle.Background.ToVector3(), FogStart = FogStart, FogEnd = FogEnd,
             };
             // The terrain's built a chunk at a time round the camera, out to where the fog has hidden it all
-            View = new WorldView(built, device, cache, DrawDistance);
+            View = new WorldView(built, device, cache, drawDistance, terrain);
             _playerColors = PlayerMesh.Palette(new Color(50, 60, 120), new Color(200, 60, 40), new Color(230, 180, 140));
             _playerView = cache.CreateInstance(device, new MeshSource("player", PlayerMesh.Build, _playerColors));
             _droneView = cache.CreateInstance(device, new MeshSource("drone", DroneMesh.Build,
@@ -241,10 +252,11 @@ namespace World.Maps
             // The far plane is where the fog ends: past it everything's the background's colour anyway, and the
             // batch leaves out whatever's beyond it
             _effect.View = ViewMatrix = Matrix.CreateLookAt(eye, lookAt, up);
-            _effect.Projection = Projection = Matrix.CreatePerspectiveFieldOfView(
-                MathHelper.ToRadians(FieldOfView), _device.Viewport.AspectRatio, NearPlane, FogEnd);
+            _effect.Projection = Projection = ProjectionOverride ?? Matrix.CreatePerspectiveFieldOfView(
+                MathHelper.ToRadians(FieldOfView), _device.Viewport.AspectRatio, NearPlane, FarPlane);
+            _effect.FogEnabled = _screenEffect.FogEnabled = Fog;
 
-            View.Update(_device, eye, you);
+            View.Update(_device, TerrainCentre ?? eye, you);
             _batch.Begin(_effect.View, _effect.Projection);
             View.Collect(_batch, eye, you, clock);
             extra?.Invoke(_batch);

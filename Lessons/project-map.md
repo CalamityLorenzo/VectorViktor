@@ -11,7 +11,7 @@ flowchart BT
     subgraph meshes["Meshes: shapes, knowing nothing of the world"]
         MeshCore["<b>MeshCore.Library</b><br/>MeshBuilder, MeshData,<br/>OutlineData, DrawRange"]
         MeshProps["<b>MeshProps</b><br/>props built from code:<br/>HouseMesh, OakMesh, CarMesh, ..."]
-        MeshRendering["<b>MeshRendering</b><br/>drawing meshes: MeshCache,<br/>MeshBatch, RetroStyle, Window"]
+        MeshRendering["<b>MeshRendering</b><br/>drawing meshes: MeshCache,<br/>MeshBatch, RetroGame, FreeCamera"]
     end
 
     subgraph sim["Simulation: no drawing, testable without a window"]
@@ -24,7 +24,7 @@ flowchart BT
     end
 
     subgraph maps["Maps"]
-        WorldMaps["<b>World.Maps</b><br/>what a map is: IDistrict, WorldBuilder,<br/>WorldView, WorldRenderer"]
+        WorldMaps["<b>World.Maps</b><br/>what a map is: IDistrict, WorldBuilder,<br/>WorldView, WorldRenderer;<br/>map files: MapLibrary, FileDistrict"]
         MapsHome["<b>Maps.Home</b><br/>one map: HomeMap, Town,<br/>Street, Countryside, ..."]
         MapsCoast["<b>Maps.Coast</b><br/>another: CoastMap,<br/>CoastTerrain, Coast"]
         MapsPass["<b>Maps.Pass</b><br/>and another: PassMap,<br/>PassTerrain, PassRoute, Pass"]
@@ -79,6 +79,7 @@ flowchart BT
     subgraph apps["Apps"]
         BasicWorld(["<b>Basic.World</b><br/>the game"])
         Playground(["<b>Droid.Playground</b><br/>playtest harness"])
+        Studio(["<b>Map.Studio</b><br/>map viewer and editor"])
         Benchmark(["<b>Basic.World.Benchmark</b>"])
         BasicLevels(["<b>Basic.Levels</b>"])
         BasicModels(["<b>Basic.Models</b>"])
@@ -87,6 +88,7 @@ flowchart BT
     subgraph tests["Tests"]
         CoreTests[["World.Core.Tests"]]
         MeshTests[["Meshes.Tests"]]
+        StudioTests[["Map.Studio.Tests"]]
     end
 
     subgraph protos["Prototypes (stand alone)"]
@@ -113,6 +115,11 @@ flowchart BT
     Playground --> MapsCoast
     Playground --> MapsPass
     Playground --> DearImGui
+    Studio --> MapsHome
+    Studio --> MapsCoast
+    Studio --> MapsPass
+    Studio --> DearImGui
+    Studio -. starts .-> Playground
     Benchmark --> MapsHome
     BasicLevels --> Rendering
     BasicLevels --> MeshProps
@@ -120,13 +127,17 @@ flowchart BT
     BasicModels --> MeshRendering
 
     CoreTests --> Buildings
+    CoreTests --> MapsHome
     CoreTests --> MapsCoast
     CoreTests --> MapsPass
     MeshTests --> MapsHome
     MeshTests --> MapsCoast
     MeshTests --> MapsPass
+    StudioTests --> Studio
 ```
 
-- The game, the playground and the benchmark all reach the world the same way: through a map library (**Maps.Home**, and for the game and the playground **Maps.Coast** and **Maps.Pass** too), which pulls in everything below it. The game and the playground pick a map by name on the command line (`coast`, `pass`), home if none.
+- The game, the playground, the studio and the benchmark all reach the world the same way: through a map library (**Maps.Home**, and for all but the benchmark **Maps.Coast** and **Maps.Pass** too), which pulls in everything below it. The game, the playground and the studio pick a map by name on the command line (`coast`, `pass`), home if none: a map file in [Maps/](../Maps) (see [lesson 09](09-map-files.md)), each of whose districts is built in code by a library or read from a district file.
+- The dotted arrow isn't a reference: the studio *starts* the playground as a program of its own (**Play here**, [lesson 11](11-picking-and-undo.md)), and they share only the map files.
+- **Map.Studio.Tests** references the studio's program itself. Tests may: they're there to reach into what they test.
 - **Basic.Levels** and **Basic.Models** are older apps that use the lower libraries directly, without the map machinery.
 - **VectorViktor** and **LoadingModelMeshes** reference none of the solution's libraries; they're early prototypes (VectorViktor uses SharpGLTF to load models).

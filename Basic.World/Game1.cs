@@ -11,6 +11,7 @@ using World.Core.Movement;
 using World.Core.Physics;
 using World.Core.Vehicles;
 using World.Maps;
+using World.Maps.Files;
 
 namespace Basic.World
 {
@@ -36,6 +37,9 @@ namespace Basic.World
     // V switches between your own view and the drone's, B to the bird's chase camera and back. C toggles colours / wireframe, L the low-resolution
     // look, F11 full screen, Escape exits.
     //
+    // A map from a file (see World.Maps.Files) is built again whenever one of its files is saved, by the map studio or
+    // anything else, with you where you were.
+    //
     // For development, a BASIC_WORLD_SHOT (see RetroGame) also saves where every body is beside the picture.
     // Its keys, all optional: v starts in the drone view, b following the bird, w holds walk forward (or the throttle,
     // driving), r runs, e presses E once, halfway to the shot.
@@ -49,7 +53,9 @@ namespace Basic.World
         private const float StepTime = 1f / 60f;      // the world always moves on in steps of this
         private const float MaxFrame = 0.25f;     // after a stall, catch up no more than this, rather than fall through the world
 
-        private readonly Map _map;
+        private Map _map;
+        private readonly Func<Map> _reopen;
+        private MapWatcher _watcher;
         private readonly string _start;
         private bool _followBird;
 
@@ -58,6 +64,7 @@ namespace Basic.World
         private Player _player;
         private Bird _bird;
         private WorldRenderer _renderer;
+        private MeshCache _worldMeshes;
         private int _titleWetness = -1, _titleSpeed = -1;
         private BuildingGround _ground;
         private float _pending;          // time not yet stepped through
@@ -65,19 +72,19 @@ namespace Basic.World
         private bool _shotPressedE;
         private readonly (Vector3 feet, float radius, float height)[] _walkers = new (Vector3, float, float)[1];   // who the doors must not swing into
 
-        // `followBird`: seen from the camera chasing the bird, to begin with. `map`: the home map if none.
-        public Game1(string start = null, bool followBird = false, Map map = null) : base(WindowWidth, WindowHeight, LowResWidth, LowResHeight, colorsKey: Keys.C)
+        // `followBird`: seen from the camera chasing the bird, to begin with. `map`: the home map if none. `reopen` opens the
+        // map again from its files, when they've been saved (see MapWatcher).
+        public Game1(string start = null, bool followBird = false, Map map = null, Func<Map> reopen = null) : base(WindowWidth, WindowHeight, LowResWidth, LowResHeight, colorsKey: Keys.C)
         {
             _map = map ?? HomeMap.Map;
+            _reopen = reopen;
             _start = start ?? _map.DefaultStart;
             _followBird = followBird;
         }
 
         protected override void LoadWorld()
         {
-            _built = WorldBuilder.Build(_map);
-            _ground = _built.Ground;
-            _world = _built.Physics;
+            Build();
             if (!_built.Starts.TryGetValue(_start, out var start))
                 start = _built.Starts[_map.DefaultStart];
             var dropFrom = start.Above > 0f ? _built.Terrain.HeightAt(start.At.X, start.At.Y) + start.Above : 0f;
@@ -85,16 +92,58 @@ namespace Basic.World
             if (start.InCar)
                 _player.GetIn(CarAt(start));
             _bird = new Bird(start.At, _ground.SkylineAt, start.Yaw);
+            MakeRenderer();
+            if (_reopen != null && _map.Files.Count > 0)
+                _watcher = new MapWatcher(_map.Files);
+            if (Shot?.Keys.Contains('v') == true)
+                _player.ToggleView();
+            _followBird |= Shot?.Keys.Contains('b') == true;
+            UpdateTitle();
+        }
 
-            _renderer = new WorldRenderer(_built, GraphicsDevice, MeshCache);
+        private void Build()
+        {
+            _built = WorldBuilder.Build(_map);
+            _ground = _built.Ground;
+            _world = _built.Physics;
+        }
+
+        private void MakeRenderer()
+        {
+            // A mesh cache of its own, thrown away with it: some meshes are built from the world they're in (a fence follows
+            // the ground), so a world built again needs them built again too
+            _worldMeshes = new MeshCache();
+            _renderer = new WorldRenderer(_built, GraphicsDevice, _worldMeshes);
             _renderer.BuildTerrain(_player);
             // The drone's camera, for the televisions tuned to it (see ScreenSpec): you, from wherever it's following
             _renderer.Feed(WorldRenderer.DroneChannel, () => _player.Driving != null ? null
                     : new CameraView(_player.Drone.Position, Vector3.Normalize(_player.Eye - _player.Drone.Position), Vector3.Up),
                 batch => _renderer.AddPlayer(batch, _player));
-            if (Shot?.Keys.Contains('v') == true)
-                _player.ToggleView();
-            _followBird |= Shot?.Keys.Contains('b') == true;
+        }
+
+        // The map's files have been saved: the map built again from them, and you put back where you were, on foot (a
+        // car you were in is gone with the old world). If they don't make a map now - a mistake, part way through an
+        // edit - the world stays as it was, and the title says what's wrong.
+        private void Reload()
+        {
+            try
+            {
+                _map = _reopen();
+                Build();
+                _watcher.Dispose();
+                _watcher = new MapWatcher(_map.Files);   // it may have gained a district file, or lost one
+            }
+            catch (Exception e) when (e is System.IO.InvalidDataException or System.IO.IOException or InvalidOperationException)
+            {
+                Window.Title = "Basic.World - the map didn't load: " + e.Message;
+                return;
+            }
+            var (feet, yaw) = (_player.Body.Position, _player.Body.Yaw);
+            _player = new Player(feet + Vector3.Up * 0.1f, yaw, _world);
+            _bird = new Bird(new Vector2(feet.X, feet.Z), _ground.SkylineAt, yaw);
+            _renderer.Dispose();
+            _worldMeshes.Dispose();
+            MakeRenderer();
             UpdateTitle();
         }
 
@@ -122,6 +171,8 @@ namespace Basic.World
 
         protected override void UpdateWorld(GameTime gameTime, KeyboardState keyboard)
         {
+            if (_watcher?.Changed() == true)
+                Reload();
             if (Pressed(keyboard, Keys.V))
             {
                 if (_followBird)
@@ -231,6 +282,8 @@ namespace Basic.World
             if (disposing)
             {
                 _renderer?.Dispose();
+                _worldMeshes?.Dispose();
+                _watcher?.Dispose();
             }
             base.Dispose(disposing);
         }

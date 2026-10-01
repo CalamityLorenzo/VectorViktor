@@ -14,12 +14,14 @@
   </Folder>
   <Project Path="World.Core.Tests/World.Core.Tests.csproj" />
   <Project Path="Meshes.Tests/Meshes.Tests.csproj" />
+  <Project Path="Map.Studio.Tests/Map.Studio.Tests.csproj" />
   <Project Path="World.Buildings/World.Buildings.csproj" />
   <Project Path="World.Core/World.Core.csproj" />
   <Project Path="World.Rendering/World.Rendering.csproj" />
   <Folder Name="/Tools/">
     <Project Path="Tools.DearImGui/Tools.DearImGui.csproj" />
     <Project Path="Droid.Playground/Droid.Playground.csproj" />
+    <Project Path="Map.Studio/Map.Studio.csproj" />
   </Folder>
   <Folder Name="/Maps/">
     <Project Path="World.Maps/World.Maps.csproj" />

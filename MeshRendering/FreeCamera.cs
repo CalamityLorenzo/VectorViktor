@@ -2,7 +2,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
 using System;
 
-namespace Droid.Playground
+namespace MeshRendering
 {
     // A camera that flies anywhere, belonging to nothing in the world: W, A, S, D to fly, Space and Ctrl to rise and
     // sink, Shift for speed, and the mouse, with its right button held, to look. On a controller: the left stick flies,

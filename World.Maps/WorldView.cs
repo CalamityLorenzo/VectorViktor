@@ -17,7 +17,8 @@ namespace World.Maps
     // MeshBatch, which leaves out whatever's not in view.
     public sealed class WorldView : IDisposable
     {
-        private readonly List<MeshInstance> _fixed = new List<MeshInstance>();   // the water, the street's road, fences, paving and billboard
+        private readonly List<MeshInstance> _water = new List<MeshInstance>();
+        private readonly List<MeshInstance> _fixed = new List<MeshInstance>();   // the street's road, fences, paving and billboard
         private readonly List<(MeshInstance view, Func<Vector3, bool> shownTo)> _nearOrFar = new List<(MeshInstance, Func<Vector3, bool>)>();   // fixtures seen only from some places
         private readonly List<BuildingView> _buildings = new List<BuildingView>();
         private readonly List<ScreenView> _screens = new List<ScreenView>();
@@ -42,10 +43,19 @@ namespace World.Maps
         // A car not to draw: the one you're sitting in, looking out through its windscreen
         public Car HiddenCar { get; set; }
 
-        // `drawDistance` is how far out the terrain's built: out to where the fog has hidden it all.
-        public WorldView(BuiltWorld world, GraphicsDevice device, MeshCache cache, float drawDistance)
+        // What's drawn, for a tool to hide some of it (the map studio's layers): everything, to begin with.
+        public bool ShowTerrain { get; set; } = true;
+        public bool ShowWater { get; set; } = true;
+        public bool ShowBuildings { get; set; } = true;
+        public bool ShowFixtures { get; set; } = true;   // and what moves by itself
+        public bool ShowThings { get; set; } = true;     // and the cars
+
+        // `drawDistance` is how far out the terrain's built: out to where the fog has hidden it all. `terrain`, if given, is
+        // the terrain as drawn already, by another view of a world on the same ground (see ReleaseTerrain): its chunks
+        // are used as they are.
+        public WorldView(BuiltWorld world, GraphicsDevice device, MeshCache cache, float drawDistance, TerrainView terrain = null)
         {
-            Terrain = new TerrainView(world.Terrain, shore: 0.5f, drawDistance, bare: world.Bare, covered: world.Covered);
+            Terrain = terrain ?? new TerrainView(world.Terrain, shore: 0.5f, drawDistance, bare: world.Bare, covered: world.Covered);
             _cars = world.Cars;
             _device = device;
             _cache = cache;
@@ -54,7 +64,7 @@ namespace World.Maps
             for (var i = 0; i < pools.Count; i++)
             {
                 var pool = pools[i];
-                _fixed.Add(cache.CreateInstance(device, new MeshSource("water" + i, d => WaterMesh.Build(d, pool), WaterMesh.Palette())));
+                _water.Add(cache.CreateInstance(device, new MeshSource("water" + i, d => WaterMesh.Build(d, pool), WaterMesh.Palette())));
             }
             foreach (var fixture in world.Fixtures)
             {
@@ -96,19 +106,29 @@ namespace World.Maps
         // `eye` is where it's seen from, `you` where you're standing (see Fixture.ShownTo), `seconds` how long it's been going.
         public void Collect(MeshBatch batch, Vector3 eye, Vector3 you, float seconds)
         {
-            Terrain.Collect(batch);
-            foreach (var view in _fixed)
-                batch.Add(view);
-            foreach (var (view, shownTo) in _nearOrFar)
-                if (shownTo(you))
+            if (ShowTerrain)
+                Terrain.Collect(batch);
+            if (ShowWater)
+                foreach (var view in _water)
                     batch.Add(view);
-            foreach (var (part, view) in _moving)
+            if (ShowFixtures)
             {
-                view.Transform = part.At(seconds);
-                batch.Add(view);
+                foreach (var view in _fixed)
+                    batch.Add(view);
+                foreach (var (view, shownTo) in _nearOrFar)
+                    if (shownTo(you))
+                        batch.Add(view);
+                foreach (var (part, view) in _moving)
+                {
+                    view.Transform = part.At(seconds);
+                    batch.Add(view);
+                }
             }
-            foreach (var building in _buildings)
-                building.Collect(batch, eye);
+            if (ShowBuildings)
+                foreach (var building in _buildings)
+                    building.Collect(batch, eye);
+            if (!ShowThings)
+                return;
             foreach (var (body, view, turn) in _things)
             {
                 view.Transform = Matrix.CreateRotationY(turn) * body.Pose;   // upright, on its side, or part way over
@@ -165,6 +185,8 @@ namespace World.Maps
         // (see ScreenView), each from `picture`, given its channel.
         public void DrawScreens(GraphicsDevice device, BasicEffect effect, Vector3 eye, Func<string, Texture2D> picture)
         {
+            if (!ShowBuildings)
+                return;
             _frustum.Matrix = effect.View * effect.Projection;
             device.SamplerStates[0] = SamplerState.PointClamp;   // hard pixels, as everything else has
             device.DepthStencilState = DepthStencilState.Default;
@@ -175,9 +197,19 @@ namespace World.Maps
                     screen.Draw(device, effect, picture(screen.Channel));
         }
 
+        // The terrain as drawn, handed over to another view (see the constructor), and so not thrown away with this one.
+        public TerrainView ReleaseTerrain()
+        {
+            _terrainReleased = true;
+            return Terrain;
+        }
+
+        private bool _terrainReleased;
+
         public void Dispose()
         {
-            Terrain.Dispose();
+            if (!_terrainReleased)
+                Terrain.Dispose();
             _portals.Dispose();
         }
     }

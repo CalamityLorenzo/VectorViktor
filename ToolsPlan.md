@@ -1,6 +1,6 @@
 # Maps, tools and the playtest harness: plan
 
-Written 2026-09-27. Steps 1 and 2 were done the same day (see 4). It follows on from [AnimationPlan.md](AnimationPlan.md) and comes before most of [GameDesign.md](GameDesign.md)'s features: they need these tools to be built and tried.
+Written 2026-09-27. Steps 1 and 2 were done the same day, and steps 3 to 6 on 2026-10-01 (see 4), which finishes the plan. It follows on from [AnimationPlan.md](AnimationPlan.md) and comes before most of [GameDesign.md](GameDesign.md)'s features: they need these tools to be built and tried.
 
 ## 1. What's wanted
 
@@ -22,26 +22,26 @@ In Paul's words: *"Whilst I want to get on with building a game there are lots a
 | Map files | **One file per district, and a map file that collects them** (by file, or a code district by name). |
 | Where they live | **A `Maps/` folder in the repo**, copied beside each app when it's built. |
 
-## 3. The shape it's heading for
+## 3. The shape it has
 
 ```
                         ┌─────────────── Basic.World (exe): the game so far
                         ├─────────────── Droid.Playground (exe): the playtest harness          (step 2)
-                        ├─────────────── Map.Studio (exe): map viewer and editor               (steps 4-5)
+                        ├─────────────── Map.Studio (exe): map viewer and editor               (steps 4-6)
                         ├─────────────── Basic.World.Benchmark (exe), Meshes.Tests
                         │                  Tools.DearImGui (lib): Dear ImGui drawn by MonoGame, for the harness and the studio
                         ▼
-Maps.Home (lib): the home map, built in code (later also map files)
+Maps.Home, Maps.Coast, Maps.Pass (libs): the maps' code districts, terrains and houses, by name     Maps/ (files): the maps, and district files
    ▼
 World.Maps (lib): what a map is (IDistrict and its pieces), building one (WorldBuilder),
-                  drawing a built one (WorldView, WorldRenderer); later, loading one from a file
+                  drawing a built one (WorldView, WorldRenderer), and map files (Files: MapLibrary, FileDistrict)
    ▼
 World.Rendering ─► MeshRendering ─► MeshCore.Library      MeshProps (props)
    ▼
 World.Buildings ─► World.Core   (simulation: no GraphicsDevice)
 ```
 
-Every app gets maps the same way: reference `World.Maps` for the machinery, and a map library (`Maps.Home` today) or a map file for the content.
+Every app gets maps the same way: reference `World.Maps` for the machinery and the map libraries for their names (`HomeMap.AddTo(library)`), then open a map file by name (`library.Open("home")`).
 
 ## 4. Steps
 
@@ -77,47 +77,48 @@ A new app, **`Droid.Playground`**, that loads a map (the home map to begin with)
   - live values: named numbers an experiment exposes (speed, lean, rail speed), nudged up and down with keys
 - Lessons: the game loop and fixed timestep; the simulation/drawing split; test harnesses and experiments.
 
-### Step 3: the map file format
-Two kinds of file, in the repo's `Maps/` folder (copied beside each app when it's built):
-- **A district file** (`Maps/districts/yard.district.json`): a version number; pads; water; buildings (rooms, doors and roofs are already data in `RoomSpec`, or a generator by name with its parameters, such as `house.two-storey`); **props** (a catalogue name, position, turn); **things** (a catalogue name, mass, position); starts; portals.
-- **A map file** (`Maps/home.map.json`): a version number, the terrain's seed, the default start, and its **districts in order**, each either a district file or a code district by name:
+### Step 3: the map file format (done 2026-10-01)
+Two kinds of file, in the repo's [Maps/](Maps) folder: a **map file** (`Maps/home.map.json`: a version, the terrain by name and its seed, the default start, and its districts in order, each `{"code": name}` or `{"file": path}`) and a **district file** (`Maps/districts/yard.district.json`: pads, pools, buildings, props, things, starts and portals, every one by name and where). Lesson [09](Lessons/09-map-files.md).
 
-```json
-{
-  "version": 1,
-  "name": "Home",
-  "seed": 1,
-  "defaultStart": "hills",
-  "districts": [
-    { "code": "home.countryside" },
-    { "code": "home.town" },
-    { "file": "districts/yard.district.json" }
-  ]
-}
-```
+**What was built** (`World.Maps/Files`):
+- **`MapJson`**: System.Text.Json set up for files people read and write. Names are camelCase, points `[x, z]`, colours `"#rrggbb"`. Each entry goes on a line of its own, and values at their defaults are left out. Comments and trailing commas are allowed; unknown names are an error, giving the file and which entry.
+- **`DistrictFile`** and **`MapFile`**: the files' contents, with entries as records that can't change (`PadEntry`, `PoolEntry`, `BuildingEntry`, `PropEntry`, `ThingEntry`, `StartEntry`, `PortalEntry`). A version is required, and a newer one, or none, is refused. `Load` has the place for upgrades.
+- **`MapLibrary`**: every name a file can use: terrains, code districts, kinds of building, the catalogue, and the code maps. Each map library adds its own (`HomeMap.AddTo`, `CoastMap.AddTo`, `PassMap.AddTo`): terrains `home`/`coast`/`pass`, districts `home.town` and so on, and buildings `house.two-storey` and `house.bungalow`.
+- **`Catalogue`**: the standard things to put about (crates, a locker, a pallet, furniture, plants, a Trabant), each with a mesh and a mass. Sizes are measured from the meshes, built headless.
+- **`FileDistrict`**: a district file as an `IDistrict`, so `WorldBuilder` didn't change. Every name is looked up when it's made. Props are fixtures with walls round their boxes, things are bodies, and a building gets a pad under it.
+- **`MapDocument`**: a map file and its district files, to build a `Map` from, edit and save.
+- **`MapFolder`**: the repository's Maps folder when run from inside it, so saves land where git sees them; otherwise the copy beside the app.
+- **`MapWatcher`**: a `FileSystemWatcher`, debounced: it reports a change once the files have been quiet for 0.25 s.
+- **The maps as files**: `home.map.json` (the four code districts, plus the **yard**, a district file with a crate stack, a box tower, a pallet, a bungalow and an oak; start `yard`), `coast.map.json` and `pass.map.json`. The apps open maps by name through the library (the file if there is one, else the code map), or a `.map.json` by its path.
+- **Reloading**: `Basic.World` and `Droid.Playground` build the map again when its files are saved, keeping you where you were. Each built world has a mesh cache of its own. A fence's mesh is built from the ground it captures, so a world built again needs its meshes built again (the cache's debug check caught this).
+- **Tests** (`MapFileTests`, 22). Round trips: every Maps/ file saves exactly as read, and every kind of entry survives writing and reading. The maps: the home map's file has every start and building of the code map, unchanged, and the yard; the coast's file is the coast. Building: the yard's crates stack, a file building stands on levelled ground, a solid prop has walls round its box, things turned a quarter turn their boxes, and catalogue sizes are right. Mistakes: unknown names (saying what there is), a misspelt key, a missing `at`, newer or missing versions, bad numbers and colours, two starts of one name. And the watcher.
 
-Per district means a map is put together from pieces, and two people (or the studio and a text editor) can work on different pieces at once.
-- **A catalogue**: names to `MeshSource`s and their sizes (`crate.wood`, `armchair`, `television`), so a file never holds a mesh, only a name.
-- **`DistrictFile` → `IDistrict`**, so a file-built district joins the code-built ones through the same `WorldBuilder`; **`MapFile` → the list of districts** (a registry names the code districts: `home.countryside` is `new Countryside()`).
-- **Round-trip tests**: load, save and load again gives the same world; unknown names fail with a clear message; old versions still load.
-- **Reloading**: a running app watches its map file and rebuilds when it's saved.
-- Lesson: serialisation and file formats (JSON, versioning, round trips, why files hold names, not objects).
+**Departures from the plan:** the yard is the worked example rather than a copy of lesson 01's exercise. Props got walls round their boxes (a sofa you walk through looks wrong). `Thing` gained `From`, the district it came from, for the studio.
 
-### Step 4: Map Studio, the viewer
-A new app, **`Map.Studio`**, that opens a map (a code map by name, or a file) with no player in it.
-- **Cameras**: a free flying camera; orbit round a point; **snap views**: overhead (straight down, orthographic, with the grid), front, side and a three-quarter view, each a key, with a smooth move between them.
-- Overlays as in the harness, plus pads, starts and portals drawn as markers; layers can be hidden (terrain, buildings, props).
-- Click something to see what it is and where.
-- Lesson: cameras (view and projection matrices, perspective against orthographic, moving smoothly between views).
+### Step 4: Map Studio, the viewer (done 2026-10-01)
+A new app, **`Map.Studio`**, that opens a map file with no player in it. Lesson [10](Lessons/10-cameras-and-views.md).
+- **`StudioCamera`**: a target, a yaw and pitch, and a distance. Orbit (middle button, or Alt + left), look about (right button), fly (W, A, S, D, R, F), zoom (wheel), pan (Shift + middle). F frames what's selected.
+- **Snap views**: 1 overhead (orthographic, north up), 2 front and 3 side (orthographic), 4 three-quarter (perspective), 0 free. Each is a smooth 0.4 s move: eased, the short way round, zooming by ratio, and flat from the moment it arrives. A flat view shows what the perspective did at the target, so it doesn't jump.
+- **`WorldRenderer`** gained what a tool needs, each defaulting to the game's: `Fog`, `FarPlane`, `ProjectionOverride`, `TerrainCentre`, a draw distance, and taking over another renderer's terrain meshes. **`WorldView`** gained layers (`ShowTerrain`, `ShowWater`, `ShowBuildings`, `ShowFixtures`, `ShowThings`).
+- **Markers**: pads (yellow, or olive in files not being edited), pools, every start (a post, a ring and an arrow, with its name beside it) and portals. The snapping grid (G) is draped over the ground. Layers can be hidden.
+- **Click to see what it is and where**: an entry in a district file, a thing or building built in code (its name, mass, rooms, bounds), or the ground (its height).
+- `FreeCamera` and `DebugLines` moved from the playground to MeshRendering, to be shared. `RetroGame` gained `EscapeExits` and a settable `LowResOn`: the studio starts sharp, and L gives the game's look.
 
-### Step 5: Map Studio, the editor
-- Place, move, turn and delete props and things from the catalogue, snapped to a grid in the overhead view; level pads; set starts; save to the map file.
-- Undo and redo (every edit a command that can be undone).
-- Panels for the catalogue and the selected object's values, with Dear ImGui (see 7), docked round the 3D view.
-- Lessons: picking (a ray from the mouse into the world), gizmos, the command pattern for undo.
+### Step 5: Map Studio, the editor (done 2026-10-01)
+Lesson [11](Lessons/11-picking-and-undo.md).
+- **Picking** (`Picking`): a ray through the mouse (`Viewport.Unproject`). Boxes, turned ones too, are tested in their own frame; the ground by stepping along the ray and halving. The nearest hit wins.
+- **Placing**: from the catalogue (loose, as a thing, or fixed, as a prop), kinds of building, pads, pools and starts, each snapped to the grid. New district files can be added to the map.
+- **Moving and changing**: select, then drag over the ground, or along a red (east) or blue (south) **arrow** (`MoveGizmo`: worked out on the screen, and a fixed size whatever the zoom). Turn with Q and E (things a quarter at a time). Copy (Ctrl+D), remove (Delete). Every value of the selected entry is in a panel. Code districts are shown and can be clicked on, but not edited.
+- **Undo and redo** (`Edits`): every edit is a command (`AddEntry`, `RemoveEntry`, `ChangeEntry`) in an `EditHistory`. Entries being records, a change is just the entry before and after. A drag, or a value dragged in a panel, shows at once and is recorded once, when let go.
+- **Building again after each edit**, from what's in memory. While the pads are the same it keeps the same terrain (`Terrain.Drain`), and while its water is too, the same terrain meshes. That's about 60 ms for an edit that doesn't change the ground, against 1.9 s to build everything. When a pad changes, its terrain is drawn again a few chunks a frame.
+- **Saving** (Ctrl+S) writes only the files that changed. Files changed on disk by something else are read again; with edits not saved, it says so and offers to reopen.
+- **Panels** (Dear ImGui): Map (files, districts, undo, views, layers, snap, play), Add, Selected, and a status line. They float rather than dock round the view; docking can come when the panels grow.
+- **Tests** (`Map.Studio.Tests`, 13): undo and redo in order, unsaved either side of a save, and the selection following an edit; entries moved and turned, with boxes where the game builds them; the camera's views (north up overhead, flat views matching perspective, turning the short way); picking turned boxes and the ground; and dragging along an arrow.
 
-### Step 6: from the Studio to the harness
-"Play here": start the harness on the open map, at the point under the mouse, as the droid. Edit, play and edit again in seconds.
+**Not done:** a rotate handle (Q and E turn instead); editing portals by dragging their ends (their values can be set in the panel); a schema for the files.
+
+### Step 6: from the Studio to the harness (done 2026-10-01)
+**Play here** (P, under the mouse; or the button, where the camera's looking). It saves, then starts `Droid.Playground` as a program of its own on the map file, with the droid dropped at that point facing the camera's way (`at=x,z yaw=degrees`, new arguments for the playground). The playground watches the map's files, so each save in the studio is in the running playground a moment later, the droid where it was: edit, save, look, edit again. Lesson [11](Lessons/11-picking-and-undo.md).
 
 ## 5. Lessons
 
