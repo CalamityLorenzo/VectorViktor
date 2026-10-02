@@ -20,5 +20,6 @@
     <ProjectReference Include="..\MeshProps\MeshProps.csproj" />
     <ProjectReference Include="..\World.Buildings\World.Buildings.csproj" />
     <ProjectReference Include="..\World.Rendering\World.Rendering.csproj" />
+    <ProjectReference Include="..\Maps.Home\Maps.Home.csproj" />   <!-- for the level (see Maps.Home.HouseLevel), which the home map has too -->
   </ItemGroup>
 </Project>

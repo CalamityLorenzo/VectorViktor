@@ -296,7 +296,12 @@ namespace MapStudio
             switch (entry)
             {
                 case PropEntry p:
-                    return p with { Item = ItemCombo(p.Item), At = Point("at", p.At), Turn = Number("turn", p.Turn, 1f), Above = Number("above", p.Above) };
+                    var scale = MathF.Max(0.1f, Number("scale", p.Scale ?? 1f, 0.01f));   // 1, the catalogue's size, isn't written
+                    return p with
+                    {
+                        Item = ItemCombo(p.Item), At = Point("at", p.At), Turn = Number("turn", p.Turn, 1f), Above = Number("above", p.Above),
+                        Scale = scale != (p.Scale ?? 1f) ? (scale == 1f ? null : scale) : p.Scale,
+                    };
                 case ThingEntry t:
                     return t with
                     {

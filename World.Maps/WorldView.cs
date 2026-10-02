@@ -75,6 +75,12 @@ namespace World.Maps
                 else
                     _fixed.Add(view);
             }
+            foreach (var step in world.Ground.Doorsteps)
+            {
+                var view = cache.CreateInstance(device, DoorstepMesh.Source(step));
+                view.Transform = Matrix.Identity;   // built where it is
+                _fixed.Add(view);
+            }
             foreach (var building in world.Buildings)
             {
                 _buildings.Add(new BuildingView(building, world.Ground.DoorsOf(building), world.Ground.CabinetsOf(building), device, cache));

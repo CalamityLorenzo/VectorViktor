@@ -120,6 +120,17 @@ namespace Map.Studio.Tests
         }
 
         [Fact]
+        public void AScaledPropsBoxIsScaledOnceNotTwice()
+        {
+            // The box's size is scaled; where it stands isn't, or picking and drawing it would scale it again
+            var terrain = Terrain.FromFunction(64, 64, 1f, (x, z) => 0f);
+            var prop = new PropEntry("plant.oak", new Vector2(3f, -2f), 30f, Scale: 1.5f);
+            var (place, size) = Entries.Box(prop, terrain, Library.Value);
+            Assert.Equal(FileDistrict.PropStand(prop, terrain), place);
+            Assert.Equal(Library.Value.Item("plant.oak").Size * 1.5f, size);
+        }
+
+        [Fact]
         public void AStartDroppedFromAboveIsMarkedOnTheFloorItLandsOn()
         {
             // The town's attic start drops you from 100 m up, onto the attic floor

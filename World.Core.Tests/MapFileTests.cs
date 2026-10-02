@@ -60,7 +60,7 @@ namespace World.Core.Tests
                 Pools = { new PoolEntry(new Vector2(1f, 2f), 0f, 5f), new PoolEntry(new Vector2(3f, 4f), -1.5f, Half: new Vector2(2f, 1f), Shore: 0.4f) },
                 Buildings = { new BuildingEntry("house.bungalow", "b1", new Vector2(-5f, 6f), "A \"quoted\", name: really", Side.South,
                                                 new Color(1, 2, 3), new Color(250, 251, 252), Flat: true, Attic: true) },
-                Props = { new PropEntry("plant.oak", Vector2.Zero, 33.5f, 0.25f) },
+                Props = { new PropEntry("plant.oak", Vector2.Zero, 33.5f, 0.25f, 1.5f) },
                 Things = { new ThingEntry("crate.wood", new Vector2(0.1f, 0.2f), 90f, 1f, "named", 12.5f) },
                 Starts = { new StartEntry("there", new Vector2(9f, 10f), -45f, 3f, InCar: true) },
                 Portals = { new PortalEntry(new Vector2(1f, 1f), new Vector2(2f, 1f), 0.5f, new Vector3(4f, 5f, 6f), 180f) },
@@ -84,6 +84,7 @@ namespace World.Core.Tests
             var text = MapJson.Write(district);
             Assert.Contains("{\"item\": \"plant.oak\", \"at\": [0, 0]}", text);   // where it is is always written, even at 0, 0
             Assert.DoesNotContain("turn", text);
+            Assert.DoesNotContain("scale", text);   // 1, the catalogue's size
             Assert.DoesNotContain("pads", text);   // nor an empty list
         }
 
@@ -190,6 +191,21 @@ namespace World.Core.Tests
             Assert.Equal(size.Z, xs.Max() - xs.Min(), 0.01f);
             Assert.Equal(size.X, zs.Max() - zs.Min(), 0.01f);
             Assert.All(walls, w => Assert.Equal(size.Y, w.Top - w.Bottom, 0.01f));
+        }
+
+        [Fact]
+        public void AScaledPropsWallsAreScaledWithIt()
+        {
+            var district = new DistrictFile { Props = { new PropEntry("furniture.sideboard", new Vector2(2f, 3f), Scale: 1.5f) } };
+            var world = WorldBuilder.Build(new IDistrict[] { new FileDistrict("test", district, Library.Value) });
+            var size = Library.Value.Item("furniture.sideboard").Size * 1.5f;
+            var walls = world.Ground.Walls.ToArray();
+            var xs = walls.SelectMany(w => new[] { w.A.X, w.B.X }).ToArray();
+            var zs = walls.SelectMany(w => new[] { w.A.Y, w.B.Y }).ToArray();
+            Assert.Equal(size.X, xs.Max() - xs.Min(), 0.01f);
+            Assert.Equal(size.Z, zs.Max() - zs.Min(), 0.01f);
+            Assert.All(walls, w => Assert.Equal(size.Y, w.Top - w.Bottom, 0.01f));
+            Assert.Equal(1.5f, world.Fixtures.Single().Transform.Right.Length(), 0.001f);   // and its mesh
         }
 
         [Fact]

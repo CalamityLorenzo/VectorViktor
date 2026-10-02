@@ -27,4 +27,9 @@
     <ProjectReference Include="..\MeshCore.Library\MeshCore.Library.csproj" />
     <ProjectReference Include="..\MeshRendering\MeshRendering.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Not used by the studio, only started by "Play here" (see PlayHere): referenced so building the studio builds it
+         too, and the harness it starts is never older than the studio asking it for a map, a point and a facing. -->
+    <ProjectReference Include="..\Droid.Playground\Droid.Playground.csproj" ReferenceOutputAssembly="false" Private="false" />
+  </ItemGroup>
 </Project>

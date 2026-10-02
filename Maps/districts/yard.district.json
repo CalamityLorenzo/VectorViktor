@@ -4,9 +4,6 @@
   "pads": [
     {"centre": [-15, -11], "half": [6, 5]}
   ],
-  "buildings": [
-    {"kind": "house.bungalow", "id": "yardbungalow", "at": [-15, -21], "name": "Yard bungalow", "door": "south", "walls": "#c8b4dc", "roof": "#5a4664"}
-  ],
   "props": [
     {"item": "plant.oak", "at": [-22, -9], "turn": 30},
     {"item": "plant.spiky-bush", "at": [-8.5, -15]},

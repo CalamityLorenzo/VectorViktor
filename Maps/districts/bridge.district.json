@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "about": "bridge: made in the map studio",
+  "props": [
+    {"item": "plant.spiky-bush", "at": [92.5, 8.5]},
+    {"item": "plant.spiky-bush", "at": [92.5, 6]},
+    {"item": "plant.spiky-bush", "at": [93, -2.5]},
+    {"item": "plant.spiky-bush", "at": [92.5, -6.5], "scale": 1.82},
+    {"item": "plant.oak", "at": [94.5, 7.5]},
+    {"item": "plant.oak", "at": [89.5, 8.5], "scale": 1.46},
+    {"item": "plant.oak", "at": [92.5, 3], "scale": 1.73},
+    {"item": "plant.oak", "at": [85.5, 6]},
+    {"item": "plant.oak", "at": [89.5, -3], "scale": 1.84},
+    {"item": "plant.oak", "at": [85, -4], "scale": 1.7},
+    {"item": "plant.oak", "at": [84.5, 2], "scale": 2.13},
+    {"item": "plant.oak", "at": [88.5, -7]},
+    {"item": "plant.oak", "at": [86.5, -10.5], "scale": 1.82},
+    {"item": "plant.oak", "at": [80, 4.5], "scale": 1.99},
+    {"item": "plant.oak", "at": [77.5, -4], "turn": 330, "scale": 1.99},
+    {"item": "plant.oak", "at": [83, -7], "scale": 1.48},
+    {"item": "plant.oak", "at": [94, -9.5]},
+    {"item": "plant.oak", "at": [95.5, 12]},
+    {"item": "plant.oak", "at": [96, -6], "scale": 1.19},
+    {"item": "plant.spiky-bush", "at": [85, 15], "scale": 1.64},
+    {"item": "plant.spiky-bush", "at": [81.5, -10], "scale": 1.7},
+    {"item": "plant.spiky-bush", "at": [91, -10.5]},
+    {"item": "plant.spiky-bush", "at": [76.5, -9.5], "scale": 2.11},
+    {"item": "plant.spiky-bush", "at": [82.5, 9], "scale": 1.92},
+    {"item": "plant.spiky-bush", "at": [76, 8.5], "scale": 2.14},
+    {"item": "plant.spiky-bush", "at": [76.5, 2.5], "scale": 1.9}
+  ]
+}

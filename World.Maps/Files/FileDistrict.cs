@@ -65,9 +65,15 @@ namespace World.Maps.Files
         }
 
         // Where a prop stands: turned, on the ground (or Above it).
-        public static Matrix PropPlace(PropEntry prop, Terrain terrain) =>
+        public static Matrix PropStand(PropEntry prop, Terrain terrain) =>
             Matrix.CreateRotationY(MeshTurn(prop.Turn)) *
             Matrix.CreateTranslation(prop.At.X, terrain.HeightAt(prop.At.X, prop.At.Y) + prop.Above, prop.At.Y);
+
+        // Its mesh there, at its scale (about its foot, so it still stands on the ground)
+        public static Matrix PropPlace(PropEntry prop, Terrain terrain) => Matrix.CreateScale(prop.Scale ?? 1f) * PropStand(prop, terrain);
+
+        // Its box, at its scale: the catalogue's size of it, times its own
+        public static Vector3 PropSize(PropEntry prop, CatalogueItem item) => item.Size * (prop.Scale ?? 1f);
 
         // A building's pad, under its footprint
         public static TerrainGenerator.Pad BuildingPad(BuildingEntry building, BuildingKind kind) => new TerrainGenerator.Pad(building.At, kind.HalfOf(building));
@@ -111,8 +117,8 @@ namespace World.Maps.Files
             {
                 if (!_props[i].Solid)
                     continue;
-                var size = _props[i].Size;
-                var place = PropPlace(_file.Props[i], terrain);
+                var size = PropSize(_file.Props[i], _props[i]);
+                var place = PropStand(_file.Props[i], terrain);
                 var corners = new[] { new Vector3(-1, 0, -1), new Vector3(1, 0, -1), new Vector3(1, 0, 1), new Vector3(-1, 0, 1) }
                     .Select(c => Vector3.Transform(c * new Vector3(size.X / 2f, 0f, size.Z / 2f), place)).ToArray();
                 var bottom = place.Translation.Y;

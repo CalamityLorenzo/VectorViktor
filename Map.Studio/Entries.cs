@@ -120,7 +120,7 @@ namespace MapStudio
                     var footprint = library.BuildingKind(b.Kind).HalfOf(b);
                     return (At(b.At, Ground(b.At)), new Vector3(footprint.X * 2f, 6f, footprint.Y * 2f));
                 case PropEntry p:
-                    return (FileDistrict.PropPlace(p, terrain), library.Item(p.Item).Size);
+                    return (FileDistrict.PropStand(p, terrain), FileDistrict.PropSize(p, library.Item(p.Item)));
                 case ThingEntry t:
                     var (size, turn) = FileDistrict.ThingBox(library.Item(t.Item).Size, t.Turn);
                     // Its body's box, which doesn't turn; the mesh turns inside it

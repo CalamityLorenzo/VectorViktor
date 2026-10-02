@@ -7,6 +7,7 @@ using System.Linq;
 using World.Buildings;
 using World.Core;
 using static World.Buildings.Walls;
+using static Maps.Home.RoomPortals;
 using World.Maps;
 
 namespace Maps.Home
@@ -16,7 +17,9 @@ namespace Maps.Home
     // out over it. Walk into its front door and you're in a long corridor, off in a scene of its own the way
     // Basic.Levels' rooms are; walk into the door you came in by and you're back outside the cottage; walk up it to
     // the door at its far end and you're in the hangar the next cottage's window looks into (see Hangar), and back
-    // again. Next door to the old cottage, another. Come up to either's front window and it thins away to show what's
+    // again. Next door to the old cottage, another: walk into its front door and you're in Basic.Levels' house, at the
+    // south end of its corridor (see HouseRooms), and its front door brings you back. Come up to either's front window
+    // and it thins away to show what's
     // inside - in the old one a parlour, in the next one the hangar, far bigger than the cottage, three trees going
     // round on turntables in it (see Window).
     public sealed class Lane : IDistrict
@@ -63,7 +66,6 @@ namespace Maps.Home
             Floor = new Color(70, 70, 70), WallA = new Color(0, 150, 150), WallB = new Color(0, 105, 105), Ceiling = new Color(210, 140, 80),
             Doors = new[] { new DoorSpec("cottage", South, 0f, "", ""), new DoorSpec("hangar", North, 0f, "", "") },   // see Portals
         };
-        private const float ArrivalDistance = 1f;   // how far in from a door you are when you come through it
 
         public IReadOnlyDictionary<string, Start> Starts { get; } = new Dictionary<string, Start>
         {
@@ -74,6 +76,7 @@ namespace Maps.Home
             ["corridor"] = new(new Vector2(Corridor.WorldOffset.X, Corridor.WorldOffset.Z + CorridorLength / 2f - ArrivalDistance), 0f),   // just inside, looking up it
             ["hangarfloor"] = ArrivingBy(Hangar.Room, Hangar.Room.Doors[0]),     // in the hangar, just in from its door, looking at the trees
             ["hangarwindow"] = new(Hangar.WindowStart, 0f),                      // in the hangar, looking out of its window
+            ["houselevel"] = HouseRooms.Start,                                   // in Basic.Levels' house, at the south end of its corridor
         };
 
         // The cottages' plots, both level with the hills where the old one stands - which is as high as the lane out
@@ -85,11 +88,15 @@ namespace Maps.Home
         {
             yield return new Building(Corridor.Name, Corridor) { WallColor = new Color(120, 120, 120), RoofColor = new Color(80, 80, 80) };
             yield return Hangar.Shell();
+            foreach (var building in HouseRooms.Buildings())
+                yield return building;
         }
 
         // The old cottage's front door takes you just inside the corridor's, looking up it; the corridor's takes you
         // back out, a step in front of the cottage's, facing away from it down its garden. The door at the corridor's
-        // far end takes you just inside the hangar's, and the hangar's back to it, looking back down the corridor.
+        // far end takes you just inside the hangar's, and the hangar's back to it, looking back down the corridor. The
+        // next cottage's front door takes you just inside Basic.Levels' house's front door, looking up its corridor, and
+        // that takes you back out in front of the cottage; the house's other doors, into each other (see HouseRooms).
         public IEnumerable<Portal> Portals(Terrain terrain)
         {
             var toCottage = Corridor.Doors[0];
@@ -101,25 +108,14 @@ namespace Maps.Home
             yield return Through(Corridor, toCottage, new Vector3(outside.X, OldCottage.Ground(terrain), outside.Y), OldCottage.Facing);
             yield return Through(Corridor, toHangar, ArrivalBy(Hangar.Room, toCorridor), ArrivingBy(Hangar.Room, toCorridor).Yaw);
             yield return Through(Hangar.Room, toCorridor, ArrivalBy(Corridor, toHangar), ArrivingBy(Corridor, toHangar).Yaw);
-        }
 
-        // Walking into a door in a room, to be taken `to`, facing `yaw`
-        private static Portal Through(RoomSpec room, DoorSpec door, Vector3 to, float yaw)
-        {
-            Vector2 Flat(Vector3 v) => new Vector2(v.X, v.Z);
-            return new Portal(Flat(room.WorldOffset + room.WallPoint(door.WallIndex, door.Offset - RoomSpec.DoorWidth / 2f)),
-                Flat(room.WorldOffset + room.WallPoint(door.WallIndex, door.Offset + RoomSpec.DoorWidth / 2f)), room.WorldOffset.Y, to, yaw);
-        }
-
-        // Where you are when you come into a room by one of its doors: a step in from it, facing into the room
-        private static Vector3 ArrivalBy(RoomSpec room, DoorSpec door) =>
-            room.WorldOffset + room.WallPoint(door.WallIndex, door.Offset) + room.Inward(door.WallIndex) * ArrivalDistance;
-
-        private static Start ArrivingBy(RoomSpec room, DoorSpec door)
-        {
-            var at = ArrivalBy(room, door);
-            var inward = room.Inward(door.WallIndex);
-            return new Start(new Vector2(at.X, at.Z), MathF.Atan2(inward.X, -inward.Z));
+            var house = HouseRooms.Corridor;
+            yield return new Portal(NextDoor.Doorway.A, NextDoor.Doorway.B, NextDoor.Ground(terrain),
+                ArrivalBy(house, HouseRooms.FrontDoor), HouseRooms.Start.Yaw);
+            var outsideNextDoor = NextDoor.OnFront(LaneCottage.DoorAlong, ArrivalDistance);
+            yield return Through(house, HouseRooms.FrontDoor, new Vector3(outsideNextDoor.X, NextDoor.Ground(terrain), outsideNextDoor.Y), NextDoor.Facing);
+            foreach (var portal in HouseRooms.Portals())
+                yield return portal;
         }
 
         // The hangar's trees' trunks and the cottages' walls, to walk into (see BuildingGround)

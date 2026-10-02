@@ -88,10 +88,11 @@ namespace World.Maps.Files
         string View = null);
 
     // Something from the catalogue (see CatalogueItem) built into the world, standing on the ground (or `Above` it),
-    // turned `Turn` degrees: it never moves, and you walk into its box (if the catalogue says it's solid).
+    // turned `Turn` degrees, `Scale` times the catalogue's size (1 if not given: one oak bigger than the next): it never
+    // moves, and you walk into its box (if the catalogue says it's solid), scaled with it.
     public sealed record PropEntry(string Item,
         [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] Vector2 At,
-        float Turn = 0f, float Above = 0f);
+        float Turn = 0f, float Above = 0f, float? Scale = null);
 
     // Something from the catalogue lying about, to push, stack and knock over (see Thing): dropped onto the ground,
     // or onto what's under it from `Above` (1 m up on a 0.8 m crate stacks it). A body's box can only face the four

@@ -289,6 +289,22 @@ namespace World.Buildings
         public Gable? Pitched { get; init; }
         public HatchSpec[] FloorHatches { get; init; } = Array.Empty<HatchSpec>();
 
+        // The same room somewhere else, `by` further on, with its id and the rooms it leads to renamed by `rename`, and any
+        // `moreDoors`: to put a level's rooms into a map that has rooms of its own, which may have the same ids (see
+        // Maps.Home.HouseRooms).
+        public RoomSpec Moved(Vector3 by, Func<string, string> rename, params DoorSpec[] moreDoors) => new RoomSpec
+        {
+            Id = rename(Id), Name = Name, Outline = Outline, Height = Height,
+            Floor = Floor, WallA = WallA, WallB = WallB, Ceiling = Ceiling,
+            WorldOffset = WorldOffset + by, GridSpacing = GridSpacing, Ramps = Ramps,
+            Doors = [.. Array.ConvertAll(Doors, d => d with { TargetRoom = string.IsNullOrEmpty(d.TargetRoom) ? d.TargetRoom : rename(d.TargetRoom) }), .. moreDoors],
+            Props = Props, Cabinets = Cabinets, Screens = Screens,
+            Openings = Array.ConvertAll(Openings, o => o.LeadsOutside ? o : o with { TargetRoom = rename(o.TargetRoom) }),
+            CeilingHatches = Array.ConvertAll(CeilingHatches, h => h with { TargetRoom = rename(h.TargetRoom) }),
+            Pitched = Pitched,
+            FloorHatches = Array.ConvertAll(FloorHatches, h => h with { TargetRoom = rename(h.TargetRoom) }),
+        };
+
         // Every room that can be seen from this one: through an opening, or up or down through a hatch.
         public IEnumerable<string> Neighbours()
         {
@@ -335,6 +351,20 @@ namespace World.Buildings
             if (Pitched is { } gable)
                 return Height + gable.Slope * MathF.Max(0f, gable.HalfSpan(Outline) - gable.FromRidge(local));
             return Height;
+        }
+
+        // The highest its ceiling goes: Height, or higher over a stepped ramp (see CeilingHeightAt), up to the top
+        // of the stairs. (Not under a pitched ceiling, which a roof follows: see Building.ShellSpan.)
+        public float HighestCeiling
+        {
+            get
+            {
+                var highest = Height;
+                foreach (var ramp in Ramps)
+                    if (ramp.Steps > 0)
+                        highest = MathF.Max(highest, Height + MathF.Max(ramp.Start.Y, ramp.End.Y));
+                return highest;
+            }
         }
 
         // Under a pitched ceiling, a walker (a circle of `radius`, `height` tall, feet at local.Y) kept out

@@ -7,9 +7,10 @@ using World.Buildings;
 using World.Rendering;
 using static World.Buildings.Walls;
 
-namespace Basic.Levels
+namespace Maps.Home
 {
-    // The level. On the ground floor, a long corridor with a door halfway along each side: the west door
+    // Basic.Levels' level, which the home map has too, off the map behind a cottage's front door (see HouseRooms):
+    // here so both can have it. On the ground floor, a long corridor with a door halfway along each side: the west door
     // leads to the lounge (a coffee table), the east door to the TV room (a television on a sideboard).
     // A third door, at the corridor's south (back) end, leads to an L-shaped back room, whose notch
     // corner has a door of its own through to a yellow octagonal room, from which a staircase round its

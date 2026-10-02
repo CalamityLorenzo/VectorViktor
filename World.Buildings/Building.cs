@@ -79,7 +79,8 @@ namespace World.Buildings
 
         // How far up and down a room's shell goes: from the ceiling of the room below (or the plinth's foot)
         // to its own ceiling, or, if nothing stands on it, the top of a flat roof or the underside of a
-        // pitched one's ridge.
+        // pitched one's ridge. A flat roof is over the highest of the ceiling, which rises over a stair (see
+        // RoomSpec.HighestCeiling): lower, it'd cut through the room, there for anyone going up the stair to see.
         public (float bottom, float top, bool roofed) ShellSpan(RoomSpec room)
         {
             var below = Below(room);
@@ -88,7 +89,7 @@ namespace World.Buildings
             var bottom = below != null ? below.WorldOffset.Y + below.Height : floor - PlinthDepth;
             var top = above != null ? floor + room.Height
                 : RoofOf(room) is { } gable ? RoofUnderside(room, gable, 0f)
-                : floor + room.Height + RoofThickness;
+                : floor + room.HighestCeiling + RoofThickness;
             return (bottom, top, above == null);
         }
 
@@ -205,6 +206,32 @@ namespace World.Buildings
                 foreach (var spec in room.Cabinets)
                     cabinets.Add(new Cabinet(spec, room.WorldOffset));
             return cabinets;
+        }
+
+        public const float MaxDoorstep = 1f;   // a floor higher than this over the ground outside its doorway gets no ramp
+
+        // A ramp (see Doorstep) up to every doorway out of the building, where its floor's above the ground outside
+        // (`groundAt`, the ground's height at a point), but not so far above it that a ramp's no answer: a door out
+        // onto nothing.
+        public IEnumerable<Doorstep> Doorsteps(Func<Vector2, float> groundAt)
+        {
+            foreach (var room in Rooms)
+                foreach (var opening in room.Openings)
+                {
+                    if (!opening.LeadsOutside)
+                        continue;
+                    var (left, right) = Gap(room, opening);
+                    var inner = WallPoint(room, opening.WallIndex, (left + right) / 2f);
+                    var inward = room.Inward(opening.WallIndex);
+                    var outward = -new Vector2(inward.X, inward.Z);
+                    var outer = inner + outward * WallThickness;
+                    var floor = room.WorldOffset.Y;
+                    var rise = floor - groundAt(outer + outward * Doorstep.MinLength);
+                    if (rise <= 0.01f || rise > MaxDoorstep)
+                        continue;
+                    var length = Doorstep.LengthFor(rise);
+                    yield return new Doorstep(inner, outer, outward, (right - left) / 2f, floor, groundAt(outer + outward * length), length, PlinthColor);
+                }
         }
 
         // A new door (see Door) for every leaf hung in the building's doorways (see OpeningSpec.Door), shut.

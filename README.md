@@ -157,7 +157,7 @@ Basic.Levels [room]
 |---|---|
 | *room id* | Start at that room's first door instead of the end of the corridor. Unknown ids are ignored. |
 
-Room ids (from [Basic.Levels/HouseLevel.cs](Basic.Levels/HouseLevel.cs)):
+Room ids (from [Maps.Home/HouseLevel.cs](Maps.Home/HouseLevel.cs)):
 
 `corridor`, `stairs`, `upper`, `lounge`, `tvroom`, `cola`, `hangar`, `backroom`, `octagon`, `octagonupper`,
 `octagontop`
