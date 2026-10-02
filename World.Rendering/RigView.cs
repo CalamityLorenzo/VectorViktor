@@ -27,6 +27,9 @@ namespace World.Rendering
         private readonly Dictionary<(int node, string part), MeshInstance> _views = new Dictionary<(int, string), MeshInstance>();
         private readonly List<MeshInstance> _stretches = new List<MeshInstance>();
 
+        // On: its parts keep their own colours whatever grade the world's drawn with (see MeshInstance.KeepsColour)
+        public bool KeepsColour { get; set; }
+
         public RigView(Rig rig, IReadOnlyDictionary<string, MeshSource> meshes, MeshSource? cable, GraphicsDevice device, MeshCache cache)
         {
             _rig = rig;
@@ -47,6 +50,7 @@ namespace World.Rendering
                 if (view == null || (shown != null && !shown(node)))
                     continue;
                 view.Transform = _rig.World(i);
+                view.KeepsColour = KeepsColour;
                 batch.Add(view);
             }
 
@@ -62,6 +66,7 @@ namespace World.Rendering
                         _stretches[stretch].SeenWithin = CablesSeenWithin;
                     }
                     _stretches[stretch].Transform = _rig.Span(cable, k);
+                    _stretches[stretch].KeepsColour = KeepsColour;
                     batch.Add(_stretches[stretch]);
                 }
         }

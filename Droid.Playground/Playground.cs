@@ -126,9 +126,9 @@ namespace Droid.Playground
             _player.Body.Gait = Locomotions.GaitOf(locomotion);
             _rig = DroidRig.Build(locomotion);
             _motion = new DroidMotion(locomotion);
-            _session = new Session(_built, _player, _rig, _motion) { Clock = _session?.Clock ?? 0f };
             var palette = DroidMesh.StartingPalette();
             _rigView = new RigView(_rig, DroidMesh.Sources(palette), DroidMesh.CableSource(palette), GraphicsDevice, MeshCache);
+            _session = NewSession();
             if (_experiment != null)
                 Pick(_experimentName);
         }
@@ -151,7 +151,11 @@ namespace Droid.Playground
             _renderer = new WorldRenderer(_built, GraphicsDevice, _worldMeshes);
             _renderer.BuildTerrain(_player);
             // The drone's camera, for the televisions tuned to it (see ScreenSpec): the droid, from wherever it's following
-            _renderer.Feed(WorldRenderer.DroneChannel, () => DroneView(), batch => _rigView.Add(batch));
+            _renderer.Feed(WorldRenderer.DroneChannel, () => DroneView(), batch =>
+            {
+                _rigView.Add(batch);
+                _experiment.Add(_session, batch);
+            });
         }
 
         // The map's files have been saved (by the map studio, say): the map built again from them, with the droid where it
@@ -174,7 +178,7 @@ namespace Droid.Playground
             var (feet, yaw) = (_player.Body.Position, _player.Body.Yaw);
             _player = new Player(feet + Vector3.Up * 0.1f, yaw, _built.Physics);
             _player.Body.Gait = Locomotions.GaitOf(_locomotion);
-            _session = new Session(_built, _player, _rig, _motion) { Clock = _session.Clock };
+            _session = NewSession();
             _renderer.Dispose();
             _worldMeshes.Dispose();
             MakeRenderer();
@@ -182,12 +186,17 @@ namespace Droid.Playground
             _mapStatus = $"Built again from its files at {DateTime.Now:HH:mm:ss}.";
         }
 
+        // The droid in the world as it is now, on the same clock
+        private Session NewSession() =>
+            new Session(_built, _player, _rig, _motion, _rigView, GraphicsDevice, MeshCache) { Clock = _session?.Clock ?? 0f };
+
         // Where a start puts your feet: on the ground, or dropped from above it (to land on a floor up in a building)
         private Vector3 Feet(Start start) =>
             new Vector3(start.At.X, start.Above > 0f ? _built.Terrain.HeightAt(start.At.X, start.At.Y) + start.Above : 0f, start.At.Y);
 
         private void Pick(string name)
         {
+            _experiment?.Stop(_session);
             _experimentName = name;
             _experiment = Experiments.Make(name);
             _experiment.Start(_session);
@@ -385,7 +394,11 @@ namespace Droid.Playground
             // leave it out
             _renderer.DrawFeeds(body.Position, _session.Clock, ColorsOn);
             _renderer.DrawFrom(eye, eye + forward, up, body.Position, _session.Clock, ColorsOn,
-                batch => _rigView.Add(batch, node => camera != CameraMode.Head || node.Part != DroidRig.CameraPart));
+                batch =>
+                {
+                    _rigView.Add(batch, node => camera != CameraMode.Head || node.Part != DroidRig.CameraPart);
+                    _experiment.Add(_session, batch);
+                });
 
             AddOverlays(eye);
             _lines.Draw(GraphicsDevice, _renderer.ViewMatrix, _renderer.Projection);
@@ -542,6 +555,7 @@ namespace Droid.Playground
         {
             if (disposing)
             {
+                _experiment?.Stop(_session);
                 _imgui?.Dispose();
                 _watcher?.Dispose();
                 _lines?.Dispose();

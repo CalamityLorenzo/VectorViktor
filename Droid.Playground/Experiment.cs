@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using MeshRendering;
 using World.Core.Animation;
 using World.Core.Movement;
 
@@ -14,8 +15,10 @@ namespace Droid.Playground
     //   AfterTick  each tick, after the world has moved on
     //   Pose       each frame, after the droid's rig has been posed from its movement: anything more on the rig
     //   Camera     each frame, after the rig's solved: a view to show instead of the harness's own (a cut scene's), or null
+    //   Add        each frame, as the world's gathered to be drawn: anything more of its own to draw
     //   Skip       when K is pressed: jump to the end of whatever it's playing
     //   Panel      each frame: its own Dear ImGui panel, with its live values (sliders straight onto its fields)
+    //   Stop       when another's picked (or it's restarted, or the playground closes): undo whatever it changed
     //
     // Each has a default that does nothing (Drive passes the asking straight on), so an experiment says only what's
     // different. To add one: a class here, and a line in Experiments.All.
@@ -29,8 +32,10 @@ namespace Droid.Playground
         public virtual void AfterTick(Session session, float dt) { }
         public virtual void Pose(Session session, Rig rig) { }
         public virtual (CameraView view, CameraMode mode)? Camera(Session session) => null;
+        public virtual void Add(Session session, MeshBatch batch) { }
         public virtual void Skip(Session session) { }
         public virtual void Panel(Session session) { }
+        public virtual void Stop(Session session) { }
     }
 
     public static class Experiments
@@ -41,6 +46,7 @@ namespace Droid.Playground
             ("drive", () => new Drive()),
             ("segway", () => new Segway()),
             ("fitarm", () => new FitArm()),
+            ("colour", () => new ColourLab()),
         };
 
         public const string Default = "drive";

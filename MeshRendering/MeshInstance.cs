@@ -20,6 +20,9 @@ namespace MeshRendering
         private readonly Vector4[] _colours;   // the palette, as the shader takes it (see PaletteEffect)
         private Vector4[]? _faded;              // and faded to the background, with colours off
         private (Color background, float tint) _fadedFor;
+        private Vector4[][]? _graded;           // and as a grade changes it (see PaletteEffect.Grade)
+        private (IPaletteGrade? grade, int version) _gradedFor;
+        private object? _gradeState;            // the grade's own, for this instance (see IPaletteGrade.Grade)
         private OutlineView? _outlineView;   // the outline for the current view; it changes as the mesh or camera moves
         private DynamicVertexBuffer? _outlineBuffer;   // and as sent to the GPU, sent again only when it's changed
         private int _outlineSent = -1;                 // which of the view's versions that is
@@ -39,6 +42,9 @@ namespace MeshRendering
         // With colours off, its faces this far from the background colour towards their own (0 to 1): the terrain,
         // without the grid that shows its shape when it's the background colour, faintly shaded instead.
         public float ColorsOffTint { get; set; }
+
+        // On: drawn in its own colours whatever grade the world's drawn with (see PaletteEffect.Grade): what colour's made of.
+        public bool KeepsColour { get; set; }
 
         // The state is the source of truth; the world matrix is rebuilt from it, never accumulated.
         public Vector3 Position { get; set; }
@@ -79,6 +85,8 @@ namespace MeshRendering
             if (slot < _colours.Length)
                 _colours[slot] = color.ToVector4();
             _faded = null;
+            _gradedFor = default;
+            _gradeState = null;
         }
 
         // The mesh's bounds, as placed in the world by `world` (still axis-aligned, so a turned mesh's is a
@@ -135,7 +143,24 @@ namespace MeshRendering
                 return;
             var effect = PaletteEffect.For(gd);
             effect.Take(fx);
-            effect.Draw(gd, Mesh.Solids, world, faces is { } background ? Faded(background) : _colours);
+            if (faces is { } background)
+                effect.Draw(gd, Mesh.Solids, world, Faded(background));
+            else if (effect.Grade is { } grade && !KeepsColour)
+                effect.Draw(gd, Mesh.Solids, world, Graded(grade), grade.Zones);
+            else
+                effect.Draw(gd, Mesh.Solids, world, _colours);
+        }
+
+        // Its palette as `grade` changes it, three ways (see IPaletteGrade): worked out again only when the grade changes, or
+        // its own colours do
+        private Vector4[][] Graded(IPaletteGrade grade)
+        {
+            if (_graded != null && _gradedFor == (grade, grade.Version))
+                return _graded;
+            _graded ??= new[] { new Vector4[_colours.Length], new Vector4[_colours.Length], new Vector4[_colours.Length] };
+            grade.Grade(_colours, ref _gradeState, _graded[0], _graded[1], _graded[2]);
+            _gradedFor = (grade, grade.Version);
+            return _graded;
         }
 
         // Its palette faded to `background`, all but ColorsOffTint of the way: worked out again only when either changes

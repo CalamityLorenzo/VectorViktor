@@ -1,20 +1,26 @@
+using MeshRendering;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using World.Core.Animation;
 using World.Core.Characters;
 using World.Maps;
+using World.Rendering;
 
 namespace Droid.Playground
 {
     // What an experiment has to work with: the world, the droid in it (moved as the walker is, drawn as its rig), and
-    // the harness's clock, which stops when it's paused and slows when it's slowed.
+    // the harness's clock, which stops when it's paused and slows when it's slowed; and what to draw anything more with.
     public sealed class Session
     {
-        public Session(BuiltWorld world, Player player, Rig rig, DroidMotion motion)
+        public Session(BuiltWorld world, Player player, Rig rig, DroidMotion motion, RigView view, GraphicsDevice device, MeshCache meshes)
         {
             World = world;
             Player = player;
             Rig = rig;
             Motion = motion;
+            View = view;
+            Device = device;
+            Meshes = meshes;
         }
 
         public BuiltWorld World { get; }
@@ -25,6 +31,11 @@ namespace Droid.Playground
         // How it's drawn: its rig, and how that follows the body about
         public Rig Rig { get; }
         public DroidMotion Motion { get; }
+        public RigView View { get; }
+
+        // For an experiment's own meshes (see Experiment.Add): made with these, they last as long as the playground
+        public GraphicsDevice Device { get; }
+        public MeshCache Meshes { get; }
 
         // Seconds of the world's time so far
         public float Clock { get; internal set; }

@@ -36,7 +36,7 @@ A shader gets two kinds of input:
 
 Open [PaletteEffect.fx](../MeshRendering/Shaders/PaletteEffect.fx). It's written in **HLSL**, DirectX's shader language: C-like, with vector types built in (`float3`, `float4`, `float4x4`).
 
-**The constants** (lines 17 to 23, shortened here):
+**The constants** (near the top, shortened here; the grade's are in [Grading](#grading-draining-the-colour-and-bringing-it-back), below):
 
 ```hlsl
 float4x4 WorldViewProj;     // from the mesh's own space straight to the screen
@@ -48,7 +48,7 @@ float FogStart;             // and FogEnd, and FogOn: 1 fogged, 0 not
 
 `Palette` is the instance's palette, up to 64 colours. A `Color` becomes a `float4` (red, green, blue, alpha, each 0 to 1).
 
-**The vertex data** (line 25):
+**The vertex data:**
 
 ```hlsl
 struct VertexIn
@@ -60,7 +60,7 @@ struct VertexIn
 
 The words after the colons are **semantics**: labels that match the shader's inputs to the parts of each vertex in the buffer. On the C# side, [VertexPositionSlot](../MeshCore.Library/VertexPositionSlot.cs) describes its 16 bytes with a `VertexDeclaration`: bytes 0 to 11 are a `Vector3` labelled `Position`, usage 0; bytes 12 to 15 are a `float` labelled `TextureCoordinate`, usage 0. The labels must match, or the shader reads the wrong bytes. `TEXCOORD` is just a free slot here: the slot number isn't a texture coordinate, but any spare label will do.
 
-**The vertex shader** (line 38):
+**The vertex shader** (shortened: the grade's lines are left out):
 
 ```hlsl
 VertexOut Faces(VertexIn input)
@@ -80,7 +80,7 @@ VertexOut Faces(VertexIn input)
 
 All three corners of a face have the same slot, so when the rasteriser blends the colour across the triangle, it's the same everywhere: flat colour, as the game's look wants.
 
-**The pixel shader** (line 48):
+**The pixel shader** (shortened the same way):
 
 ```hlsl
 float4 Colour(VertexOut input) : COLOR0
@@ -91,26 +91,32 @@ float4 Colour(VertexOut input) : COLOR0
 
 `lerp(a, b, t)` mixes from `a` to `b`: the face's colour, faded into the fog by however much fog there is.
 
-**The technique** (line 53) names the pair of programs and which shader model to compile them for. `vs_4_0_level_9_3` is DirectX 11's compiler aimed at the oldest hardware it supports, so the same shader runs whichever graphics profile a game asks for.
+**The technique** names the pair of programs and which shader model to compile them for. `vs_4_0_level_9_3` is DirectX 11's compiler aimed at the oldest hardware it supports, so the same shader runs whichever graphics profile a game asks for.
 
 ## The C# side
 
 **Every corner gets its slot.** [MeshBuilder](../MeshCore.Library/MeshBuilder.cs#L225) already collected each slot's triangles together. Now `FacesBuffer` writes each corner as a `VertexPositionSlot`, its slot taken from the run it's in. The buffer is 16 bytes a corner instead of 12, and that's the only cost.
 
-**Loading it.** `new Effect(device, bytes)` needs the shader *compiled*. MonoGame's content builder compiles it into an `.xnb` file. The `.xnb` is kept in the repository beside the `.fx`, built into the `MeshRendering` library as an embedded resource, and read back by [CompiledShader](../MeshRendering/PaletteEffect.cs#L65). That's the `.xnb`'s short header, then the compiled effect itself. A build step in [MeshRendering.csproj](../MeshRendering/MeshRendering.csproj#L29) runs the content builder again **whenever the `.fx` is newer than the `.xnb`**, so you edit the shader, build, and it's done. One effect is made per graphics device ([For](../MeshRendering/PaletteEffect.cs#L26)) and shared by every mesh.
+**Loading it.** `new Effect(device, bytes)` needs the shader *compiled*. MonoGame's content builder compiles it into an `.xnb` file. The `.xnb` is kept in the repository beside the `.fx`, built into the `MeshRendering` library as an embedded resource, and read back by [CompiledShader](../MeshRendering/PaletteEffect.cs#L91). That's the `.xnb`'s short header, then the compiled effect itself. A build step in [MeshRendering.csproj](../MeshRendering/MeshRendering.csproj#L29) runs the content builder again **whenever the `.fx` is newer than the `.xnb`**, so you edit the shader, build, and it's done. One effect is made per graphics device ([For](../MeshRendering/PaletteEffect.cs#L29)) and shared by every mesh.
 
-**Drawing with it.** In [MeshInstance.DrawSolids](../MeshRendering/MeshInstance.cs#L131):
+**Drawing with it.** In [MeshInstance.DrawSolids](../MeshRendering/MeshInstance.cs#L139):
 
 ```csharp
 var effect = PaletteEffect.For(gd);
 effect.Take(fx);   // the BasicEffect's view, projection and fog
-effect.Draw(gd, Mesh.Solids, world, faces is { } background ? Faded(background) : _colours);
+if (faces is { } background)
+    effect.Draw(gd, Mesh.Solids, world, Faded(background));          // colours off
+else if (effect.Grade is { } grade && !KeepsColour)
+    effect.Draw(gd, Mesh.Solids, world, Graded(grade), grade.Zones); // see Grading, below
+else
+    effect.Draw(gd, Mesh.Solids, world, _colours);
 ```
 
-and in [Draw](../MeshRendering/PaletteEffect.cs#L53):
+and in [Send](../MeshRendering/PaletteEffect.cs#L78), which both of `PaletteEffect`'s `Draw`s end in:
 
 ```csharp
 var worldView = world * _view;
+_world.SetValue(world);
 _worldView.SetValue(worldView);
 _worldViewProj.SetValue(worldView * _projection);
 _palette.SetValue(palette);
@@ -123,6 +129,22 @@ device.DrawPrimitives(PrimitiveType.TriangleList, 0, faces.VertexCount / 3);
 - **`Take` copies the view, projection and fog from `BasicEffect`**, which everything else is still drawn with. So none of the code that calls `MeshBatch` or `MeshInstance` had to change.
 - **The palette is kept ready as `Vector4`s** (`_colours`), changed only when `SetColor` changes a colour. With the colours off (C), it's a faded copy (`Faded`), worked out again only when the background or the tint changes.
 - **Edges and outlines are still drawn with `BasicEffect`**: they're all one colour (white), so they were always one draw each.
+
+## Grading: draining the colour and bringing it back
+
+The game's world has lost its colour, and bringing it back is the game (see [GameDesign.md](../GameDesign.md) 3.3). Because every colour now goes through the shader as a palette, the whole world's colour can be changed as it's drawn without touching a mesh. That's what [IPaletteGrade](../MeshRendering/IPaletteGrade.cs) is for, and the playground's colour lab ([ColourLab](../Droid.Playground/Experiments/ColourLab.cs), `Droid.Playground colour`) uses it.
+
+- **Set `PaletteEffect.Grade`**, and every instance's palette is graded before it's drawn: each colour sorted by its hue ([Hues](../World.Core/Colour/Hues.cs)) and drawn as much as that hue is back ([Drained](../World.Core/Colour/Drained.cs)). An instance with `KeepsColour` (a drop of paint, the droid) is left alone.
+- **Three palettes, not one.** The grade gives each instance's palette three ways: as the *world* shows it, as a *place* shows it, and behind a *front* spreading out from the place's centre. The shader gets all three (`Palette`, `PlacePalette`, `FrontPalette`), passes all three colours from the vertex shader to the pixel shader, and also passes where the pixel is in the world (`mul(input.Position, World).xz`). The pixel shader then picks by distance from the centre:
+
+```hlsl
+float off = distance(input.Ground, Zones.xz);                       // how far across the ground
+float3 place = off < Front.x ? input.Behind.rgb : input.Place.rgb;   // inside the front, the front's
+colour = lerp(colour, place, saturate((Zones.w - off) / Front.y));    // the place's, faded at its edge
+```
+
+  So a wave of colour sweeping out from a barrel is smooth across a face, even across one huge terrain face, while the CPU only changes one number a frame (the front's radius).
+- **Graded only when something changes.** Each instance keeps its three graded palettes, and grades again only when the grade's `Version` changes or its own colours do. A still world costs nothing; a fade costs a palette a mesh a frame while it runs.
 
 ## What it bought
 
@@ -140,8 +162,8 @@ device.DrawPrimitives(PrimitiveType.TriangleList, 0, faces.VertexCount / 3);
 Add a **flash** to the shader: a colour every face of an instance is mixed towards, and how far. A droid part being hit could flash red, or a picked thing in the map studio could glow. Then make the playground flash the droid while H is held.
 
 1. **The shader.** In [PaletteEffect.fx](../MeshRendering/Shaders/PaletteEffect.fx), add a constant `float4 Flash;` (rgb the colour, a how far, 0 to 1). In the pixel shader, mix the face's colour towards `Flash.rgb` by `Flash.a` with `lerp`, *before* the fog: a far droid should still fade into the fog.
-2. **The effect.** In [PaletteEffect.cs](../MeshRendering/PaletteEffect.cs), find the new parameter (`p["Flash"]`) beside the others, and give `Draw` a `Vector4 flash = default` to `SetValue` before `Apply`.
-3. **The instance.** Give [MeshInstance](../MeshRendering/MeshInstance.cs) a `public Vector4 Flash { get; set; }`, and pass it to `effect.Draw` in `DrawSolids`.
+2. **The effect.** In [PaletteEffect.cs](../MeshRendering/PaletteEffect.cs), find the new parameter (`p["Flash"]`) beside the others. Give `Send` a `Vector4 flash` to `SetValue` before `Apply`, and both `Draw`s a `Vector4 flash = default` to pass on to it.
+3. **The instance.** Give [MeshInstance](../MeshRendering/MeshInstance.cs) a `public Vector4 Flash { get; set; }`, and pass it to each `effect.Draw` in `DrawSolids`.
 4. **The rig.** Give [RigView](../World.Rendering/RigView.cs) a `Flash` too, and in `Add` set every part's `view.Flash` from it, just before `batch.Add(view)`.
 5. **The key.** In [Playground.cs](../Droid.Playground/Playground.cs) `UpdateWorld`, beside the other keys: while H is down, set `_rigView.Flash` to red with an amount that pulses, say `0.4f + 0.3f * MathF.Sin(_session.Clock * 20f)`; otherwise `Vector4.Zero`.
 
@@ -156,6 +178,7 @@ Add a **flash** to the shader: a colour every face of an instance is mixed towar
 3. The slot is a `float` in the vertex but an index into an array in the shader. What could go wrong without the `+ 0.5`, and why only sometimes?
 4. Why does it matter that the faces fog exactly as `BasicEffect` fogs?
 5. The calls fell by two thirds but the time by seven eighths. What does that say about the calls that went, and how would you find out why?
+6. The grade's wave picks its palette per *pixel*, in the shader. Why not just grade each instance by where it stands, on the CPU, which would need no shader change at all?
 
 <details>
 <summary>Answers</summary>
@@ -165,6 +188,7 @@ Add a **flash** to the shader: a colour every face of an instance is mixed towar
 3. A whole number stored as a `float` and then interpolated, or worked on by the graphics card's own arithmetic, can arrive as 2.99999 instead of 3, and turning that into an `int` cuts it down to 2: the wrong colour. Usually it arrives exact, so the bug would show only on some hardware or some faces. Adding a half and cutting down always gives the nearest whole number.
 4. The edges and outlines are drawn with `BasicEffect` over the faces. If the faces faded faster or slower than their own edges, far things would show white outlines round faded faces, or the other way round.
 5. They cost more than the average call that's left. A likely reason: every one of them came with a `pass.Apply()` that set up and sent `BasicEffect`'s settings, and the ones left include many cheap edge draws. To find out, time the two kinds separately: the benchmark's `turn` and `still` modes, with a `Stopwatch` round each kind of draw, is how this project's other costs were found (see ArchitectureReviewPlan.md 5.3).
+6. An instance can be huge: a terrain chunk, a whole floor. Graded by where it stands, it would change all at once as the front passed its middle, so the wave would jump across the ground a chunk at a time. Per pixel, the front crosses a face smoothly, and it costs only a distance and a comparison per pixel. The CPU still does the expensive part (sorting colours by hue) once per palette, not once per pixel.
 
 </details>
 

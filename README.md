@@ -49,6 +49,7 @@ All optional, in any order.
 | `drive` | Experiment: plain driving of the droid. **Default.** |
 | `segway` | Experiment: the segway droid. |
 | `fitarm` | Experiment: the cut scene of the droid trying on a new arm. |
+| `colour` | Experiment: the colour lab. The world drained of colour; pick up drops and pour them into barrels to bring it back, everywhere bit by bit or a place all at once, at once, fading or in a wave (see [GameDesign.md](GameDesign.md) question 1). |
 | `home` / `coast` / `pass` | Which map: any map file in [Maps/](Maps) by its name, or a `.map.json` file by its path. Default `home`. Built again whenever its files are saved. |
 | *start name* | Where to start on that map (see [Maps and starts](#maps-and-starts)). Unknown names fall back to the map's default. |
 | `segway` / `tracks` / `tri-star` | What the droid goes about on (see [Locomotion](World.Core/Characters/Locomotion.cs)): its Segway wheels, tank tracks, or tri-star wheels that climb stairs. Default `segway`. (`segway` alone is the experiment; the wheels are the default anyway.) |
@@ -62,6 +63,7 @@ registered in `Experiments.All` in [Droid.Playground/Experiment.cs](Droid.Playgr
 Droid.Playground segway coast clifftop
 Droid.Playground pass trailhead
 Droid.Playground workshop tracks
+Droid.Playground colour workshop
 ```
 
 ### Controls

@@ -16,6 +16,9 @@ namespace MeshRendering
     // The shader is compiled by MonoGame's content builder into Shaders/PaletteEffect.xnb, which is kept in the
     // repository and built into this library. MeshRendering.csproj compiles it again whenever the .fx is newer, if the
     // content builder's there (any game here restores it).
+    //
+    // Given a Grade, every instance's colours are changed by it as they're drawn (colour drained out of the world and
+    // coming back: see IPaletteGrade), unless the instance keeps its own (MeshInstance.KeepsColour).
     public sealed class PaletteEffect
     {
         public const int MaxColours = 64;   // as many as the shader has room for (MAX_COLOURS)
@@ -28,6 +31,7 @@ namespace MeshRendering
         private readonly Effect _effect;
         private readonly EffectPass _pass;
         private readonly EffectParameter _worldViewProj, _worldView, _palette, _fogColor, _fogStart, _fogEnd, _fogOn;
+        private readonly EffectParameter _world, _placePalette, _frontPalette, _zones, _front;
         private Matrix _view, _projection;
 
         private PaletteEffect(GraphicsDevice device)
@@ -37,7 +41,11 @@ namespace MeshRendering
             var p = _effect.Parameters;
             (_worldViewProj, _worldView, _palette) = (p["WorldViewProj"], p["WorldView"], p["Palette"]);
             (_fogColor, _fogStart, _fogEnd, _fogOn) = (p["FogColor"], p["FogStart"], p["FogEnd"], p["FogOn"]);
+            (_world, _placePalette, _frontPalette, _zones, _front) = (p["World"], p["PlacePalette"], p["FrontPalette"], p["Zones"], p["Front"]);
         }
+
+        // What every instance's colours are changed by as they're drawn, or nothing (see IPaletteGrade).
+        public IPaletteGrade? Grade { get; set; }
 
         // The view, projection and fog to draw with: the BasicEffect's, which the rest of the scene is drawn with.
         public void Take(BasicEffect fx)
@@ -52,7 +60,25 @@ namespace MeshRendering
         // The faces in `faces` (VertexPositionSlot), placed by `world`, each in its slot's colour from `palette`.
         public void Draw(GraphicsDevice device, VertexBuffer faces, Matrix world, Vector4[] palette)
         {
+            _front.SetValue(Vector4.Zero);   // ungraded
+            Send(device, faces, world, palette);
+        }
+
+        // Graded (see IPaletteGrade): each in its slot's colour from `graded`, which is the palette three times over (as the
+        // world shows it, as the place does, and behind the front), whichever `zones` says shows where it is.
+        public void Draw(GraphicsDevice device, VertexBuffer faces, Matrix world, Vector4[][] graded, GradeZones zones)
+        {
+            _placePalette.SetValue(graded[1]);
+            _frontPalette.SetValue(graded[2]);
+            _zones.SetValue(new Vector4(zones.Centre, zones.Place));
+            _front.SetValue(new Vector4(zones.Front, MathF.Max(zones.PlaceEdge, 1e-3f), zones.Rim, 1f));
+            Send(device, faces, world, graded[0]);
+        }
+
+        private void Send(GraphicsDevice device, VertexBuffer faces, Matrix world, Vector4[] palette)
+        {
             var worldView = world * _view;
+            _world.SetValue(world);
             _worldView.SetValue(worldView);
             _worldViewProj.SetValue(worldView * _projection);
             _palette.SetValue(palette);
