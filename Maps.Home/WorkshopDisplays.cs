@@ -42,7 +42,7 @@ namespace Maps.Home
             var meshes = DroidMesh.Sources(palette);
             var cable = DroidMesh.CableSource(palette);
             IEnumerable<ScenePart> Show(Locomotion locomotion, Vector2 at, Action<Rig, float> pose) =>
-                RigScene.Parts(DroidRig.Build(locomotion), meshes, pose, Matrix.CreateTranslation(at.X, 0f, at.Y) * yard, cable);
+                RigScene.Parts(DroidRig.Build(locomotion), meshes, pose, Matrix.CreateTranslation(at.X, 0f, at.Y) * yard, cable, DroidMesh.Variants);
             return Show(Locomotion.Segway, SegwayAt, Rocking)
                 .Concat(Show(Locomotion.Tracks, TankAt, Turning))
                 .Concat(Show(Locomotion.TriStar, TriStarAt, Climbing));

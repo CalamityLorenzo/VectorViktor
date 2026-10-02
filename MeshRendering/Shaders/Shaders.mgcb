@@ -1,0 +1,13 @@
+# The shaders MeshRendering draws with, compiled by MonoGame's content builder (see MeshRendering.csproj, which runs it
+# whenever a shader is newer than its compiled copy). Uncompressed: PaletteEffect reads the .xnb itself.
+
+/platform:Windows
+/config:
+/profile:Reach
+/compress:False
+
+#begin PaletteEffect.fx
+/importer:EffectImporter
+/processor:EffectProcessor
+/processorParam:DebugMode=Auto
+/build:PaletteEffect.fx

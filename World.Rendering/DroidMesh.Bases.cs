@@ -2,6 +2,7 @@ using MeshCore.Library;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
+using System.Collections.Generic;
 using World.Core.Characters;
 
 namespace World.Rendering
@@ -70,16 +71,45 @@ namespace World.Rendering
             return mesh.Build(device);
         }
 
-        // One shoe of a track, about its middle, its grip facing -Y: a steel plate as wide as the track, a line across its
-        // grip for the bar on it. Two dozen of them go round each track, so they're kept plain: any more edges, and at low
-        // resolution a track's all lines.
+        // One shoe of a track, about its middle, its grip facing -Y (a spare, on the workshop's bench).
         public static MeshData BuildShoe(GraphicsDevice device)
         {
             var mesh = new MeshBuilder();
-            const float t = DroidBases.ShoeThickness, w = DroidBases.TrackWidth / 2f;
-            mesh.AddBox(Tread, new Vector3(0f, -t / 2f, 0f), DroidBases.ShoeLength, DroidBases.TrackWidth, t, sealBottom: true);
-            mesh.AddLine(new Vector3(-w, -t / 2f, 0f), new Vector3(w, -t / 2f, 0f));
+            AddShoe(mesh, Matrix.Identity);
             return mesh.Build(device);
+        }
+
+        // A track's shoes, all the way round it, run on `frame` TrackFrames-ths of the way from one shoe's place to the
+        // next's (see DroidBases.TrackPart), about the track's own joint.
+        public static MeshData BuildTrack(GraphicsDevice device, int frame)
+        {
+            var mesh = new MeshBuilder();
+            var rolled = frame * DroidBases.ShoePitch / DroidBases.TrackFrames;
+            for (var k = 0; k < DroidBases.Shoes; k++)
+                AddShoe(mesh, DroidBases.ShoeAt(k, rolled).Matrix);
+            return mesh.Build(device);
+        }
+
+        // A shoe placed by `place`: a steel plate as wide as the track, a line across its grip for the bar on it. Two dozen
+        // of them go round each track, so they're kept plain: any more edges, and at low resolution a track's all lines.
+        private static void AddShoe(MeshBuilder mesh, Matrix place)
+        {
+            const float t = DroidBases.ShoeThickness, w = DroidBases.TrackWidth / 2f;
+            AddBlock(mesh, Tread + MeshBuilder.Side, Tread + MeshBuilder.Dim, Tread + MeshBuilder.Top, place,
+                new Vector3(DroidBases.TrackWidth, t, DroidBases.ShoeLength));
+            mesh.AddLine(Vector3.Transform(new Vector3(-w, -t / 2f, 0f), place), Vector3.Transform(new Vector3(w, -t / 2f, 0f), place));
+        }
+
+        // Every part a rig's node with `part` might be changed to as it goes, `part` among them: a track's shoes, any of
+        // their frames; anything else, only itself. For drawing a rig whose parts are fixed when it's made (see RigScene).
+        public static IEnumerable<string> Variants(string part)
+        {
+            if (!part.StartsWith("tank-track:", StringComparison.Ordinal))
+                return new[] { part };
+            var frames = new string[DroidBases.TrackFrames];
+            for (var f = 0; f < frames.Length; f++)
+                frames[f] = DroidBases.TrackPart(f);
+            return frames;
         }
 
         // The sprocket that drives a track, behind, about its axle (turning about X): a steel wheel with teeth round it.
@@ -134,11 +164,47 @@ namespace World.Rendering
             return mesh.Build(device);
         }
 
-        // One of a tri-star's wheels, about its axle: a small tyre, spoked, on a stub of axle through it back to the spider.
+        // One of a tri-star's wheels, about its axle: a fat tyre with a small spoked hub cap on each side, on a stub of
+        // axle back to the spider.
+        //
+        // The tyre's a balloon: its sides bulge out to the hub and round over into the tread, so it looks soft and
+        // blown up. Its rounded parts are outlined as seen, as the head's are; it and the caps are each convex, which
+        // outlining is far quicker for (see OutlineData).
         public static MeshData BuildSpiderWheel(GraphicsDevice device)
         {
             var mesh = new MeshBuilder();
-            AddDisc(mesh, DroidBases.SpiderWheelRadius, DroidBases.SpiderWheelWidth / 2f, Tyre, Hub, spokes: 3);
+            const float r = DroidBases.SpiderWheelRadius, h = DroidBases.SpiderWheelWidth / 2f;
+            const float hub = r * 0.4f, cap = 0.004f;   // the hub caps' radius, and how far they stand out of the tyre
+            var axle = Matrix.CreateRotationZ(-MathHelper.PiOver2);   // the lathe's axis, y, onto x
+            Lathe(mesh, axle, Vector3.Zero, 16, new (float, float, bool)[]
+            {
+                (0f, -h, false),
+                (hub, -h, false),
+                (r * 0.62f, -h * 0.94f, false),   // the side bulging, then rounding over
+                (r * 0.86f, -h * 0.76f, false),
+                (r, -h * 0.32f, false),           // into the tread
+                (r, h * 0.32f, false),
+                (r * 0.86f, h * 0.76f, false),
+                (r * 0.62f, h * 0.94f, false),
+                (hub, h, false),
+                (0f, h, false),
+            }, new[] { Tyre, Tyre, Tyre, Tyre, Tyre, Tyre, Tyre, Tyre, Tyre });
+            foreach (var side in new[] { -1f, 1f })
+            {
+                Lathe(mesh, axle, new Vector3(side * (h + cap / 2f), 0f, 0f), 10, new (float, float, bool)[]
+                {
+                    (0f, side * (h - 0.002f), false),
+                    (hub, side * (h - 0.002f), false),
+                    (hub, side * (h + cap), true),
+                    (0f, side * (h + cap), false),
+                }, new[] { Hub, Hub, Hub }, outlined: false);
+                for (var k = 0; k < 3; k++)
+                {
+                    var angle = k * MathHelper.TwoPi / 3f;
+                    var face = side * (h + cap);
+                    mesh.AddLine(new Vector3(face, 0f, 0f), new Vector3(face, MathF.Cos(angle) * hub * 0.85f, MathF.Sin(angle) * hub * 0.85f));   // spokes across the hub, to see it turn
+                }
+            }
             var stub = DroidBases.SpiderWheelOut + 0.004f;
             mesh.AddTube(new Vector3(-stub, 0f, 0f), new Vector3(stub, 0f, 0f), 0.008f, 0.008f, 6, Metal + MeshBuilder.Dim, ringEdges: true);
             return mesh.Build(device);

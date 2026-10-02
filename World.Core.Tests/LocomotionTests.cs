@@ -109,6 +109,51 @@ namespace World.Core.Tests
             Assert.Equal(getsUp, droid.Position.Y > 1f);
         }
 
+        // ---- Pushing
+
+        // Each pushes harder than the one before (Segway, tri-star, tracks), so each shifts the workshop's crate for it and
+        // the lighter ones, and not the heavier
+        public static TheoryData<Locomotion, int> BasesAndCrates()
+        {
+            var pairs = new TheoryData<Locomotion, int>();
+            foreach (var locomotion in Locomotions.All)
+                for (var k = 0; k < global::Maps.Home.Workshop.Crates.Length; k++)
+                    pairs.Add(locomotion, k);
+            return pairs;
+        }
+
+        [Theory]
+        [MemberData(nameof(BasesAndCrates))]
+        public void EachShiftsTheCratesNoHeavierThanItsOwn(Locomotion locomotion, int crate)
+        {
+            var (mass, _, size) = global::Maps.Home.Workshop.Crates[crate];
+            var world = new Physics.PhysicsWorld(Grounds.Flat());
+            var box = world.Add(new Physics.Body("crate", new Vector3(size), mass, Vector3.Zero));
+            var droid = new Player(new Vector3(-2f, 0f, 0f), Grounds.East, world);
+            droid.Body.Gait = Locomotions.GaitOf(locomotion);
+            for (var t = 0; t < 4f / Grounds.Tick; t++)
+            {
+                droid.Step(Grounds.Forward(), Grounds.Tick, world);
+                world.Step(Grounds.Tick);
+            }
+            var shifts = Locomotions.IndexOf(locomotion) >= crate;
+            if (shifts)
+                Assert.True(box.Position.X > 0.3f, $"only pushed it {box.Position.X} m");
+            else
+                Assert.True(MathF.Abs(box.Position.X) < 0.01f, $"pushed it {box.Position.X} m");
+        }
+
+        [Fact]
+        public void EachIsHeavierAndPushesHarderThanTheOneBefore()
+        {
+            for (var k = 1; k < Locomotions.All.Count; k++)
+            {
+                var (weaker, stronger) = (Locomotions.GaitOf(Locomotions.All[k - 1]), Locomotions.GaitOf(Locomotions.All[k]));
+                Assert.True(stronger.Mass > weaker.Mass && stronger.PushForce > weaker.PushForce && stronger.PushPower > weaker.PushPower,
+                    $"{stronger.Name} isn't stronger than {weaker.Name}");
+            }
+        }
+
         // ---- The rigs
 
         [Theory]

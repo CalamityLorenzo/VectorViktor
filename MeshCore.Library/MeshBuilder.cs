@@ -217,7 +217,22 @@ namespace MeshCore.Library
             var outline = _outlineTriangles.Count > 0 ? new OutlineData(_outlineTriangles) : null;
             if (device == null)
                 return MeshData.Headless(solids.ToArray(), ranges.ToArray(), _edges.ToArray(), Bounds(solids), outline, footprint);
-            return new MeshData(ToBuffer(device, solids), ranges.ToArray(), ToBuffer(device, _edges), Bounds(solids), outline, footprint);
+            return new MeshData(FacesBuffer(device, solids, ranges), ranges.ToArray(), ToBuffer(device, _edges), Bounds(solids), outline, footprint);
+        }
+
+        // The faces, each corner with its face's colour slot (see VertexPositionSlot), so they're drawn in one go. Null if
+        // there are none.
+        private static VertexBuffer? FacesBuffer(GraphicsDevice device, List<VertexPosition> solids, List<DrawRange> ranges)
+        {
+            if (solids.Count == 0)
+                return null;
+            var vertices = new VertexPositionSlot[solids.Count];
+            foreach (var range in ranges)
+                for (var i = range.Start; i < range.Start + range.Primitives * 3; i++)
+                    vertices[i] = new VertexPositionSlot(solids[i].Position, range.ColorSlot);
+            var buffer = new VertexBuffer(device, typeof(VertexPositionSlot), vertices.Length, BufferUsage.WriteOnly);
+            buffer.SetData(vertices);
+            return buffer;
         }
 
         // Round everything added, faces and edges (the outline's triangles are faces too).

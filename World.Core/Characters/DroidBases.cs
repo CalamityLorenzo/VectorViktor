@@ -16,7 +16,7 @@ namespace World.Core.Characters
     // and two road wheels under it; the axle on a turntable on the hull, which turns the whole droid above it
     //
     //   root ─ chassis ─┬ track-left ─┬ track-left-sprocket, track-left-idler, track-left-road-0, -1
-    //                   │             └ track-left-shoe-0 ... -23        run round the track with RunTracks
+    //                   │             └ track-left-shoes                 run round the track with RunTracks
     //                   ├ track-right ...
     //                   └ turret ─ axle                                    turned with Turret
     //
@@ -24,6 +24,11 @@ namespace World.Core.Characters
     //
     //   root ─ axle ─┬ spider-left ─ spider-left-wheel-0, -1, -2         tipped over with Clusters
     //                └ spider-right ...
+    //
+    // A track's shoes are one part, not one each: two dozen apiece would be four dozen meshes to draw, and each mesh drawn
+    // costs as much again whatever its size. They're evenly spaced, so run on by one shoe's length a track looks just as
+    // it did; so its shoes are drawn as one mesh of the whole loop, baked at TrackFrames points through one shoe's length
+    // of running, and running it picks which (see TrackPart), as the bird's flapping is baked (see MeshProps' BirdMesh).
     //
     // The tracks and spiders are the same either side, so the meshes are too; nothing's mirrored. Facing +Z, its left is +X.
     public static class DroidBases
@@ -42,6 +47,7 @@ namespace World.Core.Characters
         public const float TrackGauge = 0.66f, TrackWidth = 0.16f, TrackSpan = 0.62f, EndWheelRadius = 0.12f;
         public const float ShoeThickness = 0.024f, ShoeLength = 0.07f;
         public const int Shoes = 24;
+        public const int TrackFrames = 16;   // a track's shoes baked this many times through one shoe's length of running
         public const float RoadWheelRadius = 0.09f, RoadWheelAt = 0.15f;   // two, RoadWheelAt either side of the middle
 
         // The hull between the tracks, and the turntable on it; the axle (the hub the broom stands in) on that
@@ -64,9 +70,10 @@ namespace World.Core.Characters
         // ---- Tri-star
 
         // Each spider's arms SpiderArm from its middle to a wheel's, the wheels SpiderWheelRadius round and SpiderWheelWidth
-        // wide, standing SpiderWheelOut outside it. The spiders are DroidRig.Track apart, as the Segway's wheels are,
+        // wide (fat, soft tyres, a hand's breadth clear of each other), standing SpiderWheelOut outside it, clear of the
+        // spider's arms. The spiders are DroidRig.Track apart, as the Segway's wheels are,
         // on the same axle.
-        public const float SpiderArm = 0.13f, SpiderWheelRadius = 0.075f, SpiderWheelWidth = 0.04f, SpiderWheelOut = 0.03f;
+        public const float SpiderArm = 0.13f, SpiderWheelRadius = 0.09f, SpiderWheelWidth = 0.06f, SpiderWheelOut = 0.045f;
         public const float ClusterStep = MathHelper.TwoPi / 3f;   // a spider's turn from one pair of wheels down to the next
 
         // ---- Any
@@ -97,8 +104,7 @@ namespace World.Core.Characters
                         for (var k = 0; k < 2; k++)
                             rig.Add($"{track}-road-{k}", track, Pose.At(new Vector3(0f, ShoeThickness + RoadWheelRadius, (k * 2 - 1) * RoadWheelAt)),
                                 RoadWheelPart);
-                        for (var k = 0; k < Shoes; k++)
-                            rig.Add($"{track}-shoe-{k}", track, ShoeAt(k, 0f), ShoePart);
+                        rig.Add(track + "-shoes", track, Pose.Identity, TrackPart(0));
                     }
                     rig.Add(Turret, Chassis, Pose.At(new Vector3(0f, HullTop, 0f)), TurntablePart);
                     rig.Add(DroidRig.Axle, Turret, Pose.At(new Vector3(0f, TurntableHeight + HubDepth, 0f)), HubPart);
@@ -131,6 +137,20 @@ namespace World.Core.Characters
         {
             var angle = k * ClusterStep;
             return new Vector3(0f, SpiderArm * MathF.Cos(angle), SpiderArm * MathF.Sin(angle));
+        }
+
+        // The spacing of the shoes round a track
+        public static float ShoePitch => PathLength / Shoes;
+
+        // A track's shoes, run round `frame` TrackFrames-ths of the way from one shoe's place to the next's: a mesh of them all
+        public static string TrackPart(int frame) => $"tank-track:{frame}";
+
+        // Which of those a track run on `rolled` metres looks like
+        public static int TrackFrame(float rolled)
+        {
+            var into = rolled / ShoePitch;
+            var frame = (int)MathF.Floor((into - MathF.Floor(into)) * TrackFrames);
+            return Math.Clamp(frame, 0, TrackFrames - 1);
         }
 
         // Where shoe `k` is on its track, the track having run `rolled` metres (forward is more): its middle on the path,
@@ -168,8 +188,7 @@ namespace World.Core.Characters
         {
             foreach (var (track, rolled) in new[] { (TrackLeft, left), (TrackRight, right) })
             {
-                for (var k = 0; k < Shoes; k++)
-                    rig[$"{track}-shoe-{k}"].Pose = ShoeAt(k, rolled);
+                rig[track + "-shoes"].Part = TrackPart(TrackFrame(rolled));
                 var ends = Pose.Turn(Vector3.UnitX, rolled / EndWheelRadius);
                 rig.Change(track + "-sprocket", p => p with { Rotation = ends });
                 rig.Change(track + "-idler", p => p with { Rotation = ends });

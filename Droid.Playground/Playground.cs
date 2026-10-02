@@ -110,7 +110,7 @@ namespace Droid.Playground
             if (_reopen != null && _map.Files.Count > 0)
                 _watcher = new MapWatcher(_map.Files);
 
-            // A screenshot's keys (see RetroGame): d drone view, f free camera, o every overlay
+            // A screenshot's keys (see RetroGame): d drone view, f free camera, o every overlay; w forward, r faster, t turning right
             if (Shot is { } shot)
             {
                 _camera = shot.Keys.Contains('f') ? CameraMode.Free : shot.Keys.Contains('d') ? CameraMode.Drone : CameraMode.Head;
@@ -257,6 +257,8 @@ namespace Droid.Playground
                 asked = WithPad(asked, pad);
             if (Shot is { } shot && shot.Keys.Contains('w'))
                 asked = new MoveInput(new Vector2(0f, 1f), Run: shot.Keys.Contains('r'));
+            if (Shot is { } turning && turning.Keys.Contains('t'))
+                asked = asked with { Turn = 1f };
 
             if (_paused)
             {
@@ -533,7 +535,8 @@ namespace Droid.Playground
 
         protected override void WriteShotReport(string path) =>
             System.IO.File.WriteAllText(path, $"experiment {_experimentName}\nbase {Locomotions.NameOf(_locomotion)}\ncamera {_camera}\nfeet {_player.Body.Position}\n" +
-                $"speed {_motion.Speed:F2}\nlean {MathHelper.ToDegrees(_motion.Lean):F1} deg\nclock {_session.Clock:F2}\n");
+                $"speed {_motion.Speed:F2}\nlean {MathHelper.ToDegrees(_motion.Lean):F1} deg\nclock {_session.Clock:F2}\n" +
+                $"frame {_frameSeconds * 1000f:F1} ms, {_renderer.Batch.Drawn} meshes, {_renderer.Batch.DrawCalls} draw calls\n");
 
         protected override void Dispose(bool disposing)
         {

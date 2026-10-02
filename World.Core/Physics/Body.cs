@@ -23,6 +23,10 @@ namespace World.Core.Physics
         public bool Resting { get; internal set; }
         public Body? Support { get; internal set; }
 
+        // Gone over the edge of a cliff onto its face: it slides down it, rather than tipping again, until it's on ground it
+        // can stand on (see PhysicsWorld.Settle)
+        internal bool OffEdge { get; set; }
+
         // This tick's pushes, cleared once they've been applied, and how high up them they came on average
         internal Vector3 Force;
         private float _forceMoment, _forceTotal;

@@ -85,10 +85,17 @@ namespace World.Maps
             foreach (var thing in world.Things)
                 _things.Add((thing.Body, cache.CreateInstance(device, thing.Mesh), thing.Turn));
             foreach (var part in world.Moving)
-                _moving.Add((part, cache.CreateInstance(device, part.Mesh)));
+                _moving.Add((part, Instance(device, cache, part)));
             foreach (var window in world.Windows)
-                _windows.Add((window, window.Beyond.Select(part => (part, cache.CreateInstance(device, part.Mesh))).ToArray(), new MeshBatch()));
+                _windows.Add((window, window.Beyond.Select(part => (part, Instance(device, cache, part))).ToArray(), new MeshBatch()));
             _portals = new WindowPortals(device);
+        }
+
+        private static MeshInstance Instance(GraphicsDevice device, MeshCache cache, ScenePart part)
+        {
+            var view = cache.CreateInstance(device, part.Mesh);
+            view.SeenWithin = part.SeenWithin;
+            return view;
         }
 
         // Builds the terrain that's come within reach of the camera (all of it at once, if `all`), and of where it'd be

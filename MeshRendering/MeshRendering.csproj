@@ -12,4 +12,22 @@
     <ProjectReference Include="..\MeshCore.Library\MeshCore.Library.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Meshes.Tests" />
+  </ItemGroup>
+
+  <!-- The palette shader (see PaletteEffect.cs): compiled by MonoGame's content builder into the .xnb beside it, which is
+       kept in the repository and built into this library. Compiled again whenever the .fx is newer, if the content
+       builder's been restored (by any of the games); the version is MonoGame's, in Directory.Packages.props. -->
+  <PropertyGroup>
+    <Mgcb>$(NuGetPackageRoot)dotnet-mgcb/3.8.5.1/tools/net8.0/any/mgcb.dll</Mgcb>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Shaders\PaletteEffect.xnb" LogicalName="MeshRendering.Shaders.PaletteEffect.xnb" />
+    <None Include="Shaders\PaletteEffect.fx;Shaders\Shaders.mgcb" />
+  </ItemGroup>
+  <Target Name="CompileShaders" BeforeTargets="BeforeBuild" Inputs="Shaders\PaletteEffect.fx" Outputs="Shaders\PaletteEffect.xnb" Condition="Exists('$(Mgcb)')">
+    <Exec Command="dotnet &quot;$(Mgcb)&quot; /@:Shaders.mgcb /outputDir:. /intermediateDir:&quot;$(MSBuildProjectDirectory)\obj\Shaders&quot;" WorkingDirectory="Shaders" />
+  </Target>
+
 </Project>

@@ -13,6 +13,9 @@ namespace World.Core.Physics
     //     hard than that it stays put; pushed harder it slides, friction dragging on it; left alone it
     //     slows to a stop. What it grips is what it's stood on, so a box on a moving box is carried along
     //     (up to the point friction can hold it - stop the one underneath dead, and the top one slides off).
+    //     On sloping ground its weight pulls it downhill too (weight x the slope's sine), and it grips less
+    //     (x its cosine): so on a slope steeper than Friction's (about 27 degrees) it slides by itself, and
+    //     pushed downhill on a gentler one it goes further before it stops.
     //  2. Across, one axis at a time, stopped by ground rising in front of it by more than StepUp, or more
     //     steeply than MaxClimb - a box is pushed up a slope, but not up a cliff (not even a little at a
     //     time, which is how it would otherwise creep up one).
@@ -21,7 +24,9 @@ namespace World.Core.Physics
     //     running into a heavy one stops, and a heavy one barges a light one out of its way.
     //  4. Up and down, lowest first: gravity, landing on the ground or on the top of a body underneath. A
     //     body already resting follows the ground down by up to SnapDown, as a walker does, so it keeps
-    //     its grip going downhill instead of skipping down the slope.
+    //     its grip going downhill instead of skipping down the slope. Landing hard (faster than BounceSpeed)
+    //     it bounces, Bounciness of the speed it hit with, away from what it hit: straight up off the level,
+    //     out from a slope or a cliff face, so it bounces on down it; and loses a little of its speed along it.
     //
     // And bodies get knocked over - a quick quarter turn over an edge (see Body), for any of three reasons:
     //  - pushed high enough up that the push's leverage beats its weight's (force x height against
@@ -31,13 +36,20 @@ namespace World.Core.Physics
     //    its centre up over its edge
     //  - left overhanging, its centre out past the edge of what's holding it up: pushed off the top of
     //    another box, or over a cliff's edge, it tips over that edge. That's how a stack collapses.
-    //    Ground too steep to stand on (a cliff face) doesn't hold a body up at all: it slides off it.
+    //    Ground too steep to stand on (a cliff face) doesn't hold a body up at all: it slides off it. A
+    //    hillside isn't an edge: a box rests on it level, on its highest point, but the ground falling away
+    //    as the hill does still holds it up (see TipIfOverhanging); only a drop off that, or a cliff, is one.
+    //    Over an edge, it lands beside it: the ground it's gone over the side of isn't under it any more.
     // It tips only if there's room to: not into a wall, another body, or a bank of ground. While it's
     // going over it's fixed where it is, and anything stood on it stays put until it lands.
     //
     // In water (see IGround.WaterAt), a body lighter than the water it would displace floats, as deep in
     // it as its density says - a cardboard box high, a wooden crate lower - and slides about with nothing
-    // but the water's drag to slow it. A denser one sinks, slowly, to the bottom, and drags through it.
+    // but the water's drag to slow it. The drag is on the face it pushes through the water, not on its
+    // weight: so a heavy crate afloat is no harder to keep going than a light one as big, only slower to get
+    // going and to stop - anything can push it. A denser one sinks, slowly, to the bottom, and drags through
+    // it. Stood on the bottom in water, the water holds up as much of its weight as it displaces, so it
+    // grips the bottom with only the rest: a crate run aground in the shallows can be pushed off again.
     //
     // It's also the ground walkers walk on: the terrain, with the tops of the bodies on it (see IGround).
     public sealed class PhysicsWorld : IGround
@@ -45,6 +57,9 @@ namespace World.Core.Physics
         public const float Gravity = WorldConstants.Gravity;
         public const float Friction = 0.5f;       // grip, as a fraction of weight
         public const float Restitution = 0.1f;    // how much of their closing speed two bodies bounce apart with
+        public const float BounceSpeed = 2.5f;    // metres a second: landing faster than this, it bounces (falling about a third of a metre)
+        public const float Bounciness = 0.35f;    // and comes back off at this much of the speed it hit with
+        public const float BounceGrip = 0.8f;     // keeping this much of its speed along what it hit
         public const float StepUp = 0.15f;        // how much higher ground a pushed box rides up onto
         public const float MaxClimb = 1f;         // the steepest slope it's pushed up, as rise over run: 45 degrees, as for walkers
         private const float Bump = 0.02f;         // a rise this small it rides over whatever its slope
@@ -57,11 +72,15 @@ namespace World.Core.Physics
         private const float Reach = 0.5f;         // arm's length: a body within this of a walker's side, in their path, is one they can push
         private const float Touching = 0.01f;     // overlaps smaller than this, one on top of another, don't count
         private const float SampleSpacing = 0.5f; // how finely a body's footprint feels the ground under it
+        private const float LeadingStrip = 0.05f; // the least depth of ground ahead a moving body feels for
+        private const float HoldTime = 0.1f;      // how quickly something you're pushing stops sliding across your front, seconds
         private const float GroundReach = 1f;     // how far above its bottom a body looks for the ground under it: indoors, not up to the floor overhead
         private const float KnockedOver = 1f;     // a walker shoved this much faster (m/s) loses their footing...
         private const float StaggerTime = 0.4f;   // ...for this long (seconds)
         public const float WaterDensity = 1000f;  // kg per cubic metre
-        public const float WaterDrag = 1.5f;      // how quickly water slows a body in it: its speed falls by this fraction per second, near enough
+        public const float WaterDrag = 1.5f;      // how quickly water slows a sinking body in it: its speed falls by this fraction per second, near enough
+        public const float FloatDrag = 0.5f;      // afloat, the drag on each square metre of the face it pushes through the water: water's density x
+        public const float FloatCreep = 0.3f;     //   (FloatCreep x its speed + FloatDrag x its speed squared), so it comes to a stop
         public const float SinkDrag = 3f;         // and slows its sinking
 
         private readonly List<Body> _bodies = new List<Body>();
@@ -110,8 +129,16 @@ namespace World.Core.Physics
 
             if (body.Floating)
             {
-                // Nothing to grip: pushes shove it along, and the water slows it
-                v = v * MathF.Exp(-WaterDrag * dt) + force / body.Mass * dt;
+                // Nothing to grip: pushes shove it along, and the water drags on the face it's pushing through it
+                v += force / body.Mass * dt;
+                var speed = v.Length();
+                if (speed > 0f)
+                {
+                    var draught = MathF.Min(body.Size.Y, body.Size.Y * body.Density / WaterDensity);
+                    var face = (body.Size.X + body.Size.Z) / 2f * draught;   // across the way it's going, near enough
+                    var drag = WaterDensity * face * (FloatCreep * speed + FloatDrag * speed * speed);
+                    v *= MathF.Max(0f, 1f - drag / body.Mass * dt / speed);   // to a stop, never back the other way
+                }
                 body.Velocity = new Vector3(v.X, body.Velocity.Y - Gravity * dt, v.Y);
                 return;
             }
@@ -140,10 +167,28 @@ namespace World.Core.Physics
 
             if (body.Resting)
             {
+                // Standing in water, it's held up by as much of it as it displaces: only the rest of its weight counts
+                var weight = 1f;   // of its own
+                if (Terrain.WaterAt(body.Position) is { } level && level > body.Bottom)
+                {
+                    var wet = MathF.Min(level - body.Bottom, body.Size.Y);
+                    weight = MathF.Max(0f, 1f - WaterDensity * body.Size.X * body.Size.Z * wet / body.Mass);
+                }
+
+                // On a slope, that pulls it down it, and presses it into the ground less hard
+                var pressed = weight;
+                if (body.Support == null)
+                {
+                    var normal = Terrain.NormalAt(body.Position);
+                    var slope = new Vector2(normal.X, normal.Z);   // downhill, as long as the slope's sine
+                    force += slope * body.Mass * Gravity * weight;
+                    pressed *= normal.Y;
+                }
+
                 // Friction works on how it's moving relative to what it's stood on
                 var under = body.Support == null ? Vector2.Zero : new Vector2(body.Support.Velocity.X, body.Support.Velocity.Z);
                 var slip = v - under;
-                var grip = Friction * body.Mass * Gravity;   // the most friction can do, in newtons
+                var grip = Friction * body.Mass * Gravity * pressed;   // the most friction can do, in newtons
                 if (slip.LengthSquared() < 1e-6f)
                 {
                     slip = force.Length() <= grip ? Vector2.Zero : (force - Vector2.Normalize(force) * grip) / body.Mass * dt;
@@ -184,10 +229,16 @@ namespace World.Core.Physics
                 if (speed == 0f)
                     continue;
                 var to = body.Position + axis * speed * dt;
-                var ground = GroundUnder(to, body.Size);
+                // The ground it's moving onto: the strip along its leading side (not what it's leaving, beside it: the
+                // top of a cliff it's gone over the edge of)
+                var lead = MathF.Max(MathF.Abs(speed * dt), LeadingStrip);
+                var across = new Vector3(1f, 0f, 1f) - axis;
+                var ground = GroundUnder(to + axis * MathF.Sign(speed) * (body.Extent(axis) - lead) / 2f, body.Size * (across + Vector3.Up) + axis * lead);
+                // Ground higher than a step up is in its way, unless it's already beside ground as high (gone over the
+                // edge of a cliff, into its face): then only higher still is
                 var here = GroundUnder(body.Position, body.Size) ?? body.Bottom;
                 var rise = ground.HasValue ? ground.Value - here : 0f;
-                if (!ground.HasValue || ground.Value > body.Bottom + StepUp || (rise > Bump && rise > MathF.Abs(speed * dt) * MaxClimb) ||
+                if (!ground.HasValue || ground.Value > MathF.Max(body.Bottom + StepUp, here + Bump) || (rise > Bump && rise > MathF.Abs(speed * dt) * MaxClimb) ||
                     Terrain.Obstructs(to, body.Size))
                 {
                     v -= axis * speed;   // the ground rises too steeply, there's a wall (or the world ends): it stops dead
@@ -300,8 +351,9 @@ namespace World.Core.Physics
                 var was = body.Bottom;
                 var now = was + body.Velocity.Y * dt;
 
-                // The highest thing under it: the ground, or the top of a body it was above
-                var support = GroundUnder(body.Position, body.Size);
+                // The highest thing under it: the ground, or the top of a body it was above. Ground more than a step
+                // above its bottom isn't under it but beside it: the side of a step it's tipped over, say
+                var support = GroundUnder(body.Position, body.Size, noHigherThan: was + StepUp);
                 Body? on = null;
                 foreach (var other in _bodies)
                 {
@@ -331,14 +383,39 @@ namespace World.Core.Physics
                 }
                 body.Floating = false;
 
+                if (support.HasValue && now <= support.Value && !body.Resting && body.Velocity.Y < -BounceSpeed)
+                {
+                    // Landing hard: back off what it hit, out from its face
+                    var face = on == null ? Terrain.NormalAt(body.Position) : Vector3.Up;
+                    var v = body.Velocity;
+                    var into = Vector3.Dot(v, face);
+                    if (into < 0f)
+                    {
+                        var along = (v - face * into) * BounceGrip;
+                        body.Velocity = along - face * into * Bounciness;
+                        body.Position = new Vector3(body.Position.X, support.Value, body.Position.Z);
+                        body.Resting = false;
+                        body.Support = null;
+                        continue;
+                    }
+                }
+
                 if (support.HasValue && (now <= support.Value || (body.Resting && was - support.Value <= SnapDown)))
                 {
                     body.Position = new Vector3(body.Position.X, support.Value, body.Position.Z);
                     body.Velocity = new Vector3(body.Velocity.X, 0f, body.Velocity.Z);
                     body.Resting = true;
                     body.Support = on;
+                    // Over the edge of a cliff, while some of it's still on the top, it tips over it; once over, it
+                    // slides down the face (see ApplyForces) rather than tumbling all the way down, until it's on
+                    // ground it can stand on again
                     if (!OnSteepGround(body))
+                    {
+                        body.OffEdge = false;
                         TipIfOverhanging(body);
+                    }
+                    else if (!body.OffEdge && TipIfOverhanging(body))
+                        body.OffEdge = true;
                 }
                 else
                 {
@@ -352,27 +429,45 @@ namespace World.Core.Physics
         // Resting on the ground where, under its middle, the ground's too steep to stand on: a cliff face.
         private bool OnSteepGround(Body body) => body.Resting && body.Support == null && !Terrain.IsWalkable(body.Position);
 
-        // Tips it over the edge of whatever's holding it up, if its centre is out past it.
-        private void TipIfOverhanging(Body body)
+        // Tips it over the edge of whatever's holding it up, if its centre is out past it. Whether it has.
+        private bool TipIfOverhanging(Body body)
         {
             // What holds it up: the ground under its footprint at about the height it's resting at (and not
             // too steep to stand on), and the tops of bodies it's stood on - all taken together, as the
-            // smallest box round all of it
+            // smallest box round all of it. On a hillside, "about the height" follows the hill: it rests on the
+            // hill's highest point under it, and the rest of the hill falling away from there as it slopes
+            // under its middle still holds it up (a box on a slope slides, it doesn't tip); ground dropping
+            // away more than that is an edge.
+            var normal = Terrain.NormalAt(body.Position);
+            var rise = normal.Y > 0.1f ? new Vector2(-normal.X, -normal.Z) / normal.Y : Vector2.Zero;   // uphill, metres up a metre
             var min = new Vector2(float.MaxValue);
             var max = new Vector2(float.MinValue);
             var nx = Math.Max(1, (int)MathF.Ceiling(body.Size.X / SampleSpacing));
             var nz = Math.Max(1, (int)MathF.Ceiling(body.Size.Z / SampleSpacing));
-            for (var i = 0; i <= nx; i++)
-                for (var k = 0; k <= nz; k++)
-                {
-                    var point = new Vector3(body.Position.X - body.Size.X / 2f + body.Size.X * i / nx, body.Bottom, body.Position.Z - body.Size.Z / 2f + body.Size.Z * k / nz);
-                    var ground = Terrain.GroundBelow(point, GroundReach);
-                    if (ground.HasValue && ground.Value >= body.Bottom - SupportDepth && Terrain.IsWalkable(point))
+            var highest = new Vector2(body.Position.X, body.Position.Z);   // where it rests on the hill: its highest point
+            var top = float.MinValue;
+            for (var pass = 0; pass < 2; pass++)
+                for (var i = 0; i <= nx; i++)
+                    for (var k = 0; k <= nz; k++)
                     {
-                        min = Vector2.Min(min, new Vector2(point.X, point.Z));
-                        max = Vector2.Max(max, new Vector2(point.X, point.Z));
+                        var point = new Vector3(body.Position.X - body.Size.X / 2f + body.Size.X * i / nx, body.Bottom, body.Position.Z - body.Size.Z / 2f + body.Size.Z * k / nz);
+                        var ground = Terrain.GroundBelow(point, GroundReach);
+                        if (!ground.HasValue || !Terrain.IsWalkable(point))
+                            continue;
+                        var spot = new Vector2(point.X, point.Z);
+                        if (pass == 0)
+                        {
+                            if (ground.Value > top && ground.Value <= body.Bottom + Touching)
+                                (top, highest) = (ground.Value, spot);
+                            continue;
+                        }
+                        var hill = body.Bottom + Vector2.Dot(rise, spot - highest);   // the hill, carried on from where it rests
+                        if (ground.Value >= MathF.Min(body.Bottom, hill) - SupportDepth)
+                        {
+                            min = Vector2.Min(min, spot);
+                            max = Vector2.Max(max, spot);
+                        }
                     }
-                }
             foreach (var other in _bodies)
             {
                 if (other == body || MathF.Abs(other.Top - body.Bottom) > 0.02f || !body.FootprintOverlaps(other, Touching))
@@ -381,7 +476,7 @@ namespace World.Core.Physics
                 max = Vector2.Max(max, Vector2.Min(body.Footprint + body.Half, other.Footprint + other.Half));
             }
             if (min.X > max.X)
-                return;   // nothing under it at all: it's falling, not tipping
+                return false;   // nothing under it at all: it's falling, not tipping
 
             // Over the side it's furthest out past
             var centre = body.Footprint;
@@ -396,20 +491,21 @@ namespace World.Core.Physics
             Consider(Vector3.UnitZ, centre.Y - max.Y, max.Y);
             Consider(-Vector3.UnitZ, min.Y - centre.Y, min.Y);
             if (toward == Vector3.Zero)
-                return;
+                return false;
 
             var at = toward.X != 0f
                 ? new Vector3(pivot, body.Bottom, body.Position.Z)
                 : new Vector3(body.Position.X, body.Bottom, pivot);
-            TryTopple(body, at, toward, 0f, againstGround: false);   // it's tipping out over nothing, not into the ground
+            return TryTopple(body, at, toward, 0f, againstGround: false);   // it's tipping out over nothing, not into the ground
         }
 
         // The highest ground anywhere under a footprint of this size here, or null if any of it is off the world.
-        private float? GroundUnder(Vector3 position, Vector3 size)
+        // With `noHigherThan`, leaving out any higher than that, unless all of it is.
+        private float? GroundUnder(Vector3 position, Vector3 size, float noHigherThan = float.MaxValue)
         {
             var nx = Math.Max(1, (int)MathF.Ceiling(size.X / SampleSpacing));
             var nz = Math.Max(1, (int)MathF.Ceiling(size.Z / SampleSpacing));
-            var highest = float.MinValue;
+            var (highest, highestBelow) = (float.MinValue, float.MinValue);
             for (var i = 0; i <= nx; i++)
                 for (var k = 0; k <= nz; k++)
                 {
@@ -418,8 +514,10 @@ namespace World.Core.Physics
                     if (!ground.HasValue)
                         return null;
                     highest = MathF.Max(highest, ground.Value);
+                    if (ground.Value <= noHigherThan)
+                        highestBelow = MathF.Max(highestBelow, ground.Value);
                 }
-            return highest;
+            return highestBelow > float.MinValue ? highestBelow : highest;
         }
 
         // The body whose top a walker with its feet here is stood on, if any.
@@ -510,14 +608,25 @@ namespace World.Core.Physics
             var onlyAtChest = sharing > 0;
             if (!onlyAtChest)
                 sharing = pressed.Count;
-            foreach (var (body, into, pressing) in pressed)
+            // Each is pushed the way you're going, not the way from you to it: a push off its middle would turn it
+            // aside, then further aside, until it slid out of your way (up a slope, where its weight holds back the
+            // part of the push that's uphill, all the quicker)
+            foreach (var (body, _, pressing) in pressed)
             {
                 if (onlyAtChest && !(body.Bottom <= chest && chest <= body.Top))
                     continue;
-                var bodySpeed = MathF.Max(Vector3.Dot(body.Velocity, into), 0.05f);
+                var bodySpeed = MathF.Max(Vector3.Dot(body.Velocity, wish), 0.05f);
                 var force = MathF.Min(walker.Gait.PushForce, walker.Gait.PushPower / bodySpeed) / sharing;
                 var at = MathHelper.Clamp(chest, body.Bottom, body.Top) - body.Bottom;
-                body.ApplyForce(into * force * pressing, at);
+                body.ApplyForce(wish * force * pressing, at);
+
+                // And what's pressed against your front is held there: its sliding sideways across it (off a slope that
+                // tilts sideways, say) is resisted, up to the grip of the push, so it stays in front of you and goes
+                // where you steer it, rather than off round your side
+                var across = new Vector3(-wish.Z, 0f, wish.X);
+                var sideways = Vector3.Dot(body.Velocity, across);
+                var hold = MathF.Min(MathF.Abs(sideways) * body.Mass / HoldTime, Friction * force * pressing);
+                body.ApplyForce(-across * MathF.Sign(sideways) * hold, at);
             }
         }
 

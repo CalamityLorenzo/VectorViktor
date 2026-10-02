@@ -194,10 +194,14 @@ namespace World.Core
             if (Vector2.Distance(new Vector2(x, z), PlateauCentre) <= PlateauRadius)
                 return PlateauHeight;
 
-            // The causeway runs due west from the plateau's rim, down to the ground
-            var rampTop = PlateauCentre.X - PlateauRadius + 1f;   // a metre inside the rim, so it meets the top cleanly
-            if (MathF.Abs(z - PlateauCentre.Y) <= RampHalfWidth && x <= rampTop && x >= rampTop - RampLength)
-                return MathHelper.Lerp(ground, PlateauHeight, (x - (rampTop - RampLength)) / RampLength);
+            // The causeway runs due west from the plateau's rim, down to the ground. It reaches the top at the rim, and
+            // runs on level a metre inside it, so it meets the top cleanly where the rim curves away either side of it
+            // (reaching the top only a metre inside, it met the rim short of it, in a steep step the height of the rest)
+            var rim = PlateauCentre.X - PlateauRadius;
+            var rampTop = rim + 1f;
+            var foot = rampTop - RampLength;
+            if (MathF.Abs(z - PlateauCentre.Y) <= RampHalfWidth && x <= rampTop && x >= foot)
+                return MathHelper.Lerp(ground, PlateauHeight, MathF.Min((x - foot) / (rim - foot), 1f));
 
             return float.MinValue;
         }

@@ -9,7 +9,8 @@ namespace MeshCore.Library
     // it can be looked at, in a test, but not drawn.
     public sealed class MeshData : IDisposable
     {
-        // Triangle list, coloured a range at a time (see SolidRanges); null if the mesh has no faces.
+        // Triangle list (of VertexPositionSlot: each corner with its colour slot, so it's drawn in one go), the slots
+        // in runs (see SolidRanges); null if the mesh has no faces.
         public VertexBuffer? Solids { get; }
         // Line list, always drawn white; edges carry no colour data of their own. Null if the mesh has no edges.
         public VertexBuffer? Edges { get; }

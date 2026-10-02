@@ -13,11 +13,17 @@ namespace World.Rendering
     // at a time with `cable`, a unit length of cable (see Rig.Span).
     //
     // For a rig whose every move is a function of time: something on show, a machine running. The parts' meshes
-    // are fixed when it's made, so swapping one (RigNode.Part) needs a view that follows the rig as it goes.
+    // are fixed when it's made, so a node whose part changes as it goes (RigNode.Part: a track's baked frames) needs
+    // `variants`, every part it might change to given the one it starts with: it gets a part for each, and all but the
+    // one it has at the moment are put OutOfSight, where the batch leaves them out. Anything else that swaps a part
+    // needs a view that follows the rig as it goes (see RigView).
     public static class RigScene
     {
+        // Somewhere no camera's far plane reaches, for a part that isn't there just now
+        public static readonly Matrix OutOfSight = Matrix.CreateTranslation(0f, -1e6f, 0f);
+
         public static ScenePart[] Parts(Rig rig, IReadOnlyDictionary<string, MeshSource> meshes, Action<Rig, float> pose, Matrix placement,
-            MeshSource? cable = null)
+            MeshSource? cable = null, Func<string, IEnumerable<string>>? variants = null)
         {
             var posedAt = float.NaN;
             void PoseAt(float seconds)
@@ -33,16 +39,19 @@ namespace World.Rendering
             var parts = new List<ScenePart>();
             for (var i = 0; i < rig.Count; i++)
             {
-                if (rig[i].Part is not { } part)
+                if (rig[i].Part is not { } first)
                     continue;
-                if (!meshes.TryGetValue(part, out var mesh))
-                    throw new KeyNotFoundException($"No mesh for the rig's part '{part}' (at '{rig[i].Name}').");
                 var index = i;
-                parts.Add(new ScenePart(mesh, seconds =>
+                foreach (var part in variants?.Invoke(first) ?? new[] { first })
                 {
-                    PoseAt(seconds);
-                    return rig.World(index);
-                }));
+                    if (!meshes.TryGetValue(part, out var mesh))
+                        throw new KeyNotFoundException($"No mesh for the rig's part '{part}' (at '{rig[i].Name}').");
+                    parts.Add(new ScenePart(mesh, seconds =>
+                    {
+                        PoseAt(seconds);
+                        return rig[index].Part == part ? rig.World(index) : OutOfSight;
+                    }));
+                }
             }
             if (rig.Cables.Count > 0 && cable == null)
                 throw new ArgumentException("The rig has cables, but there's no mesh to draw them with.", nameof(cable));
@@ -54,7 +63,7 @@ namespace World.Rendering
                     {
                         PoseAt(seconds);
                         return rig.Span(along, s);
-                    }));
+                    }, RigView.CablesSeenWithin));
                 }
             return parts.ToArray();
         }

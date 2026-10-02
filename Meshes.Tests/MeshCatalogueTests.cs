@@ -181,5 +181,59 @@ namespace Meshes.Tests
             foreach (var fixture in JumpSigns.Fixtures())
                 MeshChecks.IsSound(fixture.Mesh.Key, fixture.Mesh.Build(null), fixture.Mesh.Palette);
         }
+
+        // The droid's rounded parts are outlined afresh as they move, every one of them on every droid in view, so each is
+        // built from convex surfaces, whose outlines are quick to work out (see OutlineData): a hollow, or two surfaces
+        // sharing a corner, would make it ray-test every edge
+        [Fact]
+        public void The_droids_rounded_parts_are_all_convex_surfaces()
+        {
+            var outlined = 0;
+            foreach (var (key, source) in DroidMesh.Sources(DroidMesh.StartingPalette()))
+                if (source.Build(null).Outline is { } outline)
+                {
+                    outlined++;
+                    Assert.True(outline.ConvexBlobs == outline.Blobs, $"{key}: only {outline.ConvexBlobs} of its {outline.Blobs} surfaces are convex");
+                }
+            Assert.True(outlined >= 10, $"only {outlined} rounded parts: are the droid's parts outlined any more?");
+        }
+
+        // A convex surface's outline is the same whether it's tested for hiding itself or not: a ball, seen from all round
+        [Fact]
+        public void A_convex_surfaces_outline_is_all_its_edges_where_it_turns_away()
+        {
+            var mesh = new MeshBuilder();
+            const int around = 12, up = 6;
+            Vector3 At(int k, int j)
+            {
+                var (a, b) = (k * MathHelper.TwoPi / around, (j / (float)up - 0.5f) * MathHelper.Pi);
+                return new Vector3(MathF.Cos(b) * MathF.Cos(a), MathF.Sin(b), MathF.Cos(b) * MathF.Sin(a));
+            }
+            for (var k = 0; k < around; k++)
+                for (var j = 0; j < up; j++)
+                {
+                    var (p, q, r, t) = (At(k, j), At(k + 1, j), At(k + 1, j + 1), At(k, j + 1));
+                    foreach (var (x, y, z) in new[] { (p, q, r), (p, r, t) })
+                        if (Vector3.Cross(y - x, z - x).LengthSquared() > 1e-10f)
+                        {
+                            mesh.AddTri(0, x, y, z);
+                            mesh.AddOutlineTri(x, y, z, Vector3.Zero);
+                        }
+                }
+            var outline = mesh.Build(null).Outline!;
+            Assert.Equal(1, outline.ConvexBlobs);
+            foreach (var eye in new[] { new Vector3(5f, 0.3f, 0f), new Vector3(-2f, 3f, 1f), new Vector3(0.5f, -4f, 2f) })
+            {
+                var drawn = new Microsoft.Xna.Framework.Graphics.VertexPosition[outline.MaxVertices];
+                var count = outline.GetOutline(eye, drawn);
+                Assert.True(count >= around, $"from {eye}: only {count / 2} lines");
+                // every line drawn is an edge between a face towards the eye and one away: round the ball, nowhere across it
+                for (var v = 0; v < count; v++)
+                {
+                    var towardsEye = Vector3.Dot(Vector3.Normalize(drawn[v].Position), Vector3.Normalize(eye - drawn[v].Position));
+                    Assert.InRange(towardsEye, -0.35f, 0.35f);
+                }
+            }
+        }
     }
 }

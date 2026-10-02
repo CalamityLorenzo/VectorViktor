@@ -157,9 +157,10 @@ namespace World.Core.Tests
         [Fact]
         public void ABoxOnAGentleSlopeStaysPutAndUpright()
         {
+            // Set down on it (dropped from higher, it'd bounce)
             var slope = Terrain.FromFunction(64, 64, 1f, (x, z) => x * MathF.Tan(MathHelper.ToRadians(15f)));
             var world = new PhysicsWorld(slope);
-            var crate = world.Add(new Body("crate", Crate, 25f, new Vector3(2f, 2f, 0f)));
+            var crate = world.Add(new Body("crate", Crate, 25f, new Vector3(2f, slope.HeightAt(2.4f, 0f) + 0.02f, 0f)));
             Run(world, 3f);
             Assert.True(Upright(crate));
             Assert.True(crate.Resting);

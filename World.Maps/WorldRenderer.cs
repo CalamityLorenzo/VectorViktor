@@ -258,6 +258,8 @@ namespace World.Maps
 
             View.Update(_device, TerrainCentre ?? eye, you);
             _batch.Begin(_effect.View, _effect.Projection);
+            // Nothing narrower than a pixel of the picture it's drawn into (see MeshBatch.SmallestSeen)
+            _batch.SmallestSeen = 2f * MathF.Tan(MathHelper.ToRadians(FieldOfView) / 2f) / _device.Viewport.Height;
             View.Collect(_batch, eye, you, clock);
             extra?.Invoke(_batch);
             View.DrawWindows(_device, _effect, eye, you, clock, RetroStyle.Background, colorsOn);

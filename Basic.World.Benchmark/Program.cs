@@ -1,6 +1,7 @@
 // Draws and steps Basic.World at every one of its starts, with no window on screen, and says what that costs:
 //
 //     dotnet run -c Release --project Basic.World.Benchmark [-- frames [output.md]]
+//     dotnet run -c Release --project Basic.World.Benchmark -- turn [start] [frames]
 //
 // Run it in Release for timings (a Debug build is slower, and also runs the debug-only checks, which is what to run
 // it in to see whether a mesh is malformed). Draws go to an off-screen target the size of the game's low-res one, so
@@ -55,6 +56,12 @@ void Say(string line)
 }
 string N(double value, string format = "F2") => value.ToString(format, CultureInfo.InvariantCulture);
 
+// turn <start> [frames]: instead, turn on the spot at that start, a full turn every four seconds, and say what each frame
+// cost; still <start> [frames] [yaw degrees]: the same, standing still (facing the start's way, or that way), to compare
+if (args.Length > 0 && args[0] is "turn" or "still")
+    return Turning(args.Length > 1 ? args[1] : "workshop", args.Length > 2 ? int.Parse(args[2]) : 480, args[0] == "turn",
+                   args.Length > 3 ? MathHelper.ToRadians(float.Parse(args[3], CultureInfo.InvariantCulture)) : null);
+
 Say($"# Basic.World benchmark: {frames} frames per start, {LowResWidth} x {LowResHeight}, {device.Adapter.Description}");
 Say($"{(isDebug ? "DEBUG build: timings are not representative" : "Release build")}; world built in {N(loaded.TotalMilliseconds, "F0")} ms");
 Say("");
@@ -107,6 +114,57 @@ Say($"| **average of {totals.count}** | | | {totals.calls / totals.count} | | {N
 if (outputFile != null)
     File.WriteAllText(outputFile, report.ToString());
 return 0;
+
+// Turning on the spot (or not) at `startName` for `count` frames, a tick a frame: each frame's CPU time, the slowest of
+// them and when, so a stutter as something comes into view shows up. Seen as the droid sees it, from its head camera,
+// which is out on the visor's rail in front of the head's axis, so turning moves the eye (as it doesn't the walker's)
+int Turning(string startName, int count, bool turning, float? yaw)
+{
+    var start = built.Starts[startName];
+    if (yaw is { } turnedTo)
+        start = start with { Yaw = turnedTo };
+    var player = NewPlayer(start);
+    var bird = new Bird(start.At, built.Ground.SkylineAt, start.Yaw);
+    for (var tick = 0; tick < 120; tick++)
+        Tick(player, bird, MoveInput.None);
+    renderer.BuildTerrain(player);
+    for (var i = 0; i < WarmUpFrames; i++)
+        Frame(player, bird, i);
+
+    var turn = new MoveInput(Vector2.Zero, Turn: turning ? MathHelper.TwoPi / 4f / CharacterController.TurnSpeed : 0f);
+    double HeadFrame(int index)
+    {
+        device.SetRenderTarget(target);
+        device.Clear(RetroStyle.Background);
+        device.BlendState = BlendState.Opaque;
+        device.DepthStencilState = DepthStencilState.Default;
+        device.RasterizerState = RasterizerState.CullNone;
+        var body = player.Body;
+        var eye = body.Position + Vector3.Up * 1.27f + body.Heading * 0.18f;
+        var time = Stopwatch.GetTimestamp();
+        renderer.DrawFrom(eye, eye + body.Heading, Vector3.Up, body.Position, index * StepTime, colorsOn: true);
+        return Stopwatch.GetElapsedTime(time).TotalMilliseconds;
+    }
+    var times = new double[count];
+    var facing = new float[count];
+    var collections = GC.CollectionCount(0);
+    var garbage = GC.GetAllocatedBytesForCurrentThread();
+    for (var i = 0; i < count; i++)
+    {
+        Tick(player, bird, turn);
+        times[i] = HeadFrame(i);
+        facing[i] = MathHelper.ToDegrees(player.Body.Yaw);
+    }
+    garbage = GC.GetAllocatedBytesForCurrentThread() - garbage;
+    var sorted = times.OrderBy(t => t).ToArray();
+    Say($"# {(turning ? "Turning" : "Standing still")} at {startName}: {count} frames, {(isDebug ? "DEBUG build" : "Release build")}");
+    Say($"draw CPU ms: mean {N(times.Average())}, median {N(sorted[count / 2])}, 95% {N(sorted[count * 95 / 100])}, max {N(sorted[^1])}");
+    Say($"garbage {garbage / count} B / frame, {GC.CollectionCount(0) - collections} gen-0 collections");
+    Say($"last frame: {renderer.Batch.Drawn} meshes drawn, {renderer.Batch.DrawCalls} draw calls");
+    foreach (var i in Enumerable.Range(0, count).OrderByDescending(i => times[i]).Take(8))
+        Say($"  frame {i}: {N(times[i])} ms, facing {N(facing[i], "F0")} deg");
+    return 0;
+}
 
 Player NewPlayer(Start start)
 {

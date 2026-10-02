@@ -17,7 +17,12 @@ namespace MeshRendering
         };
 
         private readonly Color[] _palette;
+        private readonly Vector4[] _colours;   // the palette, as the shader takes it (see PaletteEffect)
+        private Vector4[]? _faded;              // and faded to the background, with colours off
+        private (Color background, float tint) _fadedFor;
         private OutlineView? _outlineView;   // the outline for the current view; it changes as the mesh or camera moves
+        private DynamicVertexBuffer? _outlineBuffer;   // and as sent to the GPU, sent again only when it's changed
+        private int _outlineSent = -1;                 // which of the view's versions that is
 
         public MeshData Mesh { get; }
 
@@ -26,6 +31,10 @@ namespace MeshRendering
 
         // Off: only its faces are drawn, none of its lines (the terrain without its grid, say).
         public bool EdgesOn { get; set; } = true;
+
+        // How far off it can be seen at all: something so fine (a cable) that further away it's under a pixel, so the
+        // batch leaves it out (see MeshBatch.Add) rather than spend a draw call on nothing. Anywhere, unless it's set.
+        public float SeenWithin { get; set; } = float.PositiveInfinity;
 
         // With colours off, its faces this far from the background colour towards their own (0 to 1): the terrain,
         // without the grid that shows its shape when it's the background colour, faintly shaded instead.
@@ -52,12 +61,25 @@ namespace MeshRendering
             ArgumentNullException.ThrowIfNull(palette);
             if (palette.Length < meshData.PaletteSize)
                 throw new ArgumentException($"Palette has {palette.Length} colours but the mesh needs {meshData.PaletteSize}.", nameof(palette));
+            if (meshData.PaletteSize > PaletteEffect.MaxColours)
+                throw new ArgumentException($"The mesh uses {meshData.PaletteSize} colours, more than the {PaletteEffect.MaxColours} it can be drawn with.", nameof(meshData));
             _palette = (Color[])palette.Clone();   // its own: recolouring one instance never recolours another
+            _colours = new Vector4[Math.Min(_palette.Length, PaletteEffect.MaxColours)];
+            for (var slot = 0; slot < _colours.Length; slot++)
+                _colours[slot] = _palette[slot].ToVector4();
         }
 
         // The colour it draws a slot of its palette in.
         public Color GetColor(int slot) => _palette[slot];
-        public void SetColor(int slot, Color color) => _palette[slot] = color;
+        public void SetColor(int slot, Color color)
+        {
+            if (_palette[slot] == color)
+                return;
+            _palette[slot] = color;
+            if (slot < _colours.Length)
+                _colours[slot] = color.ToVector4();
+            _faded = null;
+        }
 
         // The mesh's bounds, as placed in the world by `world` (still axis-aligned, so a turned mesh's is a
         // little bigger than it): the box's centre moved, its half-size spread over the axes it's turned onto.
@@ -103,21 +125,29 @@ namespace MeshRendering
             }
         }
 
-        // The faces, placed by `world`, in their palette colours or, given one, all in `faces` (or tinted: see ColorsOffTint). The caller sets
-        // the rasterizer state (FaceRasterizer) and turns the effect's vertex colours off.
+        // The faces, placed by `world`, in their palette colours or, given one, all in `faces` (or tinted: see ColorsOffTint): in
+        // one draw, with the palette shader (see PaletteEffect), which takes its view and fog from `fx`. The caller sets the
+        // rasterizer state (FaceRasterizer).
         public void DrawSolids(GraphicsDevice gd, BasicEffect fx, Matrix world, Color? faces)
         {
             ThrowIfDisposed();
             if (Mesh.Solids == null)
                 return;
-            fx.World = world;
-            gd.SetVertexBuffer(Mesh.Solids);
-            foreach (var range in Mesh.SolidRanges)
-            {
-                var own = _palette[range.ColorSlot];
-                var colour = faces is { } background ? (ColorsOffTint > 0f ? Color.Lerp(background, own, ColorsOffTint) : background) : own;
-                DrawRange(gd, fx, colour, PrimitiveType.TriangleList, range.Start, range.Primitives);
-            }
+            var effect = PaletteEffect.For(gd);
+            effect.Take(fx);
+            effect.Draw(gd, Mesh.Solids, world, faces is { } background ? Faded(background) : _colours);
+        }
+
+        // Its palette faded to `background`, all but ColorsOffTint of the way: worked out again only when either changes
+        private Vector4[] Faded(Color background)
+        {
+            if (_faded != null && _fadedFor == (background, ColorsOffTint))
+                return _faded;
+            _faded ??= new Vector4[_colours.Length];
+            for (var slot = 0; slot < _faded.Length; slot++)
+                _faded[slot] = (ColorsOffTint > 0f ? Color.Lerp(background, _palette[slot], ColorsOffTint) : background).ToVector4();
+            _fadedFor = (background, ColorsOffTint);
+            return _faded;
         }
 
         // The edges, placed by `world`, in white, and a rounded canopy's outline as seen from the camera.
@@ -154,18 +184,37 @@ namespace MeshRendering
                 return;
 
             // Only recalculated if the eye has moved relative to the mesh since last time.
-            var eye = Vector3.Transform(Matrix.Invert(fx.View).Translation, Matrix.Invert(fx.World));
+            var eye = Vector3.Transform(EyeOf(fx.View), Matrix.Invert(fx.World));
             _outlineView ??= outline.CreateView();
             _outlineView.Update(eye);
-            if (_outlineView.VertexCount == 0)
+            var count = _outlineView.VertexCount;
+            if (count == 0)
                 return;
 
+            // To the GPU only when it's changed (or the GPU's lost what it had)
+            _outlineBuffer ??= new DynamicVertexBuffer(gd, typeof(VertexPosition), outline.MaxVertices, BufferUsage.WriteOnly);
+            if (_outlineSent != _outlineView.Version || _outlineBuffer.IsContentLost)
+            {
+                _outlineBuffer.SetData(_outlineView.Vertices, 0, count, SetDataOptions.Discard);
+                _outlineSent = _outlineView.Version;
+            }
             fx.DiffuseColor = Color.White.ToVector3();
+            gd.SetVertexBuffer(_outlineBuffer);
             foreach (var pass in fx.CurrentTechnique.Passes)
             {
                 pass.Apply();
-                gd.DrawUserPrimitives(PrimitiveType.LineList, _outlineView.Vertices, 0, _outlineView.VertexCount / 2);
+                gd.DrawPrimitives(PrimitiveType.LineList, 0, count / 2);
             }
+        }
+
+        // Where the eye is, in the world, for a view: worked out once for each view, not for every outline drawn in it
+        private static Matrix _eyeView;
+        private static Vector3 _eye;
+        private static Vector3 EyeOf(Matrix view)
+        {
+            if (view != _eyeView)
+                (_eyeView, _eye) = (view, Matrix.Invert(view).Translation);
+            return _eye;
         }
 
         private static void DrawRange(GraphicsDevice gd, BasicEffect fx, Color c,

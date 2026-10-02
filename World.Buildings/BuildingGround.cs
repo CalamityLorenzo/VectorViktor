@@ -116,7 +116,7 @@ namespace World.Buildings
             _swinging.AddRange(_doors);
             _grid = new WallGrid(_walls);
             _ledges = ledges?.ToArray() ?? Array.Empty<Ledge>();
-            _ledgeGrid = new WallGrid(_ledges.Select(l => new WallSegment(l.A, l.B, l.Bottom, l.Top)).ToList());
+            _ledgeGrid = new WallGrid(_ledges.Select(l => new WallSegment(l.A, l.B, l.Bottom, l.Highest)).ToList());
             _ledgeReach = _ledges.Length == 0 ? 0f : _ledges.Max(l => l.HalfWidth);
         }
 
@@ -218,18 +218,19 @@ namespace World.Buildings
             for (var k = 0; k < ledges.Count; k++)
             {
                 var ledge = _ledges[ledges[k]];
-                if (ledge.Top > top && DistanceFromLine(p, ledge) <= ledge.HalfWidth + margin)
-                    top = ledge.Top;
+                if (ledge.Highest > top && DistanceFromLine(p, ledge) <= ledge.HalfWidth + margin)
+                    top = MathF.Max(top, ledge.TopAt(p));
             }
             return top;
         }
 
         // The ground a walker's feet are on, and whether it's a building's (a floor or a stair) or a ledge's rather
-        // than the terrain's: level, and always walkable.
-        private (float? height, bool built) Surface(Vector3 feet, float reach)
+        // than the terrain's: always walkable, and level but for a sloping ledge (a ramp), which way that faces.
+        private (float? height, bool built, Vector3 normal) Surface(Vector3 feet, float reach)
         {
             var best = _terrain.GroundBelow(feet, reach);
             var built = false;
+            var normal = Vector3.Up;
             foreach (var room in _rooms)
             {
                 if (!room.Near(feet, 0f))
@@ -242,6 +243,7 @@ namespace World.Buildings
                 {
                     best = height;
                     built = true;
+                    normal = Vector3.Up;
                 }
             }
             var p = new Vector2(feet.X, feet.Z);
@@ -249,18 +251,20 @@ namespace World.Buildings
             for (var k = 0; k < ledges.Count; k++)
             {
                 var ledge = _ledges[ledges[k]];
-                if ((!best.HasValue || ledge.Top >= best.Value) && ledge.Top <= feet.Y + reach && DistanceFromLine(p, ledge) <= ledge.HalfWidth)
+                var top = ledge.TopAt(p);
+                if ((!best.HasValue || top >= best.Value) && top <= feet.Y + reach && DistanceFromLine(p, ledge) <= ledge.HalfWidth)
                 {
-                    best = ledge.Top;
+                    best = top;
                     built = true;
+                    normal = ledge.NormalAt(p);
                 }
             }
-            return (best, built);
+            return (best, built, normal);
         }
 
-        // Floors, stairs and ledges are level, as far as standing on them goes, and always walkable.
+        // Floors, stairs and ledges are level (but for a sloping ledge), as far as standing on them goes, and always walkable.
         private const float LookReach = CharacterController.MaxStepUp + CharacterController.Radius;
-        public Vector3 NormalAt(Vector3 feet) => Surface(feet, LookReach).built ? Vector3.Up : _terrain.NormalAt(feet);
+        public Vector3 NormalAt(Vector3 feet) => Surface(feet, LookReach) is { built: true } surface ? surface.normal : _terrain.NormalAt(feet);
         public bool IsWalkable(Vector3 feet) => Surface(feet, LookReach).built || _terrain.IsWalkable(feet);
 
         // On a ladder (a ramp with a MaxStepUp above the usual), at the height of it: its own.
@@ -342,8 +346,9 @@ namespace World.Buildings
                 foreach (var index in LedgesNear(new Vector2(p.X, p.Z), radius))
                 {
                     var ledge = _ledges[index];
-                    if (ledge.Bottom < p.Y + height && ledge.Top > p.Y + CharacterController.MaxStepUp)
-                        p = PushOutOfWall(p, new WallSegment(ledge.A, ledge.B, ledge.Bottom, ledge.Top), ledge.HalfWidth + radius, height);
+                    var top = ledge.TopAt(new Vector2(p.X, p.Z));   // where it's beside you, if it slopes
+                    if (ledge.Bottom < p.Y + height && top > p.Y + CharacterController.MaxStepUp)
+                        p = PushOutOfWall(p, new WallSegment(ledge.A, ledge.B, ledge.Bottom, top), ledge.HalfWidth + radius, height);
                 }
 
                 foreach (var room in _rooms)

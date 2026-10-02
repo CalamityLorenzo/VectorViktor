@@ -10,6 +10,10 @@ namespace MeshCore.Library
     // other surface showing just beyond them (one blob of the canopy in front of another) is dropped, so what is
     // left is the outline of the whole shape and not of the blobs it is made from.
     //
+    // Testing that is most of the work: each piece of each outline edge is a ray against the triangles. But no part of a
+    // convex blob (a wheel, a ball) can be in front of its own outline, so a convex blob's edges are only tested against
+    // the other blobs, and a mesh that's one convex blob isn't tested at all. Which blobs are convex is worked out once.
+    //
     // This is shared by every instance of the mesh and holds no per-view state; an OutlineView (one per
     // instance) holds the result for the current view.
     public sealed class OutlineData
@@ -18,13 +22,17 @@ namespace MeshCore.Library
         private readonly Vector3[] _normals;   // pointing out of the surface
         private readonly Edge[] _edges;
         private readonly Chunk[] _chunks;
+        private readonly int[] _blobOfFace;      // by triangle
+        private readonly bool[] _convex;         // by blob
+        private readonly (int first, int count, Vector3 centre, float radiusSquared)[] _blobChunks;   // by blob: its chunks, and a sphere round it
+        private readonly bool _oneConvexBlob;
 
         // The face fields index the triangle arrays; Face2 is -1 for an edge on the rim of an open surface.
         private readonly record struct Edge(Vector3 Start, Vector3 End, int Face1, Vector3 Opposite1, int Face2, Vector3 Opposite2);
 
         // A run of neighbouring triangles from one blob of the canopy, with a sphere round them, so a ray that
         // misses the sphere can skip all of them without testing each triangle.
-        private readonly record struct Chunk(int Start, int Count, Vector3 Centre, float RadiusSquared);
+        private readonly record struct Chunk(int Start, int Count, Vector3 Centre, float RadiusSquared, int Blob);
 
         // Each outline edge is tested in this many pieces, so that where another part of the surface crosses in
         // front of it the outline stops at about the right place, rather than the whole edge being kept or lost.
@@ -32,6 +40,17 @@ namespace MeshCore.Library
 
         // How many triangles go in each chunk. Bigger means fewer sphere tests but more triangles tested when a ray hits one.
         private const int ChunkSize = 4;
+
+        // How far a corner may stand in front of one of its blob's triangles and the blob still count as convex: rounding
+        private const float ConvexSlack = 1e-5f;
+
+        // A sphere round the whole surface, in its own space
+        public Vector3 Centre { get; }
+        public float Radius { get; }
+
+        // How many blobs the surface is, and how many of them are convex (whose outlines are quick to work out)
+        public int Blobs => _convex.Length;
+        public int ConvexBlobs => _convex.Count(c => c);
 
         // The most vertices GetOutline can return, i.e. how big a buffer it needs (worst case every other piece is kept).
         public int MaxVertices => _edges.Length * Pieces;
@@ -101,7 +120,7 @@ namespace MeshCore.Library
                 while (end < count && blobOf[order[end]] == blobOf[order[start]])
                     end++;
                 for (var first = start; first < end; first += ChunkSize)
-                    chunks.Add(MakeChunk(first, Math.Min(ChunkSize, end - first)));
+                    chunks.Add(MakeChunk(first, Math.Min(ChunkSize, end - first), blobOf[order[start]]));
                 start = end;
             }
             _chunks = chunks.ToArray();
@@ -139,7 +158,49 @@ namespace MeshCore.Library
 
             _edges = edges.Values.Select(e => e.ToEdge()).ToArray();
 
-            Chunk MakeChunk(int start, int length)
+            // Which blobs are convex: every corner of the blob on or behind every one of its triangles
+            _blobOfFace = new int[count];
+            for (var j = 0; j < count; j++)
+                _blobOfFace[j] = blobOf[order[j]];
+            _convex = new bool[blobOfRoot.Count];
+            for (var blob = 0; blob < _convex.Length; blob++)
+                _convex[blob] = true;
+            for (var j = 0; j < count; j++)
+            {
+                var blob = _blobOfFace[j];
+                if (!_convex[blob] || _normals[j] == Vector3.Zero)
+                    continue;
+                bool InFront(Vector3 corner) => Vector3.Dot(_normals[j], corner - _cornerA[j]) > ConvexSlack;
+                for (var k = 0; k < count && _convex[blob]; k++)
+                    if (_blobOfFace[k] == blob && (InFront(_cornerA[k]) || InFront(_cornerB[k]) || InFront(_cornerC[k])))
+                        _convex[blob] = false;
+            }
+            _oneConvexBlob = _convex.Length == 1 && _convex[0];
+
+            // Each blob's chunks (they're in a run, blob by blob), and a sphere round all of them: a ray that misses it misses them all
+            _blobChunks = new (int, int, Vector3, float)[_convex.Length];
+            for (var c = 0; c < _chunks.Length;)
+            {
+                var blob = _chunks[c].Blob;
+                var first = c;
+                var (least, most) = (new Vector3(float.MaxValue), new Vector3(float.MinValue));
+                for (; c < _chunks.Length && _chunks[c].Blob == blob; c++)
+                {
+                    var r = MathF.Sqrt(_chunks[c].RadiusSquared);
+                    (least, most) = (Vector3.Min(least, _chunks[c].Centre - new Vector3(r)), Vector3.Max(most, _chunks[c].Centre + new Vector3(r)));
+                }
+                var half = (most - least) / 2f;
+                _blobChunks[blob] = (first, c - first, (least + most) / 2f, half.LengthSquared());
+            }
+
+            var (low, high) = (new Vector3(float.MaxValue), new Vector3(float.MinValue));
+            foreach (var corners in new[] { _cornerA, _cornerB, _cornerC })
+                foreach (var corner in corners)
+                    (low, high) = (Vector3.Min(low, corner), Vector3.Max(high, corner));
+            Centre = count > 0 ? (low + high) * 0.5f : Vector3.Zero;
+            Radius = count > 0 ? Vector3.Distance(low, high) * 0.5f : 0f;
+
+            Chunk MakeChunk(int start, int length, int blob)
             {
                 var min = new Vector3(float.MaxValue);
                 var max = new Vector3(float.MinValue);
@@ -155,7 +216,7 @@ namespace MeshCore.Library
                     radius = MathF.Max(radius, MathF.Max(Vector3.Distance(centre, _cornerA[k]),
                         MathF.Max(Vector3.Distance(centre, _cornerB[k]), Vector3.Distance(centre, _cornerC[k]))));
                 radius = radius * 1.001f + 1e-4f;   // a little slack, so a ray just grazing the sphere isn't skipped by rounding
-                return new Chunk(start, length, centre, radius * radius);
+                return new Chunk(start, length, centre, radius * radius, blob);
             }
         }
 
@@ -164,8 +225,10 @@ namespace MeshCore.Library
         public OutlineView CreateView() => new OutlineView(this);
 
         // Fills `lines` with the outline as seen from `eye` (in the surface's own space), as a line list, and
-        // returns how many vertices it wrote (always even). `lines` must hold at least MaxVertices.
-        public int GetOutline(Vector3 eye, VertexPosition[] lines)
+        // returns how many vertices it wrote (always even). `lines` must hold at least MaxVertices. Without `hiding`,
+        // every edge where it turns away is kept, none tested for whether some other part of it is in front: for a
+        // surface too far off for the difference to show (see OutlineView).
+        public int GetOutline(Vector3 eye, VertexPosition[] lines, bool hiding = true)
         {
             var written = 0;
             foreach (var edge in _edges)
@@ -187,6 +250,16 @@ namespace MeshCore.Library
                     continue;
                 outward.Normalize();
 
+                // One convex blob: nothing can be in front of its outline, so the whole edge is (or it's too far off to tell)
+                if (_oneConvexBlob || !hiding)
+                {
+                    lines[written++] = new VertexPosition(edge.Start);
+                    lines[written++] = new VertexPosition(edge.End);
+                    continue;
+                }
+                var blob = _blobOfFace[edge.Face1];
+                var ownBlob = _convex[blob] ? blob : -1;   // a convex blob can't hide its own outline
+
                 // Keep the pieces the eye can see straight past: if it can't, that piece is inside the outline of
                 // the whole shape. Runs of kept pieces are joined into one line.
                 var step = along * (length / Pieces);
@@ -195,7 +268,7 @@ namespace MeshCore.Library
                 for (var piece = 0; piece <= Pieces; piece++)
                 {
                     var isKept = piece < Pieces
-                        && !Blocked(eye, edge.Start + step * (piece + 0.5f) + nudge - eye, edge.Face1, edge.Face2);
+                        && !Blocked(eye, edge.Start + step * (piece + 0.5f) + nudge - eye, edge.Face1, edge.Face2, ownBlob);
                     if (isKept && runStart < 0)
                         runStart = piece;
                     else if (!isKept && runStart >= 0)
@@ -209,32 +282,45 @@ namespace MeshCore.Library
             return written;
         }
 
-        private bool Blocked(Vector3 origin, Vector3 direction, int ignoreFace1, int ignoreFace2)
+        // Whether the ray hits any triangle but those two faces, or any in `ignoreBlob` (-1 for none).
+        private bool Blocked(Vector3 origin, Vector3 direction, int ignoreFace1, int ignoreFace2, int ignoreBlob)
         {
-            foreach (var chunk in _chunks)
+            for (var blob = 0; blob < _blobChunks.Length; blob++)
             {
-                if (!MayHit(origin, direction, chunk))
+                var (first, count, centre, radiusSquared) = _blobChunks[blob];
+                if (blob == ignoreBlob || !MayHit(origin, direction, centre, radiusSquared))
                     continue;
-                for (var i = chunk.Start; i < chunk.Start + chunk.Count; i++)
-                {
-                    if (i == ignoreFace1 || i == ignoreFace2)
-                        continue;
-                    if (RayHitsTriangle(origin, direction, _cornerA[i], _cornerB[i], _cornerC[i]))
+                for (var c = first; c < first + count; c++)
+                    if (ChunkBlocks(origin, direction, _chunks[c], ignoreFace1, ignoreFace2))
                         return true;
-                }
             }
             return false;
         }
 
-        // Whether the ray (forward from the origin) passes through the chunk's sphere.
-        private static bool MayHit(Vector3 origin, Vector3 direction, Chunk chunk)
+        // Whether the ray hits a triangle of the chunk but those two faces.
+        private bool ChunkBlocks(Vector3 origin, Vector3 direction, Chunk chunk, int ignoreFace1, int ignoreFace2)
+        {
+            if (!MayHit(origin, direction, chunk.Centre, chunk.RadiusSquared))
+                return false;
+            for (var i = chunk.Start; i < chunk.Start + chunk.Count; i++)
+            {
+                if (i == ignoreFace1 || i == ignoreFace2)
+                    continue;
+                if (RayHitsTriangle(origin, direction, _cornerA[i], _cornerB[i], _cornerC[i]))
+                    return true;
+            }
+            return false;
+        }
+
+        // Whether the ray (forward from the origin) passes through the sphere.
+        private static bool MayHit(Vector3 origin, Vector3 direction, Vector3 centre, float radiusSquared)
         {
             var lengthSquared = direction.LengthSquared();
             if (lengthSquared < 1e-12f)
                 return true;
-            var toCentre = chunk.Centre - origin;
+            var toCentre = centre - origin;
             var along = MathF.Max(Vector3.Dot(toCentre, direction) / lengthSquared, 0f);
-            return (toCentre - direction * along).LengthSquared() <= chunk.RadiusSquared;
+            return (toCentre - direction * along).LengthSquared() <= radiusSquared;
         }
 
         // Moller-Trumbore, counting a hit anywhere in front of the origin and from either side of the triangle.
@@ -284,16 +370,27 @@ namespace MeshCore.Library
     // One instance's outline for its current view (see OutlineData.CreateView).
     public sealed class OutlineView
     {
-        // Views closer than this (in the mesh's own space) count as unmoved.
-        private const float SameViewDistanceSquared = 1e-10f;
+        // Views this close (in the mesh's own space) count as unmoved: the eye's moved less than SameView of its
+        // distance from the nearest of the surface, half a degree or so as seen from there, which shifts the outline by
+        // less than its sides are wide. So something far off is worked out again only now and then, not on every frame it
+        // moves; something near, as often as ever, and with the eye inside its bounds, whenever the eye moves at all.
+        private const float SameView = 0.01f, SameViewDistanceSquared = 1e-10f;
+
+        // Seen smaller than this (its bounds' radius over their distance: about twenty pixels across at low resolution),
+        // its outline keeps every edge where it turns away, without testing which some other part of it hides: inner
+        // contours that small are lost in the outline round them anyway, and it's those tests that cost (a forest, far off)
+        public const float Detailed = 0.045f;
 
         private readonly OutlineData _data;
         private Vector3 _eye;
-        private bool _valid;
+        private bool _valid, _hiding;
 
         // The outline as a line list, valid up to VertexCount.
         public VertexPosition[] Vertices { get; }
         public int VertexCount { get; private set; }
+
+        // Goes up each time the outline's worked out again: what's been sent to the GPU is out of date if it's moved on
+        public int Version { get; private set; }
 
         internal OutlineView(OutlineData data)
         {
@@ -304,11 +401,13 @@ namespace MeshCore.Library
         // Brings the outline up to date for an eye at this position (in the mesh's own space).
         public void Update(Vector3 eye)
         {
-            if (_valid && Vector3.DistanceSquared(eye, _eye) < SameViewDistanceSquared)
+            var near = MathF.Max(Vector3.Distance(eye, _data.Centre) - _data.Radius, 0f);
+            var hiding = _data.Radius > Detailed * near;
+            if (_valid && hiding == _hiding && Vector3.DistanceSquared(eye, _eye) < MathF.Max(SameView * SameView * near * near, SameViewDistanceSquared))
                 return;
-            VertexCount = _data.GetOutline(eye, Vertices);
-            _eye = eye;
-            _valid = true;
+            VertexCount = _data.GetOutline(eye, Vertices, hiding);
+            (_eye, _hiding, _valid) = (eye, hiding, true);
+            Version++;
         }
     }
 }

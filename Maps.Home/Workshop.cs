@@ -1,4 +1,5 @@
 using MeshCore.Library;
+using MeshProps;
 using MeshRendering;
 using Microsoft.Xna.Framework;
 using System;
@@ -7,6 +8,7 @@ using System.Linq;
 using World.Buildings;
 using World.Core;
 using World.Core.Characters;
+using World.Core.Physics;
 using World.Maps;
 using World.Rendering;
 
@@ -21,6 +23,8 @@ namespace Maps.Home
     //    orange (tri-star wheels), red (nothing on wheels: it needs legs)
     //  - a platform with three ways up: a ramp (anything), a stair (tri-star wheels) and a steep stair (legs)
     //  - two gaps between concrete blocks: the narrow one too narrow for tracks
+    //  - three crates to push, each as heavy as one way of getting about can shift and the weaker can't (see
+    //    Locomotions.GaitOf): a cardboard box (anything), a wooden crate (tri-star wheels) and a steel one (tracks)
     //  - a bench with spare parts on it: a wheel, a tri-star spider, a strip of track, the stick arm and a jointed arm
     // Everything solid is ledges (see Ledge), so it's stood on, stepped up and blocked by as any ground is.
     public sealed class Workshop : IDistrict
@@ -37,10 +41,16 @@ namespace Maps.Home
         // anything nearer it than its own radius is pushed back off the step it's on: under 0.3 m deep, the tri-star (and
         // the walker) never gets up.
         public const float StairRun = 0.35f;
-        public const int RampStrips = 27;   // the ramp's a run of thin level strips, each a little higher than the last
+        public const int RampStrips = 3;    // side by side up it, each sloping from the platform down to the ground (see Ledge)
 
         // The gaps between the blocks: too narrow for tracks, and wide enough for them
         public const float NarrowGap = 0.7f, WideGap = 1.0f;
+
+        // The crates to push, west to east along CratesAt: how heavy, what they're made of, how big
+        public static readonly (float mass, CrateKind kind, float size)[] Crates =
+            { (15f, CrateKind.Cardboard, 0.5f), (70f, CrateKind.Wood, 0.8f), (300f, CrateKind.Steel, 1f) };
+        public const float CratesAt = 6f;
+        public static Vector2 CrateAt(int k) => new Vector2(-8.5f + 2f * k, CratesAt);
 
         public IEnumerable<TerrainGenerator.Pad> Pads => new[] { new TerrainGenerator.Pad(Centre, new Vector2(Half)) };
 
@@ -50,6 +60,7 @@ namespace Maps.Home
             ["kerbs"] = new(Centre + new Vector2(-6.5f, 0.5f), 0f),             // facing the yellow kerb, in the row of them
             ["platform"] = new(Centre + new Vector2(3.5f, 0.5f), 0f),           // facing the stair up the platform
             ["gaps"] = new(Centre + new Vector2(-7f, -4.5f), 0f),               // facing the gaps between the blocks
+            ["crates"] = new(Centre + new Vector2(-6.5f, 8.8f), 0f),            // facing the wooden crate, between the light one and the steel
         };
 
         // ---- Where everything is, across the yard (x east, z south, from its middle) and up from its ground
@@ -61,8 +72,8 @@ namespace Maps.Home
 
         private static readonly Paint[] KerbPaint = { Paint.Green, Paint.Yellow, Paint.Orange, Paint.Red };
 
-        private static readonly Vector2 Platform = new Vector2(3.5f, -4.5f);
-        private const float PlatformHalf = 1.5f;
+        public static readonly Vector2 Platform = new Vector2(3.5f, -4.5f);
+        public const float PlatformHalf = 1.5f;
         private static float RampFrom => Platform.X + PlatformHalf;
         private const float RampLength = 4.5f;
 
@@ -85,13 +96,17 @@ namespace Maps.Home
                 yield return new Block(at, half, top, Paint.Orange);
         }
 
-        // The ramp, east off the platform, down to the ground: each strip as high as the near edge of the ramp's slope over it
-        private static IEnumerable<Block> RampStripsOf()
+        // The ramp, east off the platform down to the ground: strips running down it side by side, each sloping all the way
+        // (a run of level strips, each a little higher than the last, made it a stair of tiny steps, jerked up one by one)
+        private static IEnumerable<Ledge> RampLedges(float ground)
         {
-            var run = RampLength / RampStrips;
+            var half = StairWidth / RampStrips / 2f;
             for (var k = 0; k < RampStrips; k++)
-                yield return new Block(new Vector2(RampFrom + (k + 0.5f) * run, Platform.Y), new Vector2(run / 2f, StairWidth / 2f),
-                    PlatformTop * (1f - (float)k / RampStrips), Paint.Green);
+            {
+                var across = Platform.Y - StairWidth / 2f + (2 * k + 1) * half;
+                yield return new Ledge(Centre + new Vector2(RampFrom, across), Centre + new Vector2(RampFrom + RampLength, across), half + Overlap,
+                    ground - 0.2f, ground + PlatformTop, TopAtB: ground);
+            }
         }
 
         // The concrete blocks the gaps are between: west to east, block, narrow gap, block, wide gap, block
@@ -116,27 +131,41 @@ namespace Maps.Home
         public IEnumerable<Ledge> Ledges(Terrain terrain)
         {
             var ground = Ground(terrain);
-            foreach (var block in Blocks().Concat(RampStripsOf()).Append(Bench))
+            foreach (var block in Blocks().Append(Bench))
                 foreach (var ledge in LedgesOf(block, ground))
                     yield return ledge;
+            foreach (var ledge in RampLedges(ground))
+                yield return ledge;
         }
 
         // A block as ledges: strips along its longer side, none wider than StripWidth (a ledge's ends are round, half its
-        // width out from its line, so a wide one would round off the block's corners)
-        private const float StripWidth = 0.6f;
+        // width out from its line, so a wide one would round off the block's corners). Side by side, the strips' round ends
+        // leave notches between them along the block's ends, as deep as a strip is half wide, right down to the ground,
+        // where whatever drives on over the end (onto the platform off the ramp) would drop in and stick: so across each
+        // end lies one more strip, filling them in. Only the block's outer corners are left round. And they overlap by
+        // Overlap: just meeting, a droid on the line between two would be exactly half a strip from either, and as often as
+        // not just outside both, and drop through.
+        private const float StripWidth = 0.6f, Overlap = 0.01f;
         private static IEnumerable<Ledge> LedgesOf(Block block, float ground)
         {
             var alongX = block.Half.X >= block.Half.Y;
             var (length, across) = alongX ? (block.Half.X, block.Half.Y) : (block.Half.Y, block.Half.X);
             var strips = Math.Max(1, (int)MathF.Ceiling(across * 2f / StripWidth));
             var half = across / strips;
+            var end = MathF.Max(0f, length - half);
+            var wide = strips > 1 ? half + Overlap : half;
+            Ledge Strip(Vector2 a, Vector2 b) =>
+                alongX ? new Ledge(Centre + block.At + a, Centre + block.At + b, wide, ground - 0.2f, ground + block.Top)
+                       : new Ledge(Centre + block.At + new Vector2(a.Y, a.X), Centre + block.At + new Vector2(b.Y, b.X), wide, ground - 0.2f, ground + block.Top);
+
             for (var k = 0; k < strips; k++)
             {
                 var offset = -across + (2 * k + 1) * half;
-                var end = MathF.Max(0f, length - half);
-                var (a, b) = alongX ? (new Vector2(-end, offset), new Vector2(end, offset)) : (new Vector2(offset, -end), new Vector2(offset, end));
-                yield return new Ledge(Centre + block.At + a, Centre + block.At + b, half, ground - 0.2f, ground + block.Top);
+                yield return Strip(new Vector2(-end, offset), new Vector2(end, offset));
             }
+            if (strips > 1)
+                foreach (var x in new[] { -end, end })
+                    yield return Strip(new Vector2(x, -(across - half)), new Vector2(x, across - half));
         }
 
         public IEnumerable<WallSegment> Walls(Terrain terrain)
@@ -144,6 +173,16 @@ namespace Maps.Home
             var ground = Ground(terrain);
             foreach (var (from, to) in Gates())
                 yield return new WallSegment(Centre + new Vector2(from, GatesAt), Centre + new Vector2(to, GatesAt), ground - 0.2f, ground + GateHeight);
+        }
+
+        public IEnumerable<Thing> Things(PhysicsWorld world, Terrain terrain)
+        {
+            for (var k = 0; k < Crates.Length; k++)
+            {
+                var (mass, kind, size) = Crates[k];
+                var at = Centre + CrateAt(k);
+                yield return Scenery.Crate(world, terrain, $"workshop crate {k + 1}", kind, new Vector3(size), mass, at.X, at.Y);
+            }
         }
 
         // ---- How it looks

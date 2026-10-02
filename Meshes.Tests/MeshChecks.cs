@@ -15,6 +15,8 @@ namespace Meshes.Tests
             Assert.True(mesh.SolidVertexCount % 3 == 0, $"{name}: {mesh.SolidVertexCount} face vertices isn't whole triangles");
             Assert.True(mesh.EdgeVertexCount % 2 == 0, $"{name}: {mesh.EdgeVertexCount} edge vertices isn't whole lines");
             Assert.True(mesh.SolidVertexCount + mesh.EdgeVertexCount > 0 || mesh.Outline != null, $"{name} has nothing in it");
+            Assert.True(mesh.PaletteSize <= MeshRendering.PaletteEffect.MaxColours,
+                $"{name} uses {mesh.PaletteSize} colours: the palette shader has room for {MeshRendering.PaletteEffect.MaxColours}");
 
             // Nothing NaN or infinite, which would vanish or smear across the screen
             foreach (var vertex in mesh.HeadlessSolids.Concat(mesh.HeadlessEdges))

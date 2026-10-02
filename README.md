@@ -201,6 +201,16 @@ dotnet run -c Release --project Basic.World.Benchmark [-- frames [output.md]]
 It always benchmarks every start on the **home** map, with no window. Run in Release for timings; a Debug build also
 runs the debug-only mesh checks.
 
+```
+dotnet run -c Release --project Basic.World.Benchmark -- turn [start] [frames]
+dotnet run -c Release --project Basic.World.Benchmark -- still [start] [frames] [yaw degrees]
+```
+
+Instead, one start (default `workshop`, 480 frames) seen from the droid's head camera, turning on the spot a full turn
+every four seconds (`turn`) or standing still facing the start's way or `yaw` (`still`): each frame's CPU time, the
+slowest frames and which way they faced, to find what makes turning stutter. Try it in Debug too: that's how the
+playground runs from the IDE.
+
 ---
 
 ## Maps and starts
@@ -225,6 +235,7 @@ something on its own map, and with no map named it's the `home` map: `town` on i
 | `kerbs` | Facing the yellow kerb in the row of four (green: anything gets up; yellow: tracks; orange: tri-star; red: legs) |
 | `platform` | Facing the stair up the platform (tri-star wheels only; the ramp round the east side takes anything) |
 | `gaps` | Facing the two gaps between concrete blocks: the west one's too narrow for tracks |
+| `crates` | Facing the 70 kg wooden crate, between a 15 kg box and a 300 kg steel crate: the Segway shifts only the box, the tri-star the wood too, tracks all three |
 | `lane` | On the lane behind the plateau, heading west |
 | `cottage` | Up the lane, looking down it at the cottage |
 | `window` | In the cottage's front garden, looking in at its window |

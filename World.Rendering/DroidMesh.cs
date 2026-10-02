@@ -53,61 +53,80 @@ namespace World.Rendering
             new Color(40, 40, 45), new Color(150, 150, 160), new Color(230, 200, 40));
 
         // Every part's mesh, by the part name the rig gives it (see RigNode.Part).
-        public static IReadOnlyDictionary<string, MeshSource> Sources(Color[] palette) => new Dictionary<string, MeshSource>
+        public static IReadOnlyDictionary<string, MeshSource> Sources(Color[] palette)
         {
-            [DroidRig.AxlePart] = new MeshSource(DroidRig.AxlePart, BuildAxle, palette),
-            [DroidRig.WheelPart] = new MeshSource(DroidRig.WheelPart, BuildWheel, palette),
-            [DroidRig.SpinePart] = new MeshSource(DroidRig.SpinePart, BuildBroom, palette),
-            [DroidRig.ArmPart] = new MeshSource(DroidRig.ArmPart, BuildStickArm, palette),
-            [DroidRig.HandPart] = new MeshSource(DroidRig.HandPart, BuildSporks, palette),
-            [DroidRig.HeadPart] = new MeshSource(DroidRig.HeadPart, BuildHead, palette),
-            [DroidRig.EarPart] = new MeshSource(DroidRig.EarPart, BuildEar, palette),
-            [DroidRig.DishPart] = new MeshSource(DroidRig.DishPart, BuildDish, palette),
-            [DroidRig.CameraPart] = new MeshSource(DroidRig.CameraPart, BuildCamera, palette),
-            [DroidRig.ServoMountPart] = new MeshSource(DroidRig.ServoMountPart, BuildServoMount, palette),
-            [DroidRig.LimbPart] = new MeshSource(DroidRig.LimbPart, BuildLimb, palette),
-            [DroidBases.HullPart] = new MeshSource(DroidBases.HullPart, BuildHull, palette),
-            [DroidBases.TurntablePart] = new MeshSource(DroidBases.TurntablePart, BuildTurntable, palette),
-            [DroidBases.HubPart] = new MeshSource(DroidBases.HubPart, BuildHub, palette),
-            [DroidBases.ShoePart] = new MeshSource(DroidBases.ShoePart, BuildShoe, palette),
-            [DroidBases.SprocketPart] = new MeshSource(DroidBases.SprocketPart, BuildSprocket, palette),
-            [DroidBases.IdlerPart] = new MeshSource(DroidBases.IdlerPart, BuildIdler, palette),
-            [DroidBases.RoadWheelPart] = new MeshSource(DroidBases.RoadWheelPart, BuildRoadWheel, palette),
-            [DroidBases.SpiderPart] = new MeshSource(DroidBases.SpiderPart, BuildSpider, palette),
-            [DroidBases.SpiderWheelPart] = new MeshSource(DroidBases.SpiderWheelPart, BuildSpiderWheel, palette),
-        };
+            var sources = new Dictionary<string, MeshSource>
+            {
+                [DroidRig.AxlePart] = new MeshSource(DroidRig.AxlePart, BuildAxle, palette),
+                [DroidRig.WheelPart] = new MeshSource(DroidRig.WheelPart, BuildWheel, palette),
+                [DroidRig.SpinePart] = new MeshSource(DroidRig.SpinePart, BuildBroom, palette),
+                [DroidRig.ArmPart] = new MeshSource(DroidRig.ArmPart, BuildStickArm, palette),
+                [DroidRig.HandPart] = new MeshSource(DroidRig.HandPart, BuildSporks, palette),
+                [DroidRig.HeadPart] = new MeshSource(DroidRig.HeadPart, BuildHead, palette),
+                [DroidRig.EarPart] = new MeshSource(DroidRig.EarPart, BuildEar, palette),
+                [DroidRig.DishPart] = new MeshSource(DroidRig.DishPart, BuildDish, palette),
+                [DroidRig.CameraPart] = new MeshSource(DroidRig.CameraPart, BuildCamera, palette),
+                [DroidRig.ServoMountPart] = new MeshSource(DroidRig.ServoMountPart, BuildServoMount, palette),
+                [DroidRig.LimbPart] = new MeshSource(DroidRig.LimbPart, BuildLimb, palette),
+                [DroidBases.HullPart] = new MeshSource(DroidBases.HullPart, BuildHull, palette),
+                [DroidBases.TurntablePart] = new MeshSource(DroidBases.TurntablePart, BuildTurntable, palette),
+                [DroidBases.HubPart] = new MeshSource(DroidBases.HubPart, BuildHub, palette),
+                [DroidBases.ShoePart] = new MeshSource(DroidBases.ShoePart, BuildShoe, palette),
+                [DroidBases.SprocketPart] = new MeshSource(DroidBases.SprocketPart, BuildSprocket, palette),
+                [DroidBases.IdlerPart] = new MeshSource(DroidBases.IdlerPart, BuildIdler, palette),
+                [DroidBases.RoadWheelPart] = new MeshSource(DroidBases.RoadWheelPart, BuildRoadWheel, palette),
+                [DroidBases.SpiderPart] = new MeshSource(DroidBases.SpiderPart, BuildSpider, palette),
+                [DroidBases.SpiderWheelPart] = new MeshSource(DroidBases.SpiderWheelPart, BuildSpiderWheel, palette),
+            };
+            for (var f = 0; f < DroidBases.TrackFrames; f++)
+            {
+                var frame = f;
+                sources[DroidBases.TrackPart(frame)] = new MeshSource(DroidBases.TrackPart(frame), d => BuildTrack(d, frame), palette);
+            }
+            return sources;
+        }
 
         // What each stretch of its cables is drawn with.
         public static MeshSource CableSource(Color[] palette) => new MeshSource(CablePart, BuildCable, palette);
 
         // The urn head, about its joint at the top of the broom: a short metal neck, then the head's body with its
         // top and bottom edges rounded off, and the ruby visor all the way round its upper part, standing proud.
+        //
+        // The neck, the head's body and the visor are three surfaces, not one: each is convex alone, which outlining
+        // them is far quicker for (see OutlineData), where the neck and body as one would have a hollow under the body.
         public static MeshData BuildHead(GraphicsDevice device)
         {
             var mesh = new MeshBuilder();
             const float n = DroidRig.NeckHeight, r = DroidRig.HeadRadius, h = DroidRig.HeadHeight, b = DroidRig.Bevel;
-            var inside = new Vector3(0f, n + h / 2f, 0f);
-            Lathe(mesh, Matrix.Identity, inside, Round, new (float, float, bool)[]
+            const float into = 0.005f;   // the neck's top, up inside the head's body
+            Lathe(mesh, Matrix.Identity, new Vector3(0f, n / 2f, 0f), Round, new (float, float, bool)[]
             {
                 (0f, 0f, false),
                 (DroidRig.NeckRadius, 0f, true),
-                (DroidRig.NeckRadius, n, true),
+                (DroidRig.NeckRadius, n + into, true),
+                (0f, n + into, false),
+            }, new[] { Metal + MeshBuilder.Dim, Metal + MeshBuilder.Side, Metal + MeshBuilder.Dim });
+            Lathe(mesh, Matrix.Identity, new Vector3(0f, n + h / 2f, 0f), Round, new (float, float, bool)[]
+            {
+                (0f, n, false),
                 (r - b, n, true),
                 (r, n + b, false),        // the rounded edges: outlined as seen, no fixed ring where they meet the side
                 (r, n + h - b, false),
                 (r - b, n + h, true),
                 (0f, n + h, false),
-            }, new[] { Metal + MeshBuilder.Dim, Metal + MeshBuilder.Side, Head + MeshBuilder.Dim, Head + MeshBuilder.Side,
-                       Head + MeshBuilder.Side, Head + MeshBuilder.Top, Head + MeshBuilder.Top });
+            }, new[] { Head + MeshBuilder.Dim, Head + MeshBuilder.Side, Head + MeshBuilder.Side, Head + MeshBuilder.Top, Head + MeshBuilder.Top });
 
-            // The visor: a band standing proud of the head's side (its inside is the head)
+            // The visor: a band standing proud of the head's side (its inside is the head). Its inner edges are tucked a
+            // little into the head, out of sight: where its top meets the head's side is a corner of the head's too, and
+            // sharing it would make the two one surface, and not convex.
             var (low, high, proud) = (n + DroidRig.VisorBottom, n + DroidRig.VisorTop, DroidRig.VisorRadius);
+            const float tucked = r - 0.002f;
             Lathe(mesh, Matrix.Identity, new Vector3(0f, (low + high) / 2f, 0f), Round, new (float, float, bool)[]
             {
-                (r, low, false),
+                (tucked, low, false),
                 (proud, low, true),
                 (proud, high, true),
-                (r, high, false),
+                (tucked, high, false),
             }, new[] { Ruby + MeshBuilder.Dim, Ruby + MeshBuilder.Side, Ruby + MeshBuilder.Top });
             return mesh.Build(device);
         }
