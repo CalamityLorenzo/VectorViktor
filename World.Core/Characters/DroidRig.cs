@@ -10,7 +10,10 @@ namespace World.Core.Characters
     // crudely bolted together. It faces +Z, as the meshes do, standing on y = 0 midway between its wheels. About
     // 1.4 m to the top of its head.
     //
-    //   root ─ axle ─┬ wheel-left, wheel-right         turn with Roll
+    // The wheels are one way of getting about (see Locomotion): Build can stand it on tank tracks or tri-star wheels
+    // instead (see DroidBases), whatever's below the axle changing, and the rest standing higher or lower on it.
+    //
+    //   root ─ axle ─┬ wheel-left, wheel-right         turn with Roll (on the others, see DroidBases)
     //                └ lean ─ spine ─┬ shoulder ─ arm ─ hand
     //                                ├ shoulder-left                     a socket: a limb can be fitted here (see JointedArm)
     //                                └ head ─┬ ear-left ─ dish-left      dishes wander with Listen
@@ -86,15 +89,16 @@ namespace World.Core.Characters
         public static float VisorRadius => HeadRadius + VisorProud;
         public static float VisorMiddle => NeckHeight + (VisorBottom + VisorTop) / 2f;   // up from the head's joint
         public static float EarOut => HeadRadius + EarRadius * 0.8f;                     // the hoop sits against the head's side
-        public static float Height => WheelRadius + SpineLength + NeckHeight + HeadHeight;
+        public static float Height => HeightOn(Locomotion.Segway);
 
-        public static Rig Build()
+        // To the top of its head, standing on `locomotion`
+        public static float HeightOn(Locomotion locomotion) => DroidBases.HubHeight(locomotion) + SpineLength + NeckHeight + HeadHeight;
+
+        public static Rig Build(Locomotion locomotion = Locomotion.Segway)
         {
             var rig = new Rig();
             rig.Add(Root, null, Pose.Identity);
-            rig.Add(Axle, Root, Pose.At(new Vector3(0f, WheelRadius, 0f)), AxlePart);
-            rig.Add(WheelLeft, Axle, Pose.At(new Vector3(-Track / 2f, 0f, 0f)), WheelPart);
-            rig.Add(WheelRight, Axle, Pose.At(new Vector3(Track / 2f, 0f, 0f)), WheelPart);
+            DroidBases.Add(rig, locomotion);
 
             // Everything above the wheels leans about the axle, as a Segway rider does
             rig.Add(Lean, Axle, Pose.Identity);
@@ -115,7 +119,7 @@ namespace World.Core.Characters
             rig.Add(Rail, Head, Pose.At(new Vector3(0f, VisorMiddle, 0f)));
             rig.Add(Camera, Rail, Pose.At(new Vector3(0f, 0f, VisorRadius)), CameraPart);
 
-            Wiring(rig);
+            Wiring(rig, locomotion);
             return rig;
         }
 
@@ -142,7 +146,7 @@ namespace World.Core.Characters
             Matrix.CreateRotationZ(side * SporkSplay) * Matrix.CreateTranslation(side * SporkApart, -SporkTop, 0f) * SporkFacing;
 
         // The cords and filament from the head to what it works (see the top).
-        private static void Wiring(Rig rig)
+        private static void Wiring(Rig rig, Locomotion locomotion)
         {
             var back = -(SpineRadius + CordRadius);                         // down the back of the broom
             var collar = SpineLength - 0.05f;                               // just under the collar the neck sits in
@@ -179,6 +183,8 @@ namespace World.Core.Characters
             toHub.AddRange(Run(Spine, new Vector3(0.012f, collar, back), new Vector3(0.012f, 0.04f, back), 5, new Vector3(0f, 0f, -0.008f)));
             toHub.Add(new CablePoint(Axle, new Vector3(0.01f, 0.01f, -0.038f)));
             rig.AddCable(new Cable("to the hub", CordRadius, toHub));
+            if (locomotion == Locomotion.Tracks)
+                return;   // its motors are down in the hull, out of sight
             var motorInside = Track / 2f - WheelWidth / 2f - MotorLength;
             foreach (var side in new[] { -1f, 1f })
                 rig.AddCable(new Cable(side > 0 ? "to the left motor" : "to the right motor", FilamentRadius, new[]

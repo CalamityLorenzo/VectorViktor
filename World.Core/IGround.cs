@@ -26,6 +26,10 @@ namespace World.Core
         // which climbs steeply enough that each stride rises further than a step.
         float StepUpAt(Vector3 feet, float step) => step;
 
+        // On stairs, how high each of their steps is; 0 anywhere else. Stairs are walked as the slope they make (see
+        // World.Buildings' RampSpec), but something that can't get up a step that high can't get up them at all.
+        float RiserAt(Vector3 feet) => 0f;
+
         // A walker - an upright cylinder `radius` round and `height` tall, feet at `feet` - pushed back out of
         // any wall it's walked into, the shortest way. It slides along a wall it walks into at an angle.
         Vector3 KeepOut(Vector3 feet, float radius, float height) => feet;

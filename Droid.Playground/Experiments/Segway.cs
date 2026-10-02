@@ -59,9 +59,10 @@ namespace Droid.Playground
             _lean += _leanRate * dt;
             _speed += Thrust * _lean * dt;
 
-            // The walker's controller goes at a fraction of its walking or running speed: ask for the fraction that's ours
-            var run = MathF.Abs(_speed) > CharacterController.WalkSpeed;
-            var top = CharacterController.WalkSpeed * (run ? CharacterController.RunMultiplier : 1f);
+            // The controller goes at a fraction of its gait's going or hurrying speed: ask for the fraction that's ours
+            var gait = session.Player.Body.Gait;
+            var run = MathF.Abs(_speed) > gait.Speed;
+            var top = gait.Speed * (run ? gait.RunMultiplier : 1f);
             return new MoveInput(new Vector2(0f, Math.Clamp(_speed / top, -1f, 1f)), asked.Turn * TurnRate, run);
         }
 

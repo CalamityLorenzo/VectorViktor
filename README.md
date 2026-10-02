@@ -39,7 +39,7 @@ Basic.World 2
 ## Droid.Playground
 
 ```
-Droid.Playground [experiment] [map] [start] [at=x,z] [yaw=degrees]
+Droid.Playground [experiment] [map] [start] [base] [at=x,z] [yaw=degrees]
 ```
 
 All optional, in any order.
@@ -51,15 +51,17 @@ All optional, in any order.
 | `fitarm` | Experiment: the cut scene of the droid trying on a new arm. |
 | `home` / `coast` / `pass` | Which map: any map file in [Maps/](Maps) by its name, or a `.map.json` file by its path. Default `home`. Built again whenever its files are saved. |
 | *start name* | Where to start on that map (see [Maps and starts](#maps-and-starts)). Unknown names fall back to the map's default. |
+| `segway` / `tracks` / `tri-star` | What the droid goes about on (see [Locomotion](World.Core/Characters/Locomotion.cs)): its Segway wheels, tank tracks, or tri-star wheels that climb stairs. Default `segway`. (`segway` alone is the experiment; the wheels are the default anyway.) |
 | `at=x,z` | Drop the droid at that point on the ground instead of at a start (what the map studio's **Play here** does). |
 | `yaw=degrees` | Which way it faces, with `at=`: 0 north, 90 east. |
 
-The experiment and start can also be changed from the playground's ImGui panel once it's running. New experiments are
+The experiment, start and base can also be changed from the playground's ImGui panel once it's running. New experiments are
 registered in `Experiments.All` in [Droid.Playground/Experiment.cs](Droid.Playground/Experiment.cs).
 
 ```
 Droid.Playground segway coast clifftop
 Droid.Playground pass trailhead
+Droid.Playground workshop tracks
 ```
 
 ### Controls
@@ -69,7 +71,9 @@ Keys are ignored while an ImGui panel has the keyboard. The controller is the fi
 | Action | Keyboard | Controller |
 |---|---|---|
 | Drive forward / back | Up / Down (also W / S, except in the free camera) | Left stick |
-| Sidestep | A / D (except in the free camera) | Left stick |
+| Sidestep (only the walker: no droid base can) | A / D (except in the free camera) | Left stick |
+| Turn the tank's body on its turntable | A / D (on tracks) | Left stick left / right |
+| Change what the droid goes about on | G | — |
 | Turn | Left / Right | Right stick left / right |
 | Go faster | Shift | Right trigger |
 | Head camera round its visor | Q / E | LB / RB |
@@ -217,6 +221,10 @@ something on its own map, and with no map named it's the `home` map: `town` on i
 | `far` | Out in the far country, looking back towards home |
 | `pond` | East of the pond, facing it |
 | `droid` | Facing the droid on show |
+| `workshop` | In the droid's workshop yard, facing the three bases on show (Segway, tracks, tri-star) and the course |
+| `kerbs` | Facing the yellow kerb in the row of four (green: anything gets up; yellow: tracks; orange: tri-star; red: legs) |
+| `platform` | Facing the stair up the platform (tri-star wheels only; the ramp round the east side takes anything) |
+| `gaps` | Facing the two gaps between concrete blocks: the west one's too narrow for tracks |
 | `lane` | On the lane behind the plateau, heading west |
 | `cottage` | Up the lane, looking down it at the cottage |
 | `window` | In the cottage's front garden, looking in at its window |

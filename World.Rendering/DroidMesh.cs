@@ -15,18 +15,19 @@ namespace World.Rendering
     //
     // Its cables (see Cable) are all one mesh, a unit length of cable that each stretch is drawn with (see CableSource,
     // Rig.Span). It has faces and no edges, so it's a fine strand close to and next to nothing far off.
-    public static class DroidMesh
+    public static partial class DroidMesh
     {
         // Three shades each (see MeshBuilder.SetBoxShades) but the tyre, hub and cable
         public const int Head = 0, Ruby = 3, Wood = 6, Metal = 9, Lens = 12, Servo = 15, Spork = 18, Tyre = 21, Hub = 22, CableSlot = 23;
-        public const int PaletteSize = 24;
+        public const int Hull = 24, Frame = 27, Tread = 30;   // what it stands on, if not its wheels (see DroidMesh.Bases)
+        public const int PaletteSize = 33;
 
         public const string CablePart = "droid-cable";
 
         private const int Round = 16;   // sides to the head and visor
 
         public static Color[] Palette(Color head, Color ruby, Color wood, Color metal, Color lens, Color servo, Color spork,
-            Color tyre, Color hub, Color cable)
+            Color tyre, Color hub, Color cable, Color? hull = null, Color? frame = null, Color? tread = null)
         {
             var palette = new Color[PaletteSize];
             MeshBuilder.SetBoxShades(palette, Head, head);
@@ -39,6 +40,9 @@ namespace World.Rendering
             palette[Tyre] = tyre;
             palette[Hub] = hub;
             palette[CableSlot] = cable;
+            MeshBuilder.SetBoxShades(palette, Hull, hull ?? new Color(100, 112, 70));    // a tank's olive
+            MeshBuilder.SetBoxShades(palette, Frame, frame ?? new Color(190, 55, 40));   // a sack truck's red
+            MeshBuilder.SetBoxShades(palette, Tread, tread ?? new Color(70, 70, 76));
             return palette;
         }
 
@@ -62,6 +66,15 @@ namespace World.Rendering
             [DroidRig.CameraPart] = new MeshSource(DroidRig.CameraPart, BuildCamera, palette),
             [DroidRig.ServoMountPart] = new MeshSource(DroidRig.ServoMountPart, BuildServoMount, palette),
             [DroidRig.LimbPart] = new MeshSource(DroidRig.LimbPart, BuildLimb, palette),
+            [DroidBases.HullPart] = new MeshSource(DroidBases.HullPart, BuildHull, palette),
+            [DroidBases.TurntablePart] = new MeshSource(DroidBases.TurntablePart, BuildTurntable, palette),
+            [DroidBases.HubPart] = new MeshSource(DroidBases.HubPart, BuildHub, palette),
+            [DroidBases.ShoePart] = new MeshSource(DroidBases.ShoePart, BuildShoe, palette),
+            [DroidBases.SprocketPart] = new MeshSource(DroidBases.SprocketPart, BuildSprocket, palette),
+            [DroidBases.IdlerPart] = new MeshSource(DroidBases.IdlerPart, BuildIdler, palette),
+            [DroidBases.RoadWheelPart] = new MeshSource(DroidBases.RoadWheelPart, BuildRoadWheel, palette),
+            [DroidBases.SpiderPart] = new MeshSource(DroidBases.SpiderPart, BuildSpider, palette),
+            [DroidBases.SpiderWheelPart] = new MeshSource(DroidBases.SpiderWheelPart, BuildSpiderWheel, palette),
         };
 
         // What each stretch of its cables is drawn with.

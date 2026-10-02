@@ -432,7 +432,7 @@ namespace World.Core.Physics
             return best;
         }
 
-        // Keeps a walker (a circle CharacterController.Radius across, `height` tall) out of the bodies, and
+        // Keeps a walker (a circle its gait's Radius across, `height` tall) out of the bodies, and
         // lets it push them. Anything low enough to step onto, the walker walks on instead (see GroundBelow).
         // Pressing on a body (walking at it, within arm's length) pushes it with the walker's strength, which is limited both in force (too
         // heavy a body won't budge at all) and in power (the faster it's already going, the less a push
@@ -448,7 +448,7 @@ namespace World.Core.Physics
                     continue;
 
                 var p = new Vector2(walker.Position.X, walker.Position.Z);
-                var pushed = Geometry2D.PushOutOfBox(p, body.Footprint, body.Half, CharacterController.Radius);
+                var pushed = Geometry2D.PushOutOfBox(p, body.Footprint, body.Half, walker.Gait.Radius);
                 if (pushed == p)
                     continue;
 
@@ -461,7 +461,8 @@ namespace World.Core.Physics
                 if (bodySpeed < 0f && Moves(body))
                 {
                     // It's coming at you: both carry on together, at the speed their momentum makes
-                    var together = (CharacterController.Mass * walkerSpeed + body.Mass * bodySpeed) / (CharacterController.Mass + body.Mass);
+                    var mass = walker.Gait.Mass;
+                    var together = (mass * walkerSpeed + body.Mass * bodySpeed) / (mass + body.Mass);
                     body.Velocity += into * (together - bodySpeed);
                     walker.Velocity += into * (together - walkerSpeed);
                     if (walkerSpeed - together > KnockedOver)
@@ -488,13 +489,13 @@ namespace World.Core.Physics
                 var p = new Vector2(walker.Position.X, walker.Position.Z);
                 var gap = Vector2.Clamp(p, body.Footprint - body.Half, body.Footprint + body.Half) - p;
                 var distance = gap.Length();
-                if (distance < 1e-6f || distance > CharacterController.Radius + Reach)
+                if (distance < 1e-6f || distance > walker.Gait.Radius + Reach)
                     continue;
                 // Only what's in your path - ahead, and no further to one side than you are wide - not
                 // whatever you pass within arm's reach of
                 var ahead = wish.X * gap.X + wish.Z * gap.Y;
                 var aside = MathF.Abs(wish.X * gap.Y - wish.Z * gap.X);
-                if (ahead <= 0f || aside > CharacterController.Radius)
+                if (ahead <= 0f || aside > walker.Gait.Radius)
                     continue;
                 var into = new Vector3(gap.X, 0f, gap.Y) / distance;
                 pressed.Add((body, into, Vector3.Dot(wish, into)));
@@ -514,7 +515,7 @@ namespace World.Core.Physics
                 if (onlyAtChest && !(body.Bottom <= chest && chest <= body.Top))
                     continue;
                 var bodySpeed = MathF.Max(Vector3.Dot(body.Velocity, into), 0.05f);
-                var force = MathF.Min(CharacterController.PushForce, CharacterController.PushPower / bodySpeed) / sharing;
+                var force = MathF.Min(walker.Gait.PushForce, walker.Gait.PushPower / bodySpeed) / sharing;
                 var at = MathHelper.Clamp(chest, body.Bottom, body.Top) - body.Bottom;
                 body.ApplyForce(into * force * pressing, at);
             }
@@ -523,7 +524,7 @@ namespace World.Core.Physics
         // Whether a body is at the height to be walked into: not one low enough to walk up onto (see
         // GroundBelow), nor one overhead.
         private static bool BesideWalker(Body body, CharacterController walker, float height) =>
-            body.Top > walker.Position.Y + CharacterController.MaxStepUp && body.Bottom < walker.Position.Y + height;
+            body.Top > walker.Position.Y + walker.Gait.StepUp && body.Bottom < walker.Position.Y + height;
 
         // As ground: the terrain, raised wherever a body's top is under the feet and within reach of them.
         public float? GroundBelow(Vector3 feet, float reach)
@@ -540,6 +541,7 @@ namespace World.Core.Physics
 
         // Walls, ceilings and ladders are the ground's own business: bodies have nothing to add to them.
         public float StepUpAt(Vector3 feet, float step) => Terrain.StepUpAt(feet, step);
+        public float RiserAt(Vector3 feet) => Terrain.RiserAt(feet);
         public Vector3 KeepOut(Vector3 feet, float radius, float height) => Terrain.KeepOut(feet, radius, height);
         public float? CeilingAbove(Vector3 feet) => Terrain.CeilingAbove(feet);
         public bool Obstructs(Vector3 bottomCentre, Vector3 size) => Terrain.Obstructs(bottomCentre, size);

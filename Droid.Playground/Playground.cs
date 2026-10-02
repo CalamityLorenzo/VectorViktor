@@ -27,7 +27,8 @@ namespace Droid.Playground
     // P pauses, N steps a tick while paused, [ and ] slow and speed time; F1 head camera, F2 drone, F3 free camera;
     // Q/E run the head camera round its visor, R/F tilt it, Home puts it back; T drops the droid under the free camera;
     // Ctrl+click drops it on the ground clicked; Enter opens or shuts a door (or a drawer, a cupboard); K skips to the end
-    // of a cut scene; C colours, L low resolution, Esc exits.
+    // of a cut scene; C colours, L low resolution, Esc exits. G changes what the droid goes about on (see Locomotion): its
+    // Segway wheels, tank tracks or tri-star wheels; none goes sideways, and on tracks A and D turn its turntable instead.
     //
     // On a controller: the left stick drives (outside the free camera), the right stick turns and tilts the head
     // camera, the right trigger goes faster; the shoulders run the head camera round its visor, a click of the right
@@ -49,6 +50,7 @@ namespace Droid.Playground
         private string _mapStatus = "";
         private readonly string _startName;
         private string _experimentName;
+        private Locomotion _locomotion;
 
         private BuiltWorld _built = null!;
         private Player _player = null!;
@@ -77,10 +79,12 @@ namespace Droid.Playground
 
         // `reopen` opens the map again from its files when they're saved (see MapWatcher); `dropIn` puts the droid at that
         // point on the ground, facing that way, rather than at a start (the map studio's "Play here").
-        public Playground(string experiment, Map map, string? start, Func<Map>? reopen = null, (Vector2 at, float yaw)? dropIn = null)
+        public Playground(string experiment, Map map, string? start, Func<Map>? reopen = null, (Vector2 at, float yaw)? dropIn = null,
+            Locomotion locomotion = Locomotion.Segway)
             : base(WindowWidth, WindowHeight, LowResWidth, LowResHeight, colorsKey: Keys.C)
         {
             _experimentName = experiment;
+            _locomotion = locomotion;
             _map = map;
             _reopen = reopen;
             _dropIn = dropIn;
@@ -97,12 +101,7 @@ namespace Droid.Playground
             if (_dropIn is { } dropIn)
                 start = new Start(dropIn.at, dropIn.yaw, Above: DropInAbove);
             _player = new Player(Feet(start), start.Yaw, _built.Physics);
-
-            _rig = DroidRig.Build();
-            _motion = new DroidMotion();
-            _session = new Session(_built, _player, _rig, _motion);
-            var palette = DroidMesh.StartingPalette();
-            _rigView = new RigView(_rig, DroidMesh.Sources(palette), DroidMesh.CableSource(palette), GraphicsDevice, MeshCache);
+            FitBase(_locomotion);
             MakeRenderer();
             _lines = new DebugLines(GraphicsDevice);
             _imgui = new ImGuiRenderer(GraphicsDevice, Window);
@@ -117,6 +116,21 @@ namespace Droid.Playground
                 _camera = shot.Keys.Contains('f') ? CameraMode.Free : shot.Keys.Contains('d') ? CameraMode.Drone : CameraMode.Head;
                 _showWalls = _showBodies = _showJoints = _showCapsule = shot.Keys.Contains('o');
             }
+        }
+
+        // The droid on `locomotion`: its body going about that way, its rig built on it and drawn, and the experiment started
+        // again with it.
+        private void FitBase(Locomotion locomotion)
+        {
+            _locomotion = locomotion;
+            _player.Body.Gait = Locomotions.GaitOf(locomotion);
+            _rig = DroidRig.Build(locomotion);
+            _motion = new DroidMotion(locomotion);
+            _session = new Session(_built, _player, _rig, _motion) { Clock = _session?.Clock ?? 0f };
+            var palette = DroidMesh.StartingPalette();
+            _rigView = new RigView(_rig, DroidMesh.Sources(palette), DroidMesh.CableSource(palette), GraphicsDevice, MeshCache);
+            if (_experiment != null)
+                Pick(_experimentName);
         }
 
         // Dropped in at a point (see the constructor's `dropIn`), it's from this high, to land on whatever's there: the
@@ -159,6 +173,7 @@ namespace Droid.Playground
             }
             var (feet, yaw) = (_player.Body.Position, _player.Body.Yaw);
             _player = new Player(feet + Vector3.Up * 0.1f, yaw, _built.Physics);
+            _player.Body.Gait = Locomotions.GaitOf(_locomotion);
             _session = new Session(_built, _player, _rig, _motion) { Clock = _session.Clock };
             _renderer.Dispose();
             _worldMeshes.Dispose();
@@ -176,7 +191,7 @@ namespace Droid.Playground
             _experimentName = name;
             _experiment = Experiments.Make(name);
             _experiment.Start(_session);
-            Window.Title = $"Droid Playground - {name}";
+            Window.Title = $"Droid Playground - {name} on {Locomotions.NameOf(_locomotion)}";
         }
 
         private void DropAt(Vector3 feet, float yaw) => _player.Teleport(feet, yaw, _built.Physics);
@@ -206,6 +221,7 @@ namespace Droid.Playground
                 if (Pressed(keyboard, Keys.T)) DropUnder(_free.Position);
                 if (Pressed(keyboard, Keys.Enter)) _built.Ground.Interact(_player.Body.Position, _player.Body.Heading);
                 if (Pressed(keyboard, Keys.K)) _experiment.Skip(_session);
+                if (Pressed(keyboard, Keys.G)) FitBase(Locomotions.All[(Locomotions.IndexOf(_locomotion) + 1) % Locomotions.All.Count]);
                 _around = MathHelper.WrapAngle(_around + Axis(keyboard, Keys.Q, Keys.E) * 2f * _frameSeconds);
                 _up = Math.Clamp(_up + Axis(keyboard, Keys.R, Keys.F) * 1f * _frameSeconds, -DroidRig.MaxLookDown, DroidRig.MaxLookUp);
             }
@@ -280,17 +296,19 @@ namespace Droid.Playground
         private void Tick(MoveInput asked)
         {
             var told = _experiment.Drive(_session, asked, StepTime);
-            _walkers[0] = (_player.Body.Position, CharacterController.Radius, Player.Height);
+            var gait = _player.Body.Gait;
+            _walkers[0] = (_player.Body.Position, gait.Radius, gait.Height);
             _built.Ground.StepDoors(StepTime, _built.Physics.Bodies, _walkers);
             _player.Step(told, StepTime, _built.Physics);
             foreach (var portal in _built.Portals)
-                if (portal.WalkedInto(_player.Body.Position, CharacterController.Radius))
+                if (portal.WalkedInto(_player.Body.Position, gait.Radius))
                 {
                     _player.Teleport(portal.To, portal.Yaw, _built.Physics);
                     break;
                 }
             _built.Physics.Step(StepTime);
-            _motion.Follow(_player.Body, StepTime);
+            // Going sideways is what turns a tank's turntable (it can't go sideways itself): right turns it right
+            _motion.Follow(_player.Body, StepTime, _built.Physics, gait.Strafes ? 0f : -told.Move.X);
             _session.Clock += StepTime;
             _experiment.AfterTick(_session, StepTime);
         }
@@ -402,12 +420,13 @@ namespace Droid.Playground
             if (_showCapsule)
             {
                 var feet = _player.Body.Position;
-                _lines.Circle(feet, CharacterController.Radius, Color.Lime);
-                _lines.Circle(feet + Vector3.Up * Player.Height, CharacterController.Radius, Color.Lime);
+                var gait = _player.Body.Gait;
+                _lines.Circle(feet, gait.Radius, Color.Lime);
+                _lines.Circle(feet + Vector3.Up * gait.Height, gait.Radius, Color.Lime);
                 for (var k = 0; k < 4; k++)
                 {
-                    var side = new Vector3(MathF.Cos(k * MathHelper.PiOver2), 0f, MathF.Sin(k * MathHelper.PiOver2)) * CharacterController.Radius;
-                    _lines.Line(feet + side, feet + side + Vector3.Up * Player.Height, Color.Lime);
+                    var side = new Vector3(MathF.Cos(k * MathHelper.PiOver2), 0f, MathF.Sin(k * MathHelper.PiOver2)) * gait.Radius;
+                    _lines.Line(feet + side, feet + side + Vector3.Up * gait.Height, Color.Lime);
                 }
             }
         }
@@ -492,17 +511,28 @@ namespace Droid.Playground
 
             if (ImGui.CollapsingHeader("Droid", ImGuiTreeNodeFlags.DefaultOpen))
             {
+                var bases = Locomotions.All.Select(Locomotions.NameOf).ToArray();
+                var fitted = Locomotions.IndexOf(_locomotion);
+                if (ImGui.Combo("goes on (G)", ref fitted, bases, bases.Length))
+                    FitBase(Locomotions.All[fitted]);
+                ImGui.TextWrapped(Locomotions.About(_locomotion));
+                var gait = _player.Body.Gait;
+                ImGui.TextDisabled($"steps up {gait.StepUp:F2} m, {gait.Radius * 2f:F2} m across, {gait.Height:F2} m tall, {gait.Speed:F1} m/s");
                 var body = _player.Body;
                 ImGui.Text($"at {body.Position.X:F1}, {body.Position.Y:F2}, {body.Position.Z:F1}   facing {MathHelper.ToDegrees(body.Yaw):F0} deg");
                 ImGui.Text($"speed {_motion.Speed:F2} m/s   lean {MathHelper.ToDegrees(_motion.Lean):F1} deg");
                 ImGui.Text($"{(body.Grounded ? "on the ground" : "in the air")}{(body.Swimming ? ", swimming" : "")}   wheels {_motion.LeftRolled:F1} / {_motion.RightRolled:F1} m");
+                if (_locomotion == Locomotion.Tracks)
+                    ImGui.Text($"turntable {MathHelper.ToDegrees(_motion.Turret):F0} deg   pitch {MathHelper.ToDegrees(_motion.Pitch):F1} deg");
+                if (_locomotion == Locomotion.TriStar)
+                    ImGui.Text($"spiders turned {MathHelper.ToDegrees(_motion.ClusterTurn):F0} deg   heave {_motion.Heave:F2} m");
             }
             ImGui.TextDisabled($"{1f / MathF.Max(_frameSeconds, 1e-4f):F0} fps, {_renderer.Batch.Drawn} meshes, {_renderer.Batch.DrawCalls} draw calls");
             ImGui.End();
         }
 
         protected override void WriteShotReport(string path) =>
-            System.IO.File.WriteAllText(path, $"experiment {_experimentName}\ncamera {_camera}\nfeet {_player.Body.Position}\n" +
+            System.IO.File.WriteAllText(path, $"experiment {_experimentName}\nbase {Locomotions.NameOf(_locomotion)}\ncamera {_camera}\nfeet {_player.Body.Position}\n" +
                 $"speed {_motion.Speed:F2}\nlean {MathHelper.ToDegrees(_motion.Lean):F1} deg\nclock {_session.Clock:F2}\n");
 
         protected override void Dispose(bool disposing)

@@ -23,6 +23,11 @@ namespace World.Core.Movement
     // and you stand. Fall or jump into deep water and you stop sinking at the same depth. Where it flows (see
     // IGround.CurrentAt) it carries you with it, wherever you're trying to go: swimming, or in it above your knees
     // (CarriedDepth), at its own speed; less, shallower. Faster than you can wade, there's no going against it.
+    //
+    // How big you are, how fast you go and how high you step are your Gait's: the walker's (Gait.Walker) unless it's
+    // changed, and then whatever goes about that way - a droid on wheels, on tracks - with what it can't do left out:
+    // no going sideways, no jumping, no ladders, no steps higher than its own (stairs included, see IGround.RiserAt).
+    // The constants below are the walker's.
     public sealed class CharacterController
     {
         public const float WalkSpeed = WorldConstants.WalkSpeed;
@@ -54,6 +59,9 @@ namespace World.Core.Movement
         public const float PushForce = 450f;          // newtons
         public const float PushPower = 300f;          // watts
         public const float PushHeight = 1.2f;         // how far above your feet your pushes land: chest height
+
+        // How it gets about (see Gait): the walker's, unless it's something else
+        public Gait Gait { get; set; } = Gait.Walker;
 
         public Vector3 Position { get; set; }
         public Vector3 Velocity { get; set; }
@@ -94,17 +102,18 @@ namespace World.Core.Movement
 
         public void Step(in MoveInput input, float dt, IGround ground)
         {
-            Yaw = MathHelper.WrapAngle(Yaw + input.Turn * TurnSpeed * dt);
+            var gait = Gait;
+            Yaw = MathHelper.WrapAngle(Yaw + input.Turn * gait.TurnSpeed * dt);
 
             // Steer the horizontal velocity towards what's asked for: hard on the ground, gently in the air
-            var wish = Right * input.Move.X + Heading * input.Move.Y;
+            var wish = (gait.Strafes ? Right * input.Move.X : Vector3.Zero) + Heading * input.Move.Y;
             if (wish.LengthSquared() > 1f)
                 wish.Normalize();   // so going diagonally isn't faster
             if (Swimming)
                 wish *= input.Run ? SwimSpeed * SwimRunMultiplier : SwimSpeed;
             else
             {
-                wish *= input.Run ? WalkSpeed * RunMultiplier : WalkSpeed;
+                wish *= input.Run ? gait.Speed * gait.RunMultiplier : gait.Speed;
                 if (Grounded && WaterDepth > 0f)
                     wish *= 1f - WadeSlowing * MathF.Min(WaterDepth / SwimDepth, 1f);   // wading
             }
@@ -125,12 +134,12 @@ namespace World.Core.Movement
                 Grounded = false;
 
             var footing = Grounded && Staggered <= 0f;
-            horizontal = Approach(horizontal, wish, (Swimming ? SwimAcceleration : footing ? GroundAcceleration : AirAcceleration) * dt);
+            horizontal = Approach(horizontal, wish, (Swimming ? SwimAcceleration : footing ? gait.Acceleration : AirAcceleration) * dt);
             Staggered = MathF.Max(0f, Staggered - dt);
             if (sliding)
                 horizontal += Downhill(ground.NormalAt(Position)) * SlideAcceleration * dt;
 
-            if (Grounded && input.Jump)
+            if (Grounded && input.Jump && gait.Jumps)
             {
                 Grounded = false;
                 velocity.Y = JumpSpeed;
@@ -155,7 +164,7 @@ namespace World.Core.Movement
 
                 // Out of any wall this has taken you into, losing the part of the velocity that went into it
                 var before = position;
-                position = ground.KeepOut(position, Radius, Height);
+                position = ground.KeepOut(position, gait.Radius, gait.Height);
                 var pushed = new Vector3(position.X - before.X, 0f, position.Z - before.Z);
                 if (pushed.LengthSquared() > 1e-12f)
                 {
@@ -165,7 +174,7 @@ namespace World.Core.Movement
 
                 if (Grounded)
                 {
-                    var step = ground.StepUpAt(position, MaxStepUp);
+                    var step = StepAt(ground, position);
                     var below = ground.GroundBelow(position, step);
                     if (below.HasValue && position.Y - below.Value <= MathF.Max(SnapDown, step) && ground.IsWalkable(position))
                         position.Y = below.Value;
@@ -190,9 +199,9 @@ namespace World.Core.Movement
 
                 // Head against a ceiling: no higher
                 var ceiling = ground.CeilingAbove(position);
-                if (ceiling.HasValue && position.Y + Height > ceiling.Value)
+                if (ceiling.HasValue && position.Y + gait.Height > ceiling.Value)
                 {
-                    position.Y = MathF.Max(ceiling.Value - Height, below ?? float.MinValue);
+                    position.Y = MathF.Max(ceiling.Value - gait.Height, below ?? float.MinValue);
                     velocity.Y = MathF.Min(velocity.Y, 0f);
                 }
             }
@@ -222,15 +231,18 @@ namespace World.Core.Movement
             Velocity = new Vector3(horizontal.X, velocity.Y, horizontal.Z);
         }
 
+        // How far up you may step at `feet`: your gait's step, or more up a ladder, if you can climb one.
+        private float StepAt(IGround ground, Vector3 feet) => Gait.Ladders ? ground.StepUpAt(feet, Gait.StepUp) : Gait.StepUp;
+
         // Whether the ground lets you move `travel` (horizontally) from `position`; if so, moves you.
-        private static bool TryMove(IGround ground, ref Vector3 position, Vector3 travel)
+        private bool TryMove(IGround ground, ref Vector3 position, Vector3 travel)
         {
             if (travel.LengthSquared() < 1e-12f)
                 return true;
 
             // Where the feet go: no higher than a step (more, up a ladder), and not up a slope too steep to walk
             var target = position + travel;
-            var step = ground.StepUpAt(target, MaxStepUp);
+            var step = StepAt(ground, target);
             var below = ground.GroundBelow(target, step);
             if (!below.HasValue)
                 return false;   // the edge of the world
@@ -238,10 +250,26 @@ namespace World.Core.Movement
             if (rise > step || (rise > 1e-4f && !ground.IsWalkable(target)))
                 return false;
 
+            // Going up stairs, it's each step's height that counts, not the slope they make
+            if (rise > 1e-4f && ground.RiserAt(target) > step)
+                return false;
+
+            // Stepping less high than a walker, what a walker would step up onto is in the way: a kerb, a step, a crate
+            // too high for you - and it stops your front, not your middle, as wheels and tracks are stopped: where the
+            // ground jumps up more than a step just behind it. (A hillside rises as much, but gradually: that's the slope's
+            // business. Higher than a walker's step, the ground keeps you out of it as it does a walker: see KeepOut.)
+            var forward = Vector3.Normalize(travel);
+            var probe = target + forward * Gait.Radius;
+            if (step < MaxStepUp)
+            {
+                float? Under(Vector3 p) => ground.GroundBelow(p, MaxStepUp);
+                if (Under(target) - position.Y > step || Under(probe) - Under(probe - forward * MaxSubStep) > step)
+                    return false;
+            }
+
             // A body's width further on, only whether it's a cliff rising in front of you - so you're stopped
             // with your face short of it, not in it. (It's further away, so it's allowed to be more than a step up.)
-            var probe = target + Vector3.Normalize(travel) * Radius;
-            var ahead = ground.GroundBelow(probe, step + Radius);
+            var ahead = ground.GroundBelow(probe, step + Gait.Radius);
             if (!ahead.HasValue || (ahead.Value - position.Y > 1e-4f && !ground.IsWalkable(probe)))
                 return false;
 
@@ -250,10 +278,10 @@ namespace World.Core.Movement
         }
 
         // Blocked: try going along the slope that stopped you instead of into it, then along each axis.
-        private static bool TrySlide(IGround ground, ref Vector3 position, Vector3 travel, ref Vector3 horizontal)
+        private bool TrySlide(IGround ground, ref Vector3 position, Vector3 travel, ref Vector3 horizontal)
         {
             var target = position + travel;
-            var into = Downhill(ground.NormalAt(target + Vector3.Normalize(travel) * Radius));
+            var into = Downhill(ground.NormalAt(target + Vector3.Normalize(travel) * Gait.Radius));
             Span<Vector3> candidates = stackalloc Vector3[]
             {
                 into == Vector3.Zero ? Vector3.Zero : travel - into * MathF.Min(0f, Vector3.Dot(travel, into)),

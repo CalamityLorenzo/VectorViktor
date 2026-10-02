@@ -282,6 +282,28 @@ namespace World.Buildings
             return step;
         }
 
+        // On a stepped ramp (stairs), each step's height; on a ladder, as high as it lets you step, since it's rungs.
+        public float RiserAt(Vector3 feet)
+        {
+            var riser = 0f;
+            foreach (var room in _rooms)
+            {
+                if (!room.Near(feet, 0f))
+                    continue;
+                var local = feet - room.Offset;
+                foreach (var ramp in room.Spec.Ramps)
+                {
+                    var ladder = ramp.MaxStepUp > RoomSpec.DefaultMaxStepUp;
+                    if ((ramp.Steps <= 0 && !ladder) || !ramp.Contains(local) || MathF.Abs(ramp.HeightAt(local) - local.Y) > RiserReach)
+                        continue;
+                    riser = MathF.Max(riser, ladder ? ramp.MaxStepUp : MathF.Abs(ramp.End.Y - ramp.Start.Y) / ramp.Steps);
+                }
+            }
+            return riser;
+        }
+
+        private const float RiserReach = 0.5f;   // how far from a stair's slope your feet can be and still be on it
+
         // How far past a walker's radius to look for walls that might push it: once pushed out of one, it can be up against another
         private const float PushMargin = 2f;
 

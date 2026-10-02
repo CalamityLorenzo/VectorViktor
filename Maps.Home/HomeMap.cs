@@ -10,7 +10,7 @@ using World.Maps.Files;
 
 namespace Maps.Home
 {
-    // The home map: the country round where you start, the town, the street and the lane, built in code. Any app
+    // The home map: the country round where you start, the town, the street, the lane and the droid's workshop yard, built in code. Any app
     // that wants it - the game, the benchmark, the tests, the harness and the map studio - builds it the same way:
     // WorldBuilder.Build(HomeMap.Map). Maps/home.map.json is the same map as a file, with a district from a file added
     // (see AddTo).
@@ -18,7 +18,7 @@ namespace Maps.Home
     {
         // Its districts, in the order they're put together: each district's pads are levelled over the ones before
         // it. Where you can start (see Start) is theirs.
-        public static IDistrict[] Districts() => new IDistrict[] { new Countryside(), new Town(), new Street(), new Lane() };
+        public static IDistrict[] Districts() => new IDistrict[] { new Countryside(), new Town(), new Street(), new Lane(), new Workshop() };
 
         public const string DefaultStart = "hills";
 
@@ -46,6 +46,7 @@ namespace Maps.Home
             library.AddDistrict("home.town", () => new Town());
             library.AddDistrict("home.street", () => new Street());
             library.AddDistrict("home.lane", () => new Lane());
+            library.AddDistrict("home.workshop", () => new Workshop());
 
             const float wall = 0.3f;   // the outer wall's thickness, and a little to spare
             library.Add(new BuildingKind("house.two-storey", new Vector2(Houses.TwoStoreySize / 2f + wall),

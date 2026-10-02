@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "about": "The home map: the country round where you start, the town, the street and the lane, all built in code, and the yard, from a file.",
+  "about": "The home map: the country round where you start, the town, the street, the lane and the droid workshop, all built in code, and the yard, from a file.",
   "terrain": "home",
   "seed": 1,
   "defaultStart": "hills",
@@ -9,6 +9,7 @@
     {"code": "home.town"},
     {"code": "home.street"},
     {"code": "home.lane"},
+    {"code": "home.workshop"},
     {"file": "districts/yard.district.json"}
   ]
 }
