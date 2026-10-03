@@ -227,7 +227,7 @@ namespace World.Core.Tests
             Assert.Equal(new Vector3(0.8f, 0.8f, 0.8f), Library.Value.Item("crate.wood").Size);
             Assert.All(Library.Value.Items, item =>
             {
-                Assert.True(item.Size.X > 0.05f && item.Size.Y > 0.05f && item.Size.Z > 0.05f, item.Name);
+                Assert.True(item.Size.X > 0.02f && item.Size.Y > 0.02f && item.Size.Z > 0.02f, item.Name);   // a book is 0.035 thick
                 Assert.True(item.Mass > 0f, item.Name);
             });
         }

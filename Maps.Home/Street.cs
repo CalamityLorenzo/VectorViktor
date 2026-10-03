@@ -10,8 +10,9 @@ using World.Maps;
 
 namespace Maps.Home
 {
-    // A street east of the town: a straight road running east-west, a pair of two-storey houses on its
-    // south side and a pair of bungalows on its north, all facing it, under pitched roofs. Between the bungalows a
+    // A street east of the town: a straight road running east-west, on its south side an English house (see
+    // EnglishHouse), its front rooms upstairs and down under a pitched roof and its kitchen and dining room built on at
+    // the back, and a two-storey house, and a pair of bungalows on its north, all facing it, under pitched roofs. Between the bungalows a
     // T-junction, where the lane begins (see Lane). Each house stands GardenRise above
     // the road, its front garden sloping gently down to the pavement, and behind it a back garden with a
     // white picket fence round it and a gateway in its west side. The second house on the south side has
@@ -45,11 +46,11 @@ namespace Maps.Home
             new RoadNetwork.Straight(new(100f, 30f), new(110f, 30f), Level, Level));
 
         // A house's plot: which side of the road (+1 south, -1 north), where along it, and what stands on it
-        private enum Kind { TwoStorey, Bungalow }
+        private enum Kind { TwoStorey, Bungalow, English }
         private readonly record struct Plot(string Id, Kind Kind, int Side, float X, Color Outside, Color Roof)
         {
-            public float Width => Kind == Kind.TwoStorey ? Houses.TwoStoreySize : Houses.BungalowWidth;
-            public float Depth => Kind == Kind.TwoStorey ? Houses.TwoStoreySize : Houses.BungalowDepth;
+            public float Width => Kind switch { Kind.TwoStorey => Houses.TwoStoreySize, Kind.English => EnglishHouse.Width, _ => Houses.BungalowWidth };
+            public float Depth => Kind switch { Kind.TwoStorey => Houses.TwoStoreySize, Kind.English => EnglishHouse.Depth, _ => Houses.BungalowDepth };
             public float Front => RoadCentre.Y + Side * (RoadNetwork.Half + FrontGarden);           // the house's front wall, outside
             public float Middle => Front + Side * (WallThickness + Depth / 2f);
             public float Back => Middle + Side * (Depth / 2f + WallThickness);                      // its back wall, outside
@@ -58,7 +59,7 @@ namespace Maps.Home
 
         private static readonly Plot[] Plots =
         {
-            new("street1", Kind.TwoStorey, +1, 64f, new Color(200, 120, 90), new Color(90, 60, 55)),
+            new("street1", Kind.English, +1, 64f, new Color(185, 95, 70), new Color(90, 60, 55)),   // red brick
             new("street2", Kind.TwoStorey, +1, 88f, new Color(170, 190, 210), new Color(70, 75, 90)),
             // Set wide apart, for the lane between them
             new("street3", Kind.Bungalow, -1, 61f, new Color(230, 215, 150), new Color(150, 70, 50)),
@@ -87,7 +88,13 @@ namespace Maps.Home
             ["atari"] = new(Billboards[1].View, Billboards[1].ViewHeading),      // in front of the Atari one, across the road
             ["pool"] = new(new Vector2(84f, 51.5f), MathHelper.Pi * 0.75f),      // in a back garden, by its swimming pool
             ["junction"] = new(new Vector2(76f, 36f), 0f),                       // on the street, looking up the lane
+            ["english"] = new(EnglishFront(-3f), MathHelper.Pi),                  // outside the English house's front door, facing it
+            ["landing"] = new(EnglishPlan(new Vector2(2.9f, 0.4f)), 0f, Above: 4.5f),   // at the top of its stairs, looking along the landing to the front
         };
+
+        // A point on the English house's floor plan (see EnglishHouse), in the world; and one `out` in front of its front door
+        private static Vector2 EnglishPlan(Vector2 plan) => new Vector2(Plots[0].X, Plots[0].Middle) + plan;
+        private static Vector2 EnglishFront(float @out) => EnglishPlan(EnglishHouse.FrontDoor) + new Vector2(0f, @out - WallThickness);
 
         public IEnumerable<TerrainGenerator.Pad> Pads
         {
@@ -126,9 +133,12 @@ namespace Maps.Home
             {
                 var at = new Vector3(plot.X, floor, plot.Middle);
                 var name = "Street house " + plot.Id.Substring("street".Length);
-                yield return plot.Kind == Kind.TwoStorey
-                    ? Houses.TwoStorey(plot.Id, name, at, plot.Outside, plot.Roof, RoofPitch)
-                    : Houses.Bungalow(plot.Id, name, at, plot.Side > 0 ? North : South, plot.Outside, plot.Roof, RoofPitch);
+                yield return plot.Kind switch
+                {
+                    Kind.TwoStorey => Houses.TwoStorey(plot.Id, name, at, plot.Outside, plot.Roof, RoofPitch),
+                    Kind.English => EnglishHouse.Build(plot.Id, name, at, plot.Outside, plot.Roof, RoofPitch),
+                    _ => Houses.Bungalow(plot.Id, name, at, plot.Side > 0 ? North : South, plot.Outside, plot.Roof, RoofPitch),
+                };
             }
         }
 

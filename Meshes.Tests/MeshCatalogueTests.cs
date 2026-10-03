@@ -67,6 +67,10 @@ namespace Meshes.Tests
                 ["straight stair"] = StaircaseMesh.BuildStraight(null, 8),
                 ["quarter-turn stair"] = StaircaseMesh.BuildQuarterTurn(null, 4, 4, StairTurn.Left),
                 ["seating"] = SeatingBuilder.Build(null, 3, 0.2f, 0.3f, 0.15f, 0.4f),
+                ["bed, three pillows"] = BedBuilder.Build(null, 1.8f, 3),
+                ["book: plain"] = BookMesh.Build(null, BookCover.Plain),
+                ["book: robot manual, standing"] = BookMesh.Build(null, BookCover.RobotManual, standing: true),
+                ["book: titled"] = BookMesh.Build(null, BookCover.Titled("The Quick Brown", "Fox Jumps", "Over 12 Lazy Dogs!")),
             };
             foreach (var expression in Enum.GetValues<RobotExpression>())
             {

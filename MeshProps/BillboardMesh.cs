@@ -59,11 +59,11 @@ namespace MeshProps
 
             var front = BoardDepth / 2f;
             var hw = Width / 2f - Border;
-            var face = new BillboardFace(mesh, front + Lift);
+            var face = new PaintedFace(mesh, new Vector3(0f, Clearance, front + Lift), Vector3.UnitX, Vector3.UnitY, Lift);
             face.Shape(Face, new Vector2(-hw, Border), new Vector2(hw, Border), new Vector2(hw, Height - Border), new Vector2(-hw, Height - Border));
 
             // The art, a touch further out so it wins over the face
-            design.Paint(new BillboardFace(mesh, front + 2f * Lift));
+            design.Paint(face.Over());
             return mesh.Build(device);
         }
     }

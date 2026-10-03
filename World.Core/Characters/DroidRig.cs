@@ -11,7 +11,8 @@ namespace World.Core.Characters
     // 1.4 m to the top of its head.
     //
     // The wheels are one way of getting about (see Locomotion): Build can stand it on tank tracks or tri-star wheels
-    // instead (see DroidBases), whatever's below the axle changing, and the rest standing higher or lower on it.
+    // instead, or in a milk churn (see DroidBases), whatever's below the axle changing, and the rest standing higher or
+    // lower on it (in the churn, leaning).
     //
     //   root ─ axle ─┬ wheel-left, wheel-right         turn with Roll (on the others, see DroidBases)
     //                └ lean ─ spine ─┬ shoulder ─ arm ─ hand
@@ -91,8 +92,14 @@ namespace World.Core.Characters
         public static float EarOut => HeadRadius + EarRadius * 0.8f;                     // the hoop sits against the head's side
         public static float Height => HeightOn(Locomotion.Segway);
 
-        // To the top of its head, standing on `locomotion`
-        public static float HeightOn(Locomotion locomotion) => DroidBases.HubHeight(locomotion) + SpineLength + NeckHeight + HeadHeight;
+        // To the top of its head, standing on `locomotion`: in the churn, leaning, a little less
+        public static float HeightOn(Locomotion locomotion)
+        {
+            var above = SpineLength + NeckHeight + HeadHeight;
+            if (locomotion == Locomotion.Churn)
+                return DroidBases.HubHeight(locomotion) + above * MathF.Cos(DroidBases.ChurnLean) + HeadRadius * MathF.Sin(DroidBases.ChurnLean);
+            return DroidBases.HubHeight(locomotion) + above;
+        }
 
         public static Rig Build(Locomotion locomotion = Locomotion.Segway)
         {
@@ -104,7 +111,7 @@ namespace World.Core.Characters
             rig.Add(Lean, Axle, Pose.Identity);
             rig.Add(Spine, Lean, Pose.Identity, SpinePart);
             rig.Add(Shoulder, Spine, Pose.At(new Vector3(-(SpineRadius + ServoWidth + ArmRadius), ShoulderHeight, 0f)));   // the servo's shaft, on its right
-            rig.Add(Arm, Shoulder, Pose.At(Vector3.Zero, Hanging), ArmPart);
+            rig.Add(Arm, Shoulder, Pose.At(Vector3.Zero, locomotion == Locomotion.Churn ? DroidBases.ChurnArm : Hanging), ArmPart);
             rig.Add(Hand, Arm, Pose.At(new Vector3(0f, -ArmLength, 0f)), HandPart);
             rig.Add(ShoulderLeft, Spine, Pose.At(new Vector3(0f, ShoulderHeight, 0f)));   // the broom's middle: a limb brings its own servo
 
@@ -183,8 +190,8 @@ namespace World.Core.Characters
             toHub.AddRange(Run(Spine, new Vector3(0.012f, collar, back), new Vector3(0.012f, 0.04f, back), 5, new Vector3(0f, 0f, -0.008f)));
             toHub.Add(new CablePoint(Axle, new Vector3(0.01f, 0.01f, -0.038f)));
             rig.AddCable(new Cable("to the hub", CordRadius, toHub));
-            if (locomotion == Locomotion.Tracks)
-                return;   // its motors are down in the hull, out of sight
+            if (locomotion is Locomotion.Tracks or Locomotion.Churn)
+                return;   // its motors are down in the hull, out of sight; in a churn, it has none
             var motorInside = Track / 2f - WheelWidth / 2f - MotorLength;
             foreach (var side in new[] { -1f, 1f })
                 rig.AddCable(new Cable(side > 0 ? "to the left motor" : "to the right motor", FilamentRadius, new[]

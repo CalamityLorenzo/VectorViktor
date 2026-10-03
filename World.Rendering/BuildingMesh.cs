@@ -12,12 +12,13 @@ namespace World.Rendering
     // every room, a plinth colour below each floor (going down into the ground under the ground floor, and
     // as a band between storeys), the doorways cut through and lined across the wall's thickness, and the
     // roof - flat, or pitched (see Building.Roof): two slopes with an underside and fascia boards round
-    // their edges, overhanging the walls, the end walls rising under them to the ridge. The rooms' insides
+    // their edges, overhanging the walls, the end walls rising under them to the ridge. Doorways through
+    // partitions between rooms (see Building.Through) are lined across the partition. The rooms' insides
     // are RoomMesh's; together they make the walls solid.
     public static class BuildingMesh
     {
-        public const int WallA = 0, WallB = 1, Roof = 2, Plinth = 3, Reveal = 4, RoofUnder = 5;
-        public const int PaletteSize = 6;
+        public const int WallA = 0, WallB = 1, Roof = 2, Plinth = 3, Reveal = 4, RoofUnder = 5, Lining = 6, Threshold = 7;
+        public const int PaletteSize = 8;
 
         public static Color[] Palette(Building building) => new[]
         {
@@ -27,6 +28,8 @@ namespace World.Rendering
             building.PlinthColor,
             Color.Lerp(building.WallColor, Color.Black, 0.3f),
             Color.Lerp(building.RoofColor, Color.Black, 0.35f),
+            building.LiningColor,
+            Color.Lerp(building.LiningColor, Color.Black, 0.35f),
         };
 
         public static MeshSource Source(Building building) => new MeshSource("building:" + building.Name, d => Build(d, building), Palette(building));
@@ -34,36 +37,40 @@ namespace World.Rendering
         public static MeshData Build(GraphicsDevice device, Building building)
         {
             var mesh = new MeshBuilder();
+            var roofs = new HashSet<Building.RoofFrame>();   // each pitched roof once, however many rooms are under it
             foreach (var room in building.Rooms)
-                AddShell(mesh, building, room);
+                AddShell(mesh, building, room, roofs);
             return mesh.Build(device);
         }
 
         private static Vector3 At(Vector2 p, float y) => new Vector3(p.X, y, p.Y);
 
-        private static void AddShell(MeshBuilder mesh, Building building, RoomSpec room)
+        private static void AddShell(MeshBuilder mesh, Building building, RoomSpec room, HashSet<Building.RoofFrame> roofs)
         {
             var floor = room.WorldOffset.Y;
             var (bottom, top, roofed) = building.ShellSpan(room);
-            var gable = roofed ? building.RoofOf(room) : null;
+            var frame = roofed ? building.RoofOver(room) : null;
             var outer = building.OuterOutline(room);
             var n = outer.Length;
 
             // How high the wall reaches at a point along it: the ceiling or flat roof, or up under a pitched roof
-            float Top(Vector2 p) => gable is { } g ? Building.RoofUnderside(room, g, Building.FromRidge(room, g, p)) : top;
+            float Top(Vector2 p) => frame is { } f ? f.Underside(f.FromRidge(p)) : top;
 
             // Where a stretch of wall from p to q passes under the ridge, if it does (a gable end)
             Vector2? Ridge(Vector2 p, Vector2 q)
             {
-                if (gable is not { } g)
+                if (frame is not { } f)
                     return null;
-                var centre = new Vector2(room.WorldOffset.X, room.WorldOffset.Z);
-                var sp = Vector2.Dot(p - centre, g.Across);
-                var sq = Vector2.Dot(q - centre, g.Across);
+                var sp = Vector2.Dot(p - f.Centre, f.Gable.Across);
+                var sq = Vector2.Dot(q - f.Centre, f.Gable.Across);
                 if (sp * sq >= 0f)
                     return null;
                 return p + (q - p) * (sp / (sp - sq));
             }
+
+            foreach (var opening in room.Openings)
+                if (Building.IsThrough(room, opening))
+                    AddLining(mesh, building, room, opening);
 
             for (var edge = 0; edge < n; edge++)
             {
@@ -135,27 +142,44 @@ namespace World.Rendering
 
             if (!roofed)
                 return;
-            if (gable is { } pitched)
+            if (frame is { } pitched)
             {
-                AddPitchedRoof(mesh, building, room, pitched);
+                if (roofs.Add(pitched))
+                    AddPitchedRoof(mesh, building, pitched);
                 return;
             }
             foreach (var (i, j, k) in Geometry2D.Triangulate(outer))
                 mesh.AddPolygon(Roof, At(outer[i], top), At(outer[j], top), At(outer[k], top));
         }
 
+        // A doorway through a partition, as far as this room lines it (see Building.Through): its two sides and its
+        // head, from the room's wall out to the partition's middle, and the threshold under it. The room on the other
+        // side lines the rest.
+        private static void AddLining(MeshBuilder mesh, Building building, RoomSpec room, OpeningSpec opening)
+        {
+            var (left, right, midLeft, midRight) = building.Through(room, opening);
+            var floor = room.WorldOffset.Y;
+            var head = floor + MathF.Min(opening.Height, room.Height);
+            mesh.AddPolygon(Lining, At(left, floor), At(midLeft, floor), At(midLeft, head), At(left, head));
+            mesh.AddPolygon(Lining, At(right, floor), At(midRight, floor), At(midRight, head), At(right, head));
+            mesh.AddPolygon(Lining, At(left, head), At(midLeft, head), At(midRight, head), At(right, head));
+            mesh.AddPolygon(Threshold, At(left, floor), At(midLeft, floor), At(midRight, floor), At(right, floor));
+            foreach (var y in new[] { floor, head })
+            {
+                mesh.AddLine(At(left, y), At(midLeft, y));
+                mesh.AddLine(At(right, y), At(midRight, y));
+            }
+        }
+
         // Two slopes meeting at the ridge, RoofThickness thick, reaching RoofOverhang past the outer walls on
         // every side: their tops, their undersides, and the boards along their edges.
-        private static void AddPitchedRoof(MeshBuilder mesh, Building building, RoomSpec room, Gable gable)
+        private static void AddPitchedRoof(MeshBuilder mesh, Building building, Building.RoofFrame frame)
         {
-            var centre = new Vector2(room.WorldOffset.X, room.WorldOffset.Z);
-            var halfAlong = 0f;
-            foreach (var p in room.Outline)
-                halfAlong = MathF.Max(halfAlong, MathF.Abs(Vector2.Dot(p, gable.Along)));
+            var (gable, centre) = (frame.Gable, frame.Centre);
             var reach = building.WallThickness + building.RoofOverhang;
-            var along = halfAlong + reach;
-            var across = gable.HalfSpan(room.Outline) + reach;
-            float Under(float fromRidge) => Building.RoofUnderside(room, gable, fromRidge);
+            var along = frame.HalfAlong + reach;
+            var across = frame.HalfAcross + reach;
+            float Under(float fromRidge) => frame.Underside(fromRidge);
             Vector3 P(float a, float c, float y) => At(centre + gable.Along * a + gable.Across * c, y);
             var t = building.RoofThickness;
 

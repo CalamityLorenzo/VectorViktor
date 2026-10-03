@@ -30,6 +30,11 @@ namespace World.Core.Characters
     // it did; so its shoes are drawn as one mesh of the whole loop, baked at TrackFrames points through one shoe's length
     // of running, and running it picks which (see TrackPart), as the bird's flapping is baked (see MeshProps' BirdMesh).
     //
+    // Churn: no axle, only a milk churn, the broom's foot stood on the bottom inside it and the broom leaning against the
+    // rim of its mouth, out over its side (see ChurnLean), the arm swung out to hang clear of it (ChurnArm)
+    //
+    //   root ─ churn ─ axle                                              the broom's foot, leaning
+    //
     // The tracks and spiders are the same either side, so the meshes are too; nothing's mirrored. Facing +Z, its left is +X.
     public static class DroidBases
     {
@@ -39,6 +44,8 @@ namespace World.Core.Characters
         public const string HullPart = "tank-hull", TurntablePart = "tank-turntable", HubPart = "droid-hub", ShoePart = "tank-shoe",
             SprocketPart = "tank-sprocket", IdlerPart = "tank-idler", RoadWheelPart = "tank-road-wheel",
             SpiderPart = "tristar-spider", SpiderWheelPart = "tristar-wheel";
+
+        public const string Churn = "churn", ChurnPart = "milk-churn";
 
         // ---- Tracks
 
@@ -76,6 +83,41 @@ namespace World.Core.Characters
         public const float SpiderArm = 0.13f, SpiderWheelRadius = 0.09f, SpiderWheelWidth = 0.06f, SpiderWheelOut = 0.045f;
         public const float ClusterStep = MathHelper.TwoPi / 3f;   // a spider's turn from one pair of wheels down to the next
 
+        // ---- Churn
+
+        // A milk churn, just over a third as tall as the droid on its Segway wheels (ChurnHeight): a foot ring, a body
+        // ChurnRadius round up to ChurnShoulder, its shoulder sloping in to a neck ChurnNeckRadius round from ChurnNeck, and a
+        // rolled rim round the mouth (ChurnMouthRadius, open: it has no lid) from ChurnRim to the top
+        public const float ChurnHeight = 0.48f, ChurnRadius = 0.17f, ChurnShoulder = 0.27f, ChurnNeck = 0.385f, ChurnNeckRadius = 0.1f;
+        public const float ChurnRim = 0.455f, ChurnRimRadius = 0.115f, ChurnMouthRadius = 0.09f;
+        public const float ChurnFloor = 0.02f;   // the bottom, inside
+
+        // The broom leans ChurnLean radians from upright, out to the droid's right (its arm's side) and a little forward,
+        // against the rim across the mouth from where its foot stands: far enough that its head hangs out past the churn's
+        // side, as if the lot might go over
+        public const float ChurnLean = 0.28f;
+        public static readonly Vector3 ChurnLeanTowards = Vector3.Normalize(new Vector3(-1f, 0f, 0.3f));
+
+        // The arm at rest in the churn. Hanging down the broom as it does on wheels (see DroidRig.Hanging), it would reach
+        // nearly to the broom's foot, inside the churn; so it's swung out from the broom, past upright, to hang over the
+        // churn's side, ChurnArmOut radians out from straight down and a little forward
+        public const float ChurnArmOut = 0.3f;
+        public static readonly Quaternion ChurnArm = Pose.Turn(Vector3.UnitZ, -(ChurnLean + ChurnArmOut)) * Pose.Turn(Vector3.UnitX, -0.15f);
+
+        // Where the broom's foot stands on the bottom, so that leaning it touches the rim at the mouth
+        public static Vector3 ChurnFoot
+        {
+            get
+            {
+                var touches = ChurnMouthRadius - DroidRig.SpineRadius / MathF.Cos(ChurnLean);   // from the middle, at the top
+                var below = ChurnHeight - ChurnFloor;
+                return new Vector3(0f, ChurnFloor, 0f) + ChurnLeanTowards * (touches - below * MathF.Tan(ChurnLean));
+            }
+        }
+
+        // The broom's lean in the churn: about the line across the way it leans
+        public static Quaternion ChurnTilt => Pose.Turn(Vector3.Cross(Vector3.Up, ChurnLeanTowards), ChurnLean);
+
         // ---- Any
 
         // How high the axle is off the ground: the broom's foot, so the whole droid stands this much higher
@@ -83,6 +125,7 @@ namespace World.Core.Characters
         {
             Locomotion.Tracks => HullTop + TurntableHeight + HubDepth,
             Locomotion.TriStar => SpiderWheelRadius + SpiderArm * 0.5f,   // two arms down, 30 degrees below level
+            Locomotion.Churn => ChurnFloor,
             _ => DroidRig.WheelRadius,
         };
 
@@ -121,6 +164,11 @@ namespace World.Core.Characters
                             rig.Add($"{spider}-wheel-{k}", spider, Pose.At(new Vector3(side * SpiderWheelOut, arm.Y, arm.Z)), SpiderWheelPart);
                         }
                     }
+                    break;
+
+                case Locomotion.Churn:
+                    rig.Add(Churn, DroidRig.Root, Pose.Identity, ChurnPart);
+                    rig.Add(DroidRig.Axle, Churn, Pose.At(ChurnFoot, ChurnTilt));
                     break;
 
                 default:

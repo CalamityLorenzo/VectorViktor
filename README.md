@@ -250,6 +250,8 @@ something on its own map, and with no map named it's the `home` map: `town` on i
 | `atari` | In front of the Atari billboard, across the road |
 | `pool` | In a back garden, by its swimming pool |
 | `junction` | On the street, looking up the lane |
+| `english` | Outside the English house's front door, on the street (hall, living room, dining room and kitchen downstairs; landing, bedroom and bathroom up) |
+| `landing` | In the English house, at the top of its stairs, looking along the landing |
 | `town` | North of the buildings, facing them |
 | `house` | Outside the house's doorway |
 | `bedroom` | In the house's bedroom, facing the ladder to the attic |

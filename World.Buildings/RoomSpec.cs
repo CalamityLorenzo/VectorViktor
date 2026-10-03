@@ -271,6 +271,12 @@ namespace World.Buildings
         public DoorSpec[] Doors { get; init; } = Array.Empty<DoorSpec>();
         public PropSpec[] Props { get; init; } = Array.Empty<PropSpec>();
 
+        // The edges of the Outline that are partitions inside its building, between it and the rooms beside it: the
+        // building's shell isn't built along them (see Building). The rooms either side stand Building.PartitionThickness
+        // apart, so their walls don't fight to be seen; a doorway through one is an opening on the edge, matched by one on
+        // the other room's, and lined across the partition (see Building.Through).
+        public int[] InnerWalls { get; init; } = Array.Empty<int>();
+
         // Chests of drawers and cupboards, whose drawers and doors open (see Cabinet)
         public CabinetSpec[] Cabinets { get; init; } = Array.Empty<CabinetSpec>();
 
@@ -298,7 +304,7 @@ namespace World.Buildings
             Floor = Floor, WallA = WallA, WallB = WallB, Ceiling = Ceiling,
             WorldOffset = WorldOffset + by, GridSpacing = GridSpacing, Ramps = Ramps,
             Doors = [.. Array.ConvertAll(Doors, d => d with { TargetRoom = string.IsNullOrEmpty(d.TargetRoom) ? d.TargetRoom : rename(d.TargetRoom) }), .. moreDoors],
-            Props = Props, Cabinets = Cabinets, Screens = Screens,
+            Props = Props, InnerWalls = InnerWalls, Cabinets = Cabinets, Screens = Screens,
             Openings = Array.ConvertAll(Openings, o => o.LeadsOutside ? o : o with { TargetRoom = rename(o.TargetRoom) }),
             CeilingHatches = Array.ConvertAll(CeilingHatches, h => h with { TargetRoom = rename(h.TargetRoom) }),
             Pitched = Pitched,

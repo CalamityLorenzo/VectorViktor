@@ -52,6 +52,7 @@ What that needs that the game doesn't have today, in one place (see 4): a game s
   - **Spine**: a broom handle, with wires running from the head down to the wheels.
   - **Arm**: another stick of wood, with two forks for a hand.
   - **Wheels**: a pair of hoverboard wheels, self-balancing like a Segway. On two wheels it can't climb stairs, only ramps and low kerbs.
+  - **Before the wheels, a milk churn** (Paul, 2026-10-03): it starts with the broom stood in a milk churn just over a third its height, leaning against the rim as if it might tip over. In the churn it can't move, roll, slide, turn or jump; only the head camera looks about. The wheels are its first way of getting about (`Locomotion.Churn`).
 - **Replaceable components**: arms, legs and body, each changing height, speed and how it moves; they are the repairs, and what's missing is what limits it.
 - **The body is what it carries in**: how many implements the droid can carry depends on how big a body it has, so a dustbin or a cupboard is more room as well as a new shape. The starting droid has no body at all, so it can hold only what's in its fork hand; a bigger body could also be a trade-off, carrying more at the cost of speed or of fitting through gaps.
 - **Ways of moving**: the hoverboard wheels it starts on (self-balancing, like a Segway), legs, more wheels, tractor tracks, and stranger ones such as strapped on top of a toy. Different ones suit different worlds and puzzles.

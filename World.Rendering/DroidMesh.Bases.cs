@@ -8,8 +8,8 @@ using World.Core.Characters;
 namespace World.Rendering
 {
     // What the droid can stand on instead of its wheels (see DroidBases): a tank's tracks - a hull, its turntable, and each
-    // track's shoes and wheels - and tri-star wheels - a spider each side, a wheel on each of its arms. Each part about its
-    // own joint, sizes the rig's, as the rest of the droid's are.
+    // track's shoes and wheels - tri-star wheels - a spider each side, a wheel on each of its arms - and the milk churn it
+    // starts in. Each part about its own joint, sizes the rig's, as the rest of the droid's are.
     public static partial class DroidMesh
     {
         // The tank's hull, about the middle of the ground under it: a box between the tracks, its nose sloped back to the
@@ -207,6 +207,68 @@ namespace World.Rendering
             }
             var stub = DroidBases.SpiderWheelOut + 0.004f;
             mesh.AddTube(new Vector3(-stub, 0f, 0f), new Vector3(stub, 0f, 0f), 0.008f, 0.008f, 6, Metal + MeshBuilder.Dim, ringEdges: true);
+            return mesh.Build(device);
+        }
+
+        // The milk churn the droid starts in, about the middle of its bottom: a foot ring, the body with a band round it low
+        // down, its shoulder sloping in to the neck, and a rolled rim round the open mouth, dark inside (it has no lid); and
+        // a handle each side.
+        //
+        // The rounded parts are outlined as seen, each a convex surface of its own (see OutlineData): the foot, the body
+        // and shoulder, the neck and the rim are four, overlapping, and not one (the neck's narrower than the shoulder
+        // it stands on, a hollow).
+        public static MeshData BuildChurn(GraphicsDevice device)
+        {
+            var mesh = new MeshBuilder();
+            const float r = DroidBases.ChurnRadius, top = DroidBases.ChurnHeight, shoulder = DroidBases.ChurnShoulder, neck = DroidBases.ChurnNeck;
+            const float neckRadius = DroidBases.ChurnNeckRadius, rim = DroidBases.ChurnRim, rimRadius = DroidBases.ChurnRimRadius;
+            const float foot = 0.035f;
+            int dim = Steel + MeshBuilder.Dim, side = Steel + MeshBuilder.Side, lit = Steel + MeshBuilder.Top;
+
+            Lathe(mesh, Matrix.Identity, new Vector3(0f, foot / 2f, 0f), Round, new (float, float, bool)[]
+            {
+                (0f, 0f, false),
+                (r + 0.008f, 0f, true),
+                (r + 0.008f, foot, true),
+                (0f, foot, false),
+            }, new[] { dim, side, lit });
+            var sloping = shoulder + (neck - shoulder) * 0.35f;
+            Lathe(mesh, Matrix.Identity, new Vector3(0f, shoulder / 2f, 0f), Round, new (float, float, bool)[]
+            {
+                (0f, foot - 0.005f, false),
+                (r, foot - 0.005f, false),
+                (r, 0.07f, true),                  // the band round it
+                (r, 0.085f, true),
+                (r, shoulder, true),
+                (r * 0.94f, sloping, false),       // the shoulder rounding over, then sloping in to the neck
+                (r * 0.8f, shoulder + (neck - shoulder) * 0.7f, false),
+                (neckRadius + 0.004f, neck, true),
+                (0f, neck, false),
+            }, new[] { dim, side, side, side, lit, lit, lit, lit });
+            Lathe(mesh, Matrix.Identity, new Vector3(0f, (neck + rim) / 2f, 0f), Round, new (float, float, bool)[]
+            {
+                (0f, neck - 0.005f, false),
+                (neckRadius, neck - 0.005f, false),
+                (neckRadius, rim + 0.005f, false),
+                (0f, rim + 0.005f, false),
+            }, new[] { dim, side, lit });
+            Lathe(mesh, Matrix.Identity, new Vector3(0f, (rim + top) / 2f, 0f), Round, new (float, float, bool)[]
+            {
+                (0f, rim, false),
+                (rimRadius, rim, true),
+                (rimRadius, top, true),
+                (DroidBases.ChurnMouthRadius, top, true),
+                (0f, top, false),
+            }, new[] { dim, side, lit, Tyre });   // the mouth: dark, the churn's hollow seen into
+
+            // The handles, a bar bent out from the shoulder and back into the body on either side
+            foreach (var s in new[] { -1f, 1f })
+            {
+                var (high, low, reach) = (0.31f, 0.19f, r + 0.045f);
+                var bend = new[] { new Vector3(s * 0.15f, high, 0f), new Vector3(s * reach, high, 0f), new Vector3(s * reach, low, 0f), new Vector3(s * (r - 0.01f), low, 0f) };
+                for (var k = 0; k < bend.Length - 1; k++)
+                    mesh.AddTube(bend[k], bend[k + 1], 0.008f, 0.008f, 4, lit);
+            }
             return mesh.Build(device);
         }
 

@@ -9,6 +9,7 @@ namespace World.Core.Characters
     public enum Locomotion
     {
         // Weakest first: each pushes harder than the one before (see Locomotions.GaitOf)
+        Churn,     // where it starts: the broom stood in a milk churn, leaning; it goes nowhere at all, and can only look about
         Segway,    // the hoverboard wheels it starts on: balances, turns on the spot, no stairs, no going sideways
         TriStar,   // a cluster of three wheels each side, like a sack truck's, that tips over each step: stairs
         Tracks,    // a tank's tracks, with the broom on a turntable that turns by itself; big and heavy, kerbs but no stairs
@@ -16,13 +17,17 @@ namespace World.Core.Characters
 
     public static class Locomotions
     {
-        public static readonly IReadOnlyList<Locomotion> All = new[] { Locomotion.Segway, Locomotion.TriStar, Locomotion.Tracks };
+        public static readonly IReadOnlyList<Locomotion> All = new[] { Locomotion.Churn, Locomotion.Segway, Locomotion.TriStar, Locomotion.Tracks };
+
+        // Those it can get about on: all but the churn
+        public static readonly IReadOnlyList<Locomotion> Movers = new[] { Locomotion.Segway, Locomotion.TriStar, Locomotion.Tracks };
 
         // Its name, to pick it by
         public static string NameOf(Locomotion locomotion) => locomotion switch
         {
             Locomotion.Tracks => "tracks",
             Locomotion.TriStar => "tri-star",
+            Locomotion.Churn => "churn",
             _ => "segway",
         };
 
@@ -47,13 +52,17 @@ namespace World.Core.Characters
                 "Tri-star wheels: three wheels on a spider each side, two on the ground. At a step the spider tips over onto the " +
                 "next one, so it climbs stairs (not steep ones), slowly. Its motors push about as hard as a walker (about 90 kg). " +
                 "No going sideways, no jumping.",
+            Locomotion.Churn =>
+                "A milk churn with no lid, the broom stood in it, leaning against its rim as if it might tip over. It doesn't move: it can't " +
+                "roll, slide, turn or jump, or push anything. The head camera can still look all round.",
             _ =>
                 "Hoverboard wheels, balancing like a Segway: quick, turns on the spot, but light and weak (it shifts about 25 kg), " +
                 "only up the lowest kerb, and no stairs, no going sideways, no jumping.",
         };
 
         // How each gets about. Height is the droid's own (it changes with what it stands on); the speeds are its walking
-        // pace, hurried by RunMultiplier. Each is heavier and pushes harder than the one before: Segway, tri-star, tracks.
+        // pace, hurried by RunMultiplier. Each is heavier and pushes harder than the one before: churn, Segway, tri-star,
+        // tracks. The churn has no pace at all, nor push: it stands where it's put, and stops dead if something shoves it.
         // Anything grips the ground with PhysicsWorld.Friction (a half) of its weight, so a push of F newtons shifts up to
         // F / 4.9 kg: the Segway 24, the tri-star 92 (as the walker does), the tracks 408. Mass is what's shared when
         // something runs into it.
@@ -65,6 +74,9 @@ namespace World.Core.Characters
             Locomotion.TriStar => new Gait("tri-star", StepUp: 0.22f, Radius: 0.3f, Height: DroidRig.HeightOn(locomotion),
                 Speed: 1.6f, RunMultiplier: 1.6f, TurnSpeed: 1.6f, Acceleration: 8f, Strafes: false, Jumps: false, Ladders: false,
                 Mass: 60f, PushForce: 450f, PushPower: 250f),
+            Locomotion.Churn => new Gait("churn", StepUp: 0f, Radius: DroidBases.ChurnRadius + 0.02f, Height: DroidRig.HeightOn(locomotion),
+                Speed: 0f, RunMultiplier: 1f, TurnSpeed: 0f, Acceleration: 30f, Strafes: false, Jumps: false, Ladders: false,
+                Mass: 25f, PushForce: 0f, PushPower: 0f),
             _ => new Gait("segway", StepUp: 0.07f, Radius: 0.25f, Height: DroidRig.HeightOn(locomotion),
                 Speed: 2.5f, RunMultiplier: 1.8f, TurnSpeed: 2f, Acceleration: 8f, Strafes: false, Jumps: false, Ladders: false,
                 Mass: 35f, PushForce: 120f, PushPower: 80f),

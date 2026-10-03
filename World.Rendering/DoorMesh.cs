@@ -25,7 +25,9 @@ namespace World.Rendering
 
         public static MeshSource Source(Door door)
         {
-            var (width, height) = (door.Width, door.Height);   // all the mesh depends on, not the door itself
+            // All the mesh depends on, not the door itself; to the centimetre, as the key has it, so doors the same size but
+            // for a rounding error, worked out from where their doorways are, share it
+            var (width, height) = (float.Parse(door.Width.ToString("F2")), float.Parse(door.Height.ToString("F2")));
             return new MeshSource(Key(door), d => Build(d, width, height), Palette(door.Color));
         }
 

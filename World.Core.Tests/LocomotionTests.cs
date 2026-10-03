@@ -20,6 +20,7 @@ namespace World.Core.Tests
         }
 
         public static TheoryData<Locomotion> Bases() => new TheoryData<Locomotion>(Locomotions.All);
+        public static TheoryData<Locomotion> Movers() => new TheoryData<Locomotion>(Locomotions.Movers);
 
         // ---- What none of them can do
 
@@ -40,6 +41,17 @@ namespace World.Core.Tests
             var ground = Grounds.Flat();
             var droid = Droid(locomotion, ground, Vector3.Zero);
             Grounds.Run(droid, new MoveInput(Vector2.Zero, Jump: true), 0.5f, ground, d => Assert.True(d.Grounded));
+        }
+
+        [Fact]
+        public void TheChurnGoesNowhere()
+        {
+            var ground = Grounds.Flat();
+            var droid = Droid(Locomotion.Churn, ground, Vector3.Zero, 0.3f);
+            Grounds.Run(droid, new MoveInput(new Vector2(0.5f, 1f), Turn: 1f, Run: true), 2f, ground);
+            Grounds.Run(droid, new MoveInput(new Vector2(0f, -1f), Turn: -1f), 2f, ground);
+            Assert.True(droid.Position.Length() < 0.001f, $"went to {droid.Position}");
+            Assert.Equal(0.3f, droid.Yaw, 4);
         }
 
         [Fact]
@@ -136,7 +148,7 @@ namespace World.Core.Tests
                 droid.Step(Grounds.Forward(), Grounds.Tick, world);
                 world.Step(Grounds.Tick);
             }
-            var shifts = Locomotions.IndexOf(locomotion) >= crate;
+            var shifts = Locomotions.IndexOf(locomotion) - Locomotions.IndexOf(Locomotion.Segway) >= crate;   // the churn, nothing
             if (shifts)
                 Assert.True(box.Position.X > 0.3f, $"only pushed it {box.Position.X} m");
             else
@@ -163,9 +175,55 @@ namespace World.Core.Tests
             var rig = DroidRig.Build(locomotion);
             rig.Solve(Matrix.Identity);
             var hub = DroidBases.HubHeight(locomotion);
+            var upright = locomotion == Locomotion.Churn ? MathF.Cos(DroidBases.ChurnLean) : 1f;   // in the churn, leaning
             Assert.Equal(hub, rig.World(DroidRig.Axle).Translation.Y, 4);
-            Assert.Equal(hub + DroidRig.SpineLength, rig.World(DroidRig.Head).Translation.Y, 4);
+            Assert.Equal(hub + DroidRig.SpineLength * upright, rig.World(DroidRig.Head).Translation.Y, 4);
             Assert.Equal(DroidRig.HeightOn(locomotion), Locomotions.GaitOf(locomotion).Height);
+        }
+
+        // The broom stands on the churn's bottom, leaning on the rim of its mouth, and its head hangs out past the churn's
+        // side, the way it leans
+        [Fact]
+        public void InTheChurnTheBroomLeansOnTheRimAndItsHeadHangsOut()
+        {
+            var rig = DroidRig.Build(Locomotion.Churn);
+            rig.Solve(Matrix.Identity);
+            var foot = rig.World(DroidRig.Spine).Translation;
+            var up = Vector3.Normalize(rig.World(DroidRig.Head).Translation - foot);
+            var atRim = foot + up * ((DroidBases.ChurnHeight - foot.Y) / up.Y);
+            var fromMiddle = new Vector2(atRim.X, atRim.Z).Length();
+            Assert.InRange(fromMiddle + DroidRig.SpineRadius / up.Y, DroidBases.ChurnMouthRadius - 0.002f, DroidBases.ChurnMouthRadius + 0.002f);
+            Assert.True(new Vector2(foot.X, foot.Z).Length() < DroidBases.ChurnRadius - 0.05f, $"its foot's at {foot}");
+            var head = rig.World(DroidRig.Head).Translation + up * (DroidRig.NeckHeight + DroidRig.HeadHeight / 2f);   // its middle
+            Assert.True(Vector3.Dot(head, DroidBases.ChurnLeanTowards) > DroidBases.ChurnRadius, $"its head's at {head}");
+        }
+
+        // In the churn, the arm and its sporks hang clear of it: out past the rim, the shoulder and the body, and below the
+        // shoulder past the handles too
+        [Fact]
+        public void InTheChurnTheArmHangsClearOfIt()
+        {
+            var rig = DroidRig.Build(Locomotion.Churn);
+            rig.Solve(Matrix.Identity);
+            var arm = rig.World(DroidRig.Arm);
+            var (from, down) = (arm.Translation, Vector3.TransformNormal(-Vector3.UnitY, arm));
+            const float handles = DroidBases.ChurnRadius + 0.045f, shoulder = 0.32f;
+            for (var d = 0f; d <= DroidRig.ArmLength + DroidRig.HandLength; d += 0.02f)
+            {
+                var p = from + down * d;
+                if (p.Y > DroidBases.ChurnHeight + DroidRig.ArmRadius)
+                    continue;
+                var clear = (p.Y < shoulder ? handles : DroidBases.ChurnRadius) + DroidRig.ArmRadius;
+                Assert.True(new Vector2(p.X, p.Z).Length() > clear, $"{d:0.00} m down the arm, at {p}, it's in the churn");
+            }
+            Assert.True(from.Y + down.Y * (DroidRig.ArmLength + DroidRig.HandLength) > 0.02f, "its sporks are in the ground");
+        }
+
+        [Fact]
+        public void TheChurnIsJustOverAThirdAsTallAsTheDroidOnItsWheels()
+        {
+            var third = DroidRig.HeightOn(Locomotion.Segway) / 3f;
+            Assert.InRange(DroidBases.ChurnHeight, third, third * 1.1f);
         }
 
         [Fact]

@@ -18,10 +18,15 @@ namespace World.Buildings
     // leaves out the wall between them. A doorway to outside is an opening with no TargetRoom: it's cut
     // through the shell as well, lined across the wall's thickness.
     //
+    // Rooms side by side on a floor can also stand a partition apart (see RoomSpec.InnerWalls), as a house's rooms
+    // do: no shell along the partition, and a doorway through it lined across it, with a threshold to walk on.
+    //
     // The roof is flat, unless it's pitched (see Roof, and Gable): two slopes RoofOverhang out past the
     // walls, the end walls rising to the ridge. Its underside sits on the top room's walls - on its
     // ceiling if that's flat, with a closed-off space above it, or, if the top room is itself pitched
-    // (RoomSpec.Pitched), along its sloping ceiling, so that room's an attic under the roof.
+    // (RoomSpec.Pitched), along its sloping ceiling, so that room's an attic under the roof. A pitched Roof
+    // is one roof over every room of the highest storey (see RoofOver); anything lower with nothing on it, a
+    // single-storey wing, has a flat one.
     public sealed class Building
     {
         public string Name { get; }
@@ -33,10 +38,15 @@ namespace World.Buildings
         public float RoofOverhang { get; init; } = 0.4f;
         public Gable? Roof { get; init; }
 
+        // How far apart rooms either side of a partition stand (see RoomSpec.InnerWalls): as thick as a slab between
+        // storeys, for the same reason (see RoomSpec.CeilingHatches)
+        public float PartitionThickness { get; init; } = 0.3f;
+
         public Color WallColor { get; init; } = new Color(205, 195, 170);
         public Color RoofColor { get; init; } = new Color(130, 65, 50);
         public Color PlinthColor { get; init; } = new Color(115, 110, 105);   // and the bands between storeys
         public Color DoorColor { get; init; } = new Color(120, 75, 40);
+        public Color LiningColor { get; init; } = new Color(225, 220, 205);   // a doorway through a partition's
 
         public Building(string name, params RoomSpec[] rooms)
         {
@@ -46,8 +56,8 @@ namespace World.Buildings
             Rooms = rooms;
         }
 
-        // The room standing directly on top of this one, if any: one whose floor is over this one's
-        // middle, a little above its ceiling. And the one this stands on.
+        // The room standing directly on top of this one, if any: one whose floor is over some of this one's, a
+        // little above its ceiling (on a storey of several rooms, any one of them). And the one this stands on.
         public RoomSpec? Above(RoomSpec room) => Find(room, above: true);
         public RoomSpec? Below(RoomSpec room) => Find(room, above: false);
 
@@ -61,11 +71,31 @@ namespace World.Buildings
                 var gap = upper.WorldOffset.Y - (lower.WorldOffset.Y + lower.Height);
                 if (gap < -0.01f || gap > 1f)
                     continue;
-                var middle = Centre(lower) + new Vector3(lower.WorldOffset.X, 0f, lower.WorldOffset.Z);
-                if (upper.Contains(middle - upper.WorldOffset))
+                if (Overlap(lower, upper))
                     return other;
             }
             return null;
+        }
+
+        // Whether two rooms' floor plans overlap, more than just touching: either's middle over the other, or a corner
+        // of either, drawn a little in towards its middle, over the other
+        private static bool Overlap(RoomSpec a, RoomSpec b)
+        {
+            static bool AnyOver(RoomSpec from, RoomSpec onto)
+            {
+                var middle = Centre(from);
+                var shift = from.WorldOffset - onto.WorldOffset;
+                if (onto.Contains(middle + shift))
+                    return true;
+                foreach (var p in from.Outline)
+                {
+                    var corner = new Vector3(p.X, 0f, p.Y);
+                    if (onto.Contains(corner + (middle - corner) * 0.01f + shift))
+                        return true;
+                }
+                return false;
+            }
+            return AnyOver(a, b) || AnyOver(b, a);
         }
 
         private static Vector3 Centre(RoomSpec room)
@@ -88,49 +118,135 @@ namespace World.Buildings
             var floor = room.WorldOffset.Y;
             var bottom = below != null ? below.WorldOffset.Y + below.Height : floor - PlinthDepth;
             var top = above != null ? floor + room.Height
-                : RoofOf(room) is { } gable ? RoofUnderside(room, gable, 0f)
+                : RoofOver(room) is { } roof ? roof.Underside(0f)
                 : floor + room.HighestCeiling + RoofThickness;
             return (bottom, top, above == null);
         }
 
-        // The pitched roof over a room, if it's the top one and there is one: its own ceiling's, or the building's.
-        public Gable? RoofOf(RoomSpec room) => Above(room) != null ? null : room.Pitched ?? Roof;
+        // The pitched roof over a room, if it's a top one and there is one: its own ceiling's, or the building's, which
+        // is only over the highest storey.
+        public Gable? RoofOf(RoomSpec room) =>
+            Above(room) != null ? null : room.Pitched ?? (MathF.Abs(room.WorldOffset.Y - HighestFloor) < 0.01f ? Roof : null);
 
-        // How high a pitched roof's underside is, `fromRidge` across from its ridge line: rising from the top
-        // of the room's walls at their inside faces, at the roof's slope - RoofClearance above an attic's
-        // ceiling, which follows the same slope, so the two never lie in one plane and fight to be seen.
-        public static float RoofUnderside(RoomSpec room, Gable gable, float fromRidge) =>
-            room.WorldOffset.Y + room.Height + gable.Slope * (gable.HalfSpan(room.Outline) - fromRidge) +
-            (room.Pitched != null ? RoofClearance : 0f);
+        private float HighestFloor
+        {
+            get
+            {
+                var highest = float.MinValue;
+                foreach (var room in Rooms)
+                    highest = MathF.Max(highest, room.WorldOffset.Y);
+                return highest;
+            }
+        }
+
+        // A pitched roof, and where it is: its ridge's middle (world X, Z), how far it reaches along the ridge and
+        // across it either side, to the walls' inside faces, and how high those walls are, where it rests on them. Over
+        // an attic (see RoomSpec.Pitched) it's RoofClearance above the attic's ceiling, which follows the same slope, so
+        // the two never lie in one plane and fight to be seen.
+        public readonly record struct RoofFrame(Gable Gable, Vector2 Centre, float HalfAlong, float HalfAcross, float Eaves, bool Attic)
+        {
+            // How far a point in the world is across from the ridge line
+            public float FromRidge(Vector2 world) => Gable.FromRidge(world - Centre);
+
+            // How high its underside is, `fromRidge` across from the ridge line
+            public float Underside(float fromRidge) => Eaves + Gable.Slope * (HalfAcross - fromRidge) + (Attic ? RoofClearance : 0f);
+        }
 
         private const float RoofClearance = 0.05f;
 
-        // How far a point in the world is across from the ridge line over a room.
-        public static float FromRidge(RoomSpec room, Gable gable, Vector2 world) =>
-            gable.FromRidge(world - new Vector2(room.WorldOffset.X, room.WorldOffset.Z));
+        // The pitched roof over a room (see RoofOf), if it has one: an attic's own, round the room's middle; or the
+        // building's, over the highest storey's rooms all together, round the middle of the box round their floors.
+        public RoofFrame? RoofOver(RoomSpec room)
+        {
+            if (RoofOf(room) is not { } gable)
+                return null;
+            if (room.Pitched != null)
+            {
+                var halfAlong = 0f;
+                foreach (var p in room.Outline)
+                    halfAlong = MathF.Max(halfAlong, MathF.Abs(Vector2.Dot(p, gable.Along)));
+                return new RoofFrame(gable, new Vector2(room.WorldOffset.X, room.WorldOffset.Z), halfAlong, gable.HalfSpan(room.Outline),
+                    room.WorldOffset.Y + room.Height, Attic: true);
+            }
+            var (min, max, eaves) = (new Vector2(float.MaxValue), new Vector2(float.MinValue), float.MinValue);
+            foreach (var other in Rooms)
+            {
+                if (other.Pitched != null || RoofOf(other) == null)
+                    continue;
+                foreach (var p in other.Outline)
+                {
+                    var world = p + new Vector2(other.WorldOffset.X, other.WorldOffset.Z);
+                    (min, max) = (Vector2.Min(min, world), Vector2.Max(max, world));
+                }
+                eaves = MathF.Max(eaves, other.WorldOffset.Y + other.Height);
+            }
+            var half = (max - min) / 2f;
+            return new RoofFrame(gable, (min + max) / 2f, Vector2.Dot(half, gable.Along), Vector2.Dot(half, gable.Across), eaves, Attic: false);
+        }
 
-        // A room's outline pushed out by the wall's thickness, in the world: each corner moved out along
-        // both its edges' outward normals (a mitre), so the outer walls stay parallel to the inner ones.
+        // A room's outline pushed out to its shell, in the world: by the wall's thickness, or along a partition (see
+        // RoomSpec.InnerWalls) only to its middle, where the room on its other side's meets it. Each corner is where its
+        // two edges, so pushed out, meet (a mitre), so the outer walls stay parallel to the inner ones. Two edges in
+        // line must be pushed out alike: a partition and an outer wall can't run straight on from each other.
         public Vector2[] OuterOutline(RoomSpec room)
         {
             var outline = room.Outline;
             var n = outline.Length;
             var outer = new Vector2[n];
             var offset = new Vector2(room.WorldOffset.X, room.WorldOffset.Z);
+            float Out(int edge) => Array.IndexOf(room.InnerWalls, edge) >= 0 ? PartitionThickness / 2f : WallThickness;
             for (var i = 0; i < n; i++)
             {
                 var before = Geometry2D.Outward(outline[(i - 1 + n) % n], outline[i]);
                 var after = Geometry2D.Outward(outline[i], outline[(i + 1) % n]);
-                var mitre = Vector2.Normalize(before + after);
-                outer[i] = outline[i] + mitre * (WallThickness / Vector2.Dot(mitre, before)) + offset;
+                var (outBefore, outAfter) = (Out((i - 1 + n) % n), Out(i));
+                var det = before.X * after.Y - before.Y * after.X;
+                Vector2 shift;
+                if (MathF.Abs(det) > 1e-6f)   // the point outBefore out along `before` and outAfter out along `after`
+                    shift = new Vector2(outBefore * after.Y - before.Y * outAfter, before.X * outAfter - outBefore * after.X) / det;
+                else if (MathF.Abs(outBefore - outAfter) < 1e-4f)
+                    shift = before * outBefore;
+                else
+                    throw new InvalidOperationException($"Room '{room.Id}': edges {(i - 1 + n) % n} and {i} run on in line, but only one's a partition.");
+                outer[i] = outline[i] + shift + offset;
             }
             return outer;
         }
 
-        // Whether a room's edge is shared with another of the building's rooms, through an opening: then
-        // it has no outer wall, the two rooms' inner walls being all there is between them.
+        // Whether a room's edge is inside the building, with no outer wall: shared with another of its rooms, through
+        // an opening, the two rooms' inner walls being all there is between them; or a partition (see RoomSpec.InnerWalls).
         public static bool IsInside(RoomSpec room, int edge) =>
-            Array.Exists(room.Openings, o => o.WallIndex == edge && !o.LeadsOutside);
+            Array.IndexOf(room.InnerWalls, edge) >= 0 || Array.Exists(room.Openings, o => o.WallIndex == edge && !o.LeadsOutside);
+
+        // Whether an opening is a doorway through a partition (see RoomSpec.InnerWalls), not into a room right there.
+        public static bool IsThrough(RoomSpec room, OpeningSpec opening) =>
+            !opening.LeadsOutside && Array.IndexOf(room.InnerWalls, opening.WallIndex) >= 0;
+
+        // A doorway through a partition (see IsThrough), as far as this room lines it: its gap's two sides on the room's
+        // wall, and out at the partition's middle, where the lining from the room on the other side meets it (world X, Z).
+        public (Vector2 Left, Vector2 Right, Vector2 MidLeft, Vector2 MidRight) Through(RoomSpec room, OpeningSpec opening)
+        {
+            var edge = opening.WallIndex;
+            var push = Geometry2D.Outward(room.Outline[edge], room.Outline[(edge + 1) % room.Outline.Length]) * (PartitionThickness / 2f);
+            var (left, right) = Gap(room, opening);
+            var (l, r) = (WallPoint(room, edge, left), WallPoint(room, edge, right));
+            return (l, r, l + push, r + push);
+        }
+
+        // Ground to walk on across each doorway through a partition, level with the floor: each room's half of it, from
+        // its wall to the partition's middle (see BuildingGround)
+        public IEnumerable<Ledge> Thresholds()
+        {
+            foreach (var room in Rooms)
+                foreach (var opening in room.Openings)
+                {
+                    if (!IsThrough(room, opening))
+                        continue;
+                    var (l, r, ml, mr) = Through(room, opening);
+                    var floor = room.WorldOffset.Y;
+                    yield return new Ledge((l + r) / 2f, (ml + mr) / 2f, Vector2.Distance(l, r) / 2f, floor - PartitionThickness, floor);
+                }
+        }
 
         // Where an opening's gap is along its edge, as distances from the edge's midpoint (see RoomSpec.WallPoint).
         public static (float left, float right) Gap(RoomSpec room, OpeningSpec opening)
@@ -169,6 +285,14 @@ namespace World.Buildings
                     var b = WallPoint(room, edge, half);
                     foreach (var piece in Split(a, b, room, edge, opening, floor, top))
                         yield return piece;
+
+                    // Through a partition, the doorway's sides, out to the partition's middle
+                    if (opening != null && IsThrough(room, opening))
+                    {
+                        var (l, r, ml, mr) = Through(room, opening);
+                        yield return new WallSegment(l, ml, floor, top);
+                        yield return new WallSegment(r, mr, floor, top);
+                    }
 
                     // The shell's, outside it
                     if (IsInside(room, edge))

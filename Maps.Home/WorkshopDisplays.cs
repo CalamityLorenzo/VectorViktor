@@ -19,7 +19,8 @@ namespace Maps.Home
     public static class WorkshopDisplays
     {
         // Where each stands: in a row across the south of the yard, facing south, towards the 'workshop' start
-        public static readonly Vector2 SegwayAt = new Vector2(-4f, 3f), TankAt = new Vector2(0f, 3f), TriStarAt = new Vector2(5f, 3.5f);
+        public static readonly Vector2 ChurnAt = new Vector2(-7f, 3f), SegwayAt = new Vector2(-4f, 3f), TankAt = new Vector2(0f, 3f),
+            TriStarAt = new Vector2(5f, 3.5f);
 
         // The tri-star's stair, north of it: ShowSteps steps up to a landing, each ShowRise high and ShowRun deep, the
         // first starting ShowStairFrom north of where it stands
@@ -43,9 +44,21 @@ namespace Maps.Home
             var cable = DroidMesh.CableSource(palette);
             IEnumerable<ScenePart> Show(Locomotion locomotion, Vector2 at, Action<Rig, float> pose) =>
                 RigScene.Parts(DroidRig.Build(locomotion), meshes, pose, Matrix.CreateTranslation(at.X, 0f, at.Y) * yard, cable, DroidMesh.Variants);
-            return Show(Locomotion.Segway, SegwayAt, Rocking)
+            return Show(Locomotion.Churn, ChurnAt, Teetering)
+                .Concat(Show(Locomotion.Segway, SegwayAt, Rocking))
                 .Concat(Show(Locomotion.Tracks, TankAt, Turning))
                 .Concat(Show(Locomotion.TriStar, TriStarAt, Climbing));
+        }
+
+        // In the churn: going nowhere, the broom swaying a little where it leans on the rim, and now and then wobbling, as
+        // if this time it'll go over, then settling back
+        private static void Teetering(Rig rig, float t)
+        {
+            var sway = 0.01f * MathF.Sin(1.1f * t) + 0.006f * MathF.Sin(2.3f * t + 1f);
+            var wobble = 0.03f * MathF.Pow(MathF.Max(0f, MathF.Sin(0.25f * t)), 12f) * MathF.Sin(7f * t);
+            var across = Vector3.Cross(Vector3.Up, DroidBases.ChurnLeanTowards);
+            rig.Change(DroidRig.Lean, p => p with { Rotation = Pose.Turn(across, sway + wobble) });
+            Look(rig, t, 0);
         }
 
         // On Segway wheels: rocking back and forth, leaning into each start and stop, as DroidDisplay does

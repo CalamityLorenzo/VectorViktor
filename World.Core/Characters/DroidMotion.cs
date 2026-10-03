@@ -17,6 +17,7 @@ namespace World.Core.Characters
     //  - tracks run round by how far each side has rolled, and the hull pitches to lie along the ground under its
     //    ends (Pitch), so it noses up a kerb and over it; its turntable turns by itself (Turret), asked for each tick
     //  - the tri-star's spiders tip forward a third of a turn for each step it goes up or down (ClusterTurn)
+    //  - in the churn, nothing: it goes nowhere, so there's nothing to follow
     // The body's feet go up a step in one go (see CharacterController), so the rig doesn't: it's left where it was
     // (Heave) and catches up over a moment, at ClimbRate or more.
     public sealed class DroidMotion
@@ -179,6 +180,8 @@ namespace World.Core.Characters
                     DroidBases.Clusters(rig, LeftRolled, RightRolled, ClusterTurn);
                     DroidRig.Tilt(rig, Lean);
                     break;
+                case Locomotion.Churn:
+                    break;   // nothing to roll, and it doesn't go anywhere to lean into
                 default:
                     DroidRig.Roll(rig, LeftRolled, RightRolled);
                     DroidRig.Tilt(rig, Lean);

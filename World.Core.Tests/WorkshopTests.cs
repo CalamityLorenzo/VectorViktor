@@ -65,7 +65,7 @@ namespace World.Core.Tests
         public static TheoryData<Locomotion, float> RampLines()
         {
             var lines = new TheoryData<Locomotion, float>();
-            foreach (var locomotion in Locomotions.All)
+            foreach (var locomotion in Locomotions.Movers)
                 foreach (var across in new[] { -0.6f, -0.3f, 0f, 0.3f, 0.6f })
                     lines.Add(locomotion, across);
             return lines;
@@ -83,7 +83,7 @@ namespace World.Core.Tests
         // The ramp's a slope, not a stair of tiny steps: going up it, each base rises a little every tick, evenly, never in a
         // jump (which the droid, and the camera on its head, would judder up)
         [Theory]
-        [MemberData(nameof(LocomotionTests.Bases), MemberType = typeof(LocomotionTests))]
+        [MemberData(nameof(LocomotionTests.Movers), MemberType = typeof(LocomotionTests))]
         public void GoingUpTheRampTheyRiseEvenly(Locomotion locomotion)
         {
             var world = Built.Value;

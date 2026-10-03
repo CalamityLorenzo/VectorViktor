@@ -26,7 +26,7 @@ namespace World.Core.Tests
             return library;
         });
 
-        public static TheoryData<Locomotion> Bases() => new TheoryData<Locomotion>(Locomotions.All);
+        public static TheoryData<Locomotion> Bases() => new TheoryData<Locomotion>(Locomotions.Movers);
 
         private static BuiltWorld Bungalow() => WorldBuilder.Build(new IDistrict[]
         {
@@ -97,7 +97,7 @@ namespace World.Core.Tests
             }
         }
 
-        // Every door out of a building on the maps: the droid gets in on any base, wherever the walker can
+        // Every door out of a building on the maps: the droid gets in on any base that moves, wherever the walker can
         [Theory]
         [InlineData("home")]
         [InlineData("coast")]
@@ -113,7 +113,7 @@ namespace World.Core.Tests
                     continue;
                 if (Drive(world.Ground, door, Gait.Walker).past < 1f)
                     continue;   // somewhere the walker can't go either: not the doorstep's business
-                foreach (var locomotion in Locomotions.All)
+                foreach (var locomotion in Locomotions.Movers)
                     if (Drive(world.Ground, door, Locomotions.GaitOf(locomotion)).past < 1f)
                         stuck.Add($"{Locomotions.NameOf(locomotion)} at the door at {step.Inner}");
             }

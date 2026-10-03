@@ -16,8 +16,8 @@ namespace Maps.Home
 {
     // The droid's workshop yard, west of the start: somewhere to try out the ways it can get about (see Locomotion) and
     // to see the parts it can be fitted with. A concrete yard, levelled, with
-    //  - the three droids on show at its south end, each going about its own way (see WorkshopDisplays): on Segway
-    //    wheels, rocking; on tank tracks, turning on the spot while its body turns the other way on its turntable to
+    //  - the four droids on show at its south end, each going about its own way (see WorkshopDisplays): in the milk
+    //    churn it starts in, going nowhere, teetering; on Segway wheels, rocking; on tank tracks, turning on the spot while its body turns the other way on its turntable to
     //    keep looking at you; and on tri-star wheels, climbing a little stair and backing down it
     //  - a row of kerbs, each higher than the last and painted for who gets up it: green (anything), yellow (tracks),
     //    orange (tri-star wheels), red (nothing on wheels: it needs legs)

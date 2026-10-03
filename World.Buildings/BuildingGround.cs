@@ -22,7 +22,8 @@ namespace World.Buildings
     // Free-standing walls outside - garden fences, a billboard's posts - can be given as well (see
     // WallSegment); they block walkers, bodies and the drone's line of sight the same way. And ledges (see
     // Ledge): level-topped strips to stand on, blocking walkers at their sides. Each doorway out of a building gets
-    // a ramp up to it (see Doorstep), made of ledges, so wheels and tracks can get in.
+    // a ramp up to it (see Doorstep), made of ledges, so wheels and tracks can get in; and each doorway through a
+    // partition between rooms a threshold across it (see Building.Thresholds), a ledge level with the floor.
     //
     // Its doors (see Door) are walls too, wherever they've swung to. They swing on in StepDoors, stopping
     // against anything in their way, and Interact opens or shuts the one a walker is facing. So are its chests of
@@ -121,7 +122,8 @@ namespace World.Buildings
             _grid = new WallGrid(_walls);
             float GroundAt(Vector2 p) => terrain.GroundBelow(new Vector3(p.X, 1000f, p.Y), 2000f) ?? 0f;
             Doorsteps = buildings.SelectMany(b => b.Doorsteps(GroundAt)).ToList();
-            _ledges = (ledges ?? Array.Empty<Ledge>()).Concat(Doorsteps.SelectMany(d => d.Ledges())).ToArray();
+            _ledges = (ledges ?? Array.Empty<Ledge>()).Concat(Doorsteps.SelectMany(d => d.Ledges()))
+                .Concat(buildings.SelectMany(b => b.Thresholds())).ToArray();
             _ledgeGrid = new WallGrid(_ledges.Select(l => new WallSegment(l.A, l.B, l.Bottom, l.Highest)).ToList());
             _ledgeReach = _ledges.Length == 0 ? 0f : _ledges.Max(l => l.HalfWidth);
         }

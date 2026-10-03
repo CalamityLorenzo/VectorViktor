@@ -3,9 +3,10 @@ using System;
 
 namespace MeshProps
 {
-    // What a billboard advertises: a Key to tell its mesh from the others', and the art it paints on the face.
+    // What a billboard advertises: a Key to tell its mesh from the others', and the art it paints on the face (X across
+    // from its middle, Y up from the board's bottom edge).
     // Add another design here and stand it anywhere with BillboardMesh.Source.
-    public sealed record BillboardDesign(string Key, Action<BillboardFace> Paint)
+    public sealed record BillboardDesign(string Key, Action<PaintedFace> Paint)
     {
         // The Commodore logo on the left - the thick C, open to the right, and in its mouth the two flags,
         // blue over red, their ends cut away to a notch - and on the right a big C64 in blue block capitals
