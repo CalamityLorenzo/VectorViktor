@@ -278,17 +278,19 @@ namespace World.Buildings
                 {
                     var half = room.WallLength(edge) / 2f;
                     var top = floor + MathF.Max(room.CeilingHeightAt(room.WallPoint(edge, -half)), room.CeilingHeightAt(room.WallPoint(edge, half)));
-                    var opening = Array.Find(room.Openings, o => o.WallIndex == edge);
+                    var holes = Holes(room, edge);
 
                     // The room's own wall
                     var a = WallPoint(room, edge, -half);
                     var b = WallPoint(room, edge, half);
-                    foreach (var piece in Split(a, b, room, edge, opening, floor, top))
+                    foreach (var piece in Split(a, b, room, edge, holes, Vector2.Zero, floor, top))
                         yield return piece;
 
-                    // Through a partition, the doorway's sides, out to the partition's middle
-                    if (opening != null && IsThrough(room, opening))
+                    // Through a partition, each doorway's sides, out to the partition's middle
+                    foreach (var opening in room.Openings)
                     {
+                        if (opening.WallIndex != edge || !IsThrough(room, opening))
+                            continue;
                         var (l, r, ml, mr) = Through(room, opening);
                         yield return new WallSegment(l, ml, floor, top);
                         yield return new WallSegment(r, mr, floor, top);
@@ -297,21 +299,9 @@ namespace World.Buildings
                     // The shell's, outside it
                     if (IsInside(room, edge))
                         continue;
-                    var oa = outer[edge];
-                    var ob = outer[(edge + 1) % n];
-                    if (opening == null)
-                    {
-                        yield return new WallSegment(oa, ob, shellBottom, shellTop);
-                        continue;
-                    }
                     var push = Geometry2D.Outward(room.Outline[edge], room.Outline[(edge + 1) % n]) * WallThickness;
-                    var (left, right) = Gap(room, opening);
-                    var gapLeft = WallPoint(room, edge, left) + push;
-                    var gapRight = WallPoint(room, edge, right) + push;
-                    yield return new WallSegment(oa, gapLeft, shellBottom, shellTop);
-                    yield return new WallSegment(gapRight, ob, shellBottom, shellTop);
-                    if (floor + opening.Height < shellTop)
-                        yield return new WallSegment(gapLeft, gapRight, floor + opening.Height, shellTop);
+                    foreach (var piece in Split(outer[edge], outer[(edge + 1) % n], room, edge, holes, push, shellBottom, shellTop))
+                        yield return piece;
                 }
 
                 // Railings round its floor hatches (see HatchSpec.Railed)
@@ -398,24 +388,50 @@ namespace World.Buildings
             return true;
         }
 
-        // A wall from a to b, from `bottom` to `top`, less an opening's gap, if it has one: the wall either
-        // side of it, and above it if the gap stops short of the top.
-        private static IEnumerable<WallSegment> Split(Vector2 a, Vector2 b, RoomSpec room, int edge, OpeningSpec? opening, float bottom, float top)
+        // A hole in one of a room's walls: a doorway (see OpeningSpec) or a window (see WindowSpec), from Left to Right
+        // along it (distances from the edge's midpoint, as Gap's are) and from Bottom to Top above the room's floor.
+        public readonly record struct Hole(float Left, float Right, float Bottom, float Top, bool Window);
+
+        // Every hole in a room's wall, in order along it.
+        public static List<Hole> Holes(RoomSpec room, int edge)
         {
-            if (opening == null)
+            var holes = new List<Hole>();
+            foreach (var opening in room.Openings)
+                if (opening.WallIndex == edge)
+                {
+                    var (left, right) = Gap(room, opening);
+                    holes.Add(new Hole(left, right, 0f, opening.Height, Window: false));
+                }
+            var half = room.WallLength(edge) / 2f;
+            foreach (var window in room.Windows)
+                if (window.WallIndex == edge)
+                    holes.Add(new Hole(MathHelper.Clamp(window.Offset - window.Width / 2f, -half, half), MathHelper.Clamp(window.Offset + window.Width / 2f, -half, half),
+                        window.Sill, window.Sill + window.Height, Window: true));
+            holes.Sort((x, y) => x.Left.CompareTo(y.Left));
+            return holes;
+        }
+
+        // A wall from a to b, from `bottom` to `top`, less its holes, each where it is on the room's wall pushed out by
+        // `push` (to the shell's face): the wall between them, under a window, and over each that stops short of the
+        // top. Not under a doorway: below the floor, that's where you step up over the threshold.
+        private static IEnumerable<WallSegment> Split(Vector2 a, Vector2 b, RoomSpec room, int edge, List<Hole> holes, Vector2 push, float bottom, float top)
+        {
+            var floor = room.WorldOffset.Y;
+            var from = a;
+            foreach (var hole in holes)
             {
-                yield return new WallSegment(a, b, bottom, top);
-                yield break;
+                var gapLeft = WallPoint(room, edge, hole.Left) + push;
+                var gapRight = WallPoint(room, edge, hole.Right) + push;
+                if (Vector2.DistanceSquared(from, gapLeft) > 1e-8f)
+                    yield return new WallSegment(from, gapLeft, bottom, top);
+                if (hole.Window && floor + hole.Bottom > bottom)
+                    yield return new WallSegment(gapLeft, gapRight, bottom, floor + hole.Bottom);
+                if (floor + hole.Top < top)
+                    yield return new WallSegment(gapLeft, gapRight, floor + hole.Top, top);
+                from = gapRight;
             }
-            var (left, right) = Gap(room, opening);
-            var gapLeft = WallPoint(room, edge, left);
-            var gapRight = WallPoint(room, edge, right);
-            if (Vector2.DistanceSquared(a, gapLeft) > 1e-8f)
-                yield return new WallSegment(a, gapLeft, bottom, top);
-            if (Vector2.DistanceSquared(gapRight, b) > 1e-8f)
-                yield return new WallSegment(gapRight, b, bottom, top);
-            if (bottom + opening.Height < top)
-                yield return new WallSegment(gapLeft, gapRight, bottom + opening.Height, top);
+            if (Vector2.DistanceSquared(from, b) > 1e-8f)
+                yield return new WallSegment(from, b, bottom, top);
         }
     }
 }

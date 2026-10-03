@@ -34,7 +34,8 @@ namespace Basic.World
     // Up / W and Down / S walk (hold Shift to run), Left / Right turn, A / D sidestep, Space jumps, E opens or shuts a door.
     // Where there's a car (on the pass), E by it gets in, and E again, stopped, gets out; driving, Up / W is the
     // throttle, Down / S brakes and then reverses, Left / Right or A / D steer, and Space is the handbrake.
-    // V switches between your own view and the drone's, B to the bird's chase camera and back. G the grid on the ground (off: just its
+    // R / F tilt your own view up and down, Home levels it again. V switches between your own view and the drone's, B to the bird's chase camera and back. H shows or hides the compass, which
+    // way you're facing (see Compass), across the top. G the grid on the ground (off: just its
     // shading, and the outlines round its cliffs). C toggles colours / wireframe, L the low-resolution
     // look, F11 full screen, Escape exits.
     //
@@ -52,14 +53,18 @@ namespace Basic.World
         private const int LowResHeight = 256;     // 3 x (1920 x 768) full screen at 1920 x 1080
 
         private const float StepTime = 1f / 60f;      // the world always moves on in steps of this
-        private const float MaxFrame = 0.25f;     // after a stall, catch up no more than this, rather than fall through the world
+        private const float MaxFrame = 0.25f;
+        private const float TiltSpeed = 1f;   // radians a second, R / F     // after a stall, catch up no more than this, rather than fall through the world
 
         private Map _map;
-        private readonly Func<Map> _reopen;
+        private Func<Map> _reopen;
+        private readonly Func<string, Map> _open;
         private MapWatcher _watcher;
         private readonly string _start;
         private bool _followBird;
         private bool _terrainGrid = true;   // G: the squares on the ground, or just its shading and its cliffs' outlines
+        private bool _showCompass = true;   // H: which way you're facing, across the top
+        private Compass _compass;
 
         private BuiltWorld _built;
         private PhysicsWorld _world;
@@ -75,11 +80,14 @@ namespace Basic.World
         private readonly (Vector3 feet, float radius, float height)[] _walkers = new (Vector3, float, float)[1];   // who the doors must not swing into
 
         // `followBird`: seen from the camera chasing the bird, to begin with. `map`: the home map if none. `reopen` opens the
-        // map again from its files, when they've been saved (see MapWatcher).
-        public Game1(string start = null, bool followBird = false, Map map = null, Func<Map> reopen = null) : base(WindowWidth, WindowHeight, LowResWidth, LowResHeight, colorsKey: Keys.C)
+        // map again from its files, when they've been saved (see MapWatcher). `open` opens another map by its name, for a
+        // door onto it (see Portal.ToMap): without it, those doors stay shut.
+        public Game1(string start = null, bool followBird = false, Map map = null, Func<Map> reopen = null, Func<string, Map> open = null)
+            : base(WindowWidth, WindowHeight, LowResWidth, LowResHeight, colorsKey: Keys.C)
         {
             _map = map ?? HomeMap.Map;
             _reopen = reopen;
+            _open = open;
             _start = start ?? _map.DefaultStart;
             _followBird = followBird;
         }
@@ -87,6 +95,7 @@ namespace Basic.World
         protected override void LoadWorld()
         {
             Build();
+            _compass = new Compass(GraphicsDevice);
             if (!_built.Starts.TryGetValue(_start, out var start))
                 start = _built.Starts[_map.DefaultStart];
             var dropFrom = start.Above > 0f ? _built.Terrain.HeightAt(start.At.X, start.At.Y) + start.Above : 0f;
@@ -186,12 +195,21 @@ namespace Basic.World
             }
             if (Pressed(keyboard, Keys.G))
                 _terrainGrid = !_terrainGrid;
+            if (Pressed(keyboard, Keys.H))
+                _showCompass = !_showCompass;
             if (Pressed(keyboard, Keys.B))
             {
                 _followBird = !_followBird;
                 UpdateTitle();
             }
             _jumpPressed |= Pressed(keyboard, Keys.Space);
+            if (IsActive)
+            {
+                // R / F tilt your own view up and down, Home levels it
+                _player.LookUp += Axis(keyboard, Keys.R, Keys.F) * TiltSpeed * (float)gameTime.ElapsedGameTime.TotalSeconds;
+                if (Pressed(keyboard, Keys.Home))
+                    _player.LookUp = 0f;
+            }
             if (Pressed(keyboard, Keys.E) || (Shot is { } pressing && pressing.Keys.Contains('e') && !_shotPressedE && Clock >= pressing.After / 2f))
             {
                 _shotPressedE = Shot != null;
@@ -235,15 +253,39 @@ namespace Basic.World
             }
         }
 
-        // Walked into a door that leads elsewhere: through it
+        // Walked into a door that leads elsewhere: through it, onto another map if it leads to one
         private void GoThroughPortals()
         {
             foreach (var portal in _built.Portals)
-                if (portal.WalkedInto(_player.Body.Position, CharacterController.Radius))
-                {
+            {
+                if (!portal.WalkedInto(_player.Body.Position, CharacterController.Radius))
+                    continue;
+                if (!portal.LeadsOffMap)
                     _player.Teleport(portal.To, portal.Yaw, _world);
-                    return;
-                }
+                else if (_open != null)
+                    GoOnto(portal.ToMap, portal.ToStart);
+                return;
+            }
+        }
+
+        // Onto another map, at one of its starts (its default if it hasn't that one): it's built, and you start afresh on
+        // it, on foot. Its files, if it has any, are watched instead.
+        private void GoOnto(string name, string startName)
+        {
+            _map = _open(name);
+            _reopen = () => _open(name);
+            Build();
+            _watcher?.Dispose();
+            _watcher = _map.Files.Count > 0 ? new MapWatcher(_map.Files) : null;
+            if (startName == null || !_built.Starts.TryGetValue(startName, out var start))
+                start = _built.Starts[_map.DefaultStart];
+            var dropFrom = start.Above > 0f ? _built.Terrain.HeightAt(start.At.X, start.At.Y) + start.Above : 0f;
+            _player = new Player(new Vector3(start.At.X, dropFrom, start.At.Y), start.Yaw, _world);
+            _bird = new Bird(start.At, _ground.SkylineAt, start.Yaw);
+            _renderer.Dispose();
+            _worldMeshes.Dispose();
+            MakeRenderer();
+            UpdateTitle();
         }
 
         private static DriveInput ReadDrive(KeyboardState keyboard) => new DriveInput(
@@ -268,6 +310,14 @@ namespace Basic.World
             _renderer.View.Terrain.ShowGrid = _terrainGrid;
             _renderer.DrawFeeds(_player.Body.Position, Clock, ColorsOn);
             _renderer.Draw(_player, Clock, ColorsOn, _bird, _followBird);
+            if (_showCompass)
+            {
+                // Which way you're facing, or the car is: in the picture's own pixels, so it's scaled up with it
+                var viewport = GraphicsDevice.Viewport;
+                var unit = Math.Max(1, viewport.Width / LowResWidth);
+                _compass.Draw(_player.Driving?.Yaw ?? _player.Body.Yaw, viewport.Width / 2, 3 * unit, unit,
+                    Color.White, BackgroundColor);   // white, as every edge is, on the background
+            }
         }
 
         // Where everything ended up, beside the screenshot
@@ -290,6 +340,7 @@ namespace Basic.World
                 _renderer?.Dispose();
                 _worldMeshes?.Dispose();
                 _watcher?.Dispose();
+                _compass?.Dispose();
             }
             base.Dispose(disposing);
         }

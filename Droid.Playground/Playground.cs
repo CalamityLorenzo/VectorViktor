@@ -312,7 +312,7 @@ namespace Droid.Playground
             _built.Ground.StepDoors(StepTime, _built.Physics.Bodies, _walkers);
             _player.Step(told, StepTime, _built.Physics);
             foreach (var portal in _built.Portals)
-                if (portal.WalkedInto(_player.Body.Position, gait.Radius))
+                if (!portal.LeadsOffMap && portal.WalkedInto(_player.Body.Position, gait.Radius))
                 {
                     _player.Teleport(portal.To, portal.Yaw, _built.Physics);
                     break;

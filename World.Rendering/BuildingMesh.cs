@@ -104,40 +104,47 @@ namespace World.Rendering
 
                 mesh.AddLine(At(a, bottom), At(a, Top(a)));   // the corner
 
-                var opening = Array.Find(room.Openings, o => o.WallIndex == edge && o.LeadsOutside);
-                if (opening == null)
+                var holes = Building.Holes(room, edge);
+                if (holes.Count == 0)
                 {
                     Strip(a, b, bottom);
                     continue;
                 }
 
-                // A doorway: wall either side, over it, and the plinth under its threshold
+                // Each doorway or window: wall between them, under and over each, and each lined across the wall's
+                // thickness - both sides, the head, and the threshold or the sill
                 var push = Geometry2D.Outward(room.Outline[edge], room.Outline[(edge + 1) % n]) * building.WallThickness;
-                var (left, right) = Building.Gap(room, opening);
-                var innerLeft = Building.WallPoint(room, edge, left);
-                var innerRight = Building.WallPoint(room, edge, right);
-                var outerLeft = innerLeft + push;
-                var outerRight = innerRight + push;
-                var head = MathF.Min(floor + opening.Height, MathF.Min(Top(outerLeft), Top(outerRight)));
-
-                Strip(a, outerLeft, bottom);
-                Strip(outerRight, b, bottom);
-                Strip(outerLeft, outerRight, bottom, floor);
-                Strip(outerLeft, outerRight, head);
-                mesh.AddLine(At(outerLeft, floor), At(outerLeft, head));
-                mesh.AddLine(At(outerRight, floor), At(outerRight, head));
-                mesh.AddLine(At(outerLeft, head), At(outerRight, head));
-
-                // Lined across the wall's thickness: both sides, the head and the threshold
-                mesh.AddPolygon(Reveal, At(innerLeft, floor), At(outerLeft, floor), At(outerLeft, head), At(innerLeft, head));
-                mesh.AddPolygon(Reveal, At(innerRight, floor), At(outerRight, floor), At(outerRight, head), At(innerRight, head));
-                mesh.AddPolygon(Reveal, At(innerLeft, head), At(outerLeft, head), At(outerRight, head), At(innerRight, head));
-                mesh.AddPolygon(Plinth, At(innerLeft, floor), At(outerLeft, floor), At(outerRight, floor), At(innerRight, floor));
-                foreach (var y in new[] { floor, head })
+                var from = a;
+                foreach (var hole in holes)
                 {
-                    mesh.AddLine(At(innerLeft, y), At(outerLeft, y));
-                    mesh.AddLine(At(innerRight, y), At(outerRight, y));
+                    var innerLeft = Building.WallPoint(room, edge, hole.Left);
+                    var innerRight = Building.WallPoint(room, edge, hole.Right);
+                    var outerLeft = innerLeft + push;
+                    var outerRight = innerRight + push;
+                    var sill = floor + hole.Bottom;
+                    var head = MathF.Min(floor + hole.Top, MathF.Min(Top(outerLeft), Top(outerRight)));
+
+                    Strip(from, outerLeft, bottom);
+                    Strip(outerLeft, outerRight, bottom, sill);
+                    Strip(outerLeft, outerRight, head);
+                    mesh.AddLine(At(outerLeft, sill), At(outerLeft, head));
+                    mesh.AddLine(At(outerRight, sill), At(outerRight, head));
+                    mesh.AddLine(At(outerLeft, head), At(outerRight, head));
+                    if (hole.Window)
+                        mesh.AddLine(At(outerLeft, sill), At(outerRight, sill));
+
+                    mesh.AddPolygon(Reveal, At(innerLeft, sill), At(outerLeft, sill), At(outerLeft, head), At(innerLeft, head));
+                    mesh.AddPolygon(Reveal, At(innerRight, sill), At(outerRight, sill), At(outerRight, head), At(innerRight, head));
+                    mesh.AddPolygon(Reveal, At(innerLeft, head), At(outerLeft, head), At(outerRight, head), At(innerRight, head));
+                    mesh.AddPolygon(hole.Window ? Reveal : Plinth, At(innerLeft, sill), At(outerLeft, sill), At(outerRight, sill), At(innerRight, sill));
+                    foreach (var y in new[] { sill, head })
+                    {
+                        mesh.AddLine(At(innerLeft, y), At(outerLeft, y));
+                        mesh.AddLine(At(innerRight, y), At(outerRight, y));
+                    }
+                    from = outerRight;
                 }
+                Strip(from, b, bottom);
             }
 
             if (!roofed)

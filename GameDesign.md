@@ -149,6 +149,22 @@ Break wood to uncover hole.
   - A room is one shell mesh with its own palette plus its props, each an instance with a palette, so a room's light or dark view is a palette change across those instances, which is cheap. A lamp's pool would be flat-coloured shapes laid on the floor, the way the billboard's art is laid on its board. What doesn't exist is a room with a state its meshes follow, or a "section" of a room: rooms are whole outlines.
   - Trees: an oak (one large rounded canopy on a forked trunk, per your notes), a tree, a spiky bush and a fern. Canopies use view-dependent outlines that are recomputed every frame: cheap for a few, and the first cost to deal with before a forest (the review plan, 5.3).
 
+### 3.9 The start: the house
+(Paul, 2026-10-03, from his floor plan of the upstairs.) The game starts in a house: the first place, where you **meet the droid**, **upgrade it from the milk churn** to its wheels, and learn in a **basic tutorial** how to move and how to handle things.
+- **It is on no map.** It is reached only by portal, and stands on a small map of its own (its own terrain and a few trees) that is seen from its windows but can't be walked out onto. **The only working exit is the front door, a portal.**
+- **Upstairs** (Paul's plan, roomier: about 14.7 x 9.6 m inside): a narrow hall along the south side, its stairwell beside it behind a **fence of posts with gaps**, not a solid barrier. Off it, the two big bedrooms across the north (bedroom 1 an L round the bathroom's north end), the bathroom in the south-west corner, and in the south-east corner a **locked or hidden room** with no way in. A **hatch in the hall ceiling** at its east end leads to an **attic** under the pitched roof. It's **shut for now** (Paul, 2026-10-03): no ladder and no way up (`StartHouse.AtticOpen`).
+- **Windows**: bedroom 1's is an **open gap**. Every other one is a **see-through portal**, crossed by glazing bars and tinted blue, looking out onto the house's own map.
+- **Downstairs**, under the same outline: a kitchen (under bedroom 1), the living room (under bedroom 2), a small library (under the bathroom), and the hall, with the stairs and the porch where the front door is.
+- Today (built 2026-10-03, not yet looked at in the game): all of the above is `Maps.Home/StartHouse.cs`, the map `house` (`Basic.World house`). Rooms can now have windows (`WindowSpec`: an open gap, or glazed), a stairwell's railing can be balusters (`HatchSpec.Balusters`), and a portal can lead onto another map (`Portal.ToMap`; only Basic.World follows it so far). The front door leads to the home map's `hills` start, as a stand-in. The tutorial and the droid's scene are not built: they need picking things up, and the droid swapping its base in the game (see 3.1, 3.5 and section 4).
+- **The tutorial, as a suggestion only** (to be shaped by you):
+  1. **Look.** The droid comes on in its churn. It can't move, so the first lesson is the head camera turning within its visor (see 3.2).
+  2. **Reach.** Its one arm can push and hook things within reach. The lesson is handling something without moving: knocking a thing off a shelf, or pulling a cord to bring something closer.
+  3. **The wheels.** What the arm brings within reach is the hoverboard wheels (or a way to them). Fitting them is the first repair, from churn to Segway (`Locomotion.Churn` to the wheels).
+  4. **Move.** Driving about the rooms: turning on the spot, leaning in and out of moving, getting through doorways.
+  5. **Handle.** Carrying and using things to open the way out: something found in one room used in another.
+  6. **Out.** The front door, a portal, onto the first world.
+- **A catch to settle: the droid on wheels can't climb stairs** (see 3.1). If it starts upstairs, it can't get down to the front door on its own: something has to get it down (it falls down them, a stair lift, a dumb waiter, being carried, or wheels that come later). The attic ladder is out of reach too, until it has legs or arms that climb. That could be a feature: the attic and the locked room as places to come back to later.
+
 ## 4. What several of these share
 
 Worth doing once, because more than one idea needs it:
@@ -186,3 +202,4 @@ Trees, tunnels and crossings can be done any time; trees are cheap to try one at
 7. **The satellite** (answered: it orbits the planet the droid was meant to be on, and is not the space station; reaching it is one way to end the game, but probably not the best one).
 8. **Who gives the orders, and why aren't they honest?** Does the player find out, and how? Can the player disobey them? Reaching the satellite is one ending and not the best: what are the others, roughly how many are there, and what earns the best one?
 9. **Is the missing colour part of the story?** Is it damage in the droid's camera, something that happened to the wrong planet, or something the droid's memories are hiding? And is the droid's being on the wrong planet tied to it?
+10. **The house (3.9):** where does the front door lead (the home map, the workshop, somewhere new)? Where in the house is the droid found, and where are its wheels? Does it start upstairs or down, given it can't take the stairs on wheels? What is in the locked room and the attic, and when can the droid get into them? Do the windows always look out onto the house's own country, or can they show somewhere else later (they're portals, so they could)?

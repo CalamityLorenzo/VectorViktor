@@ -22,7 +22,7 @@ Basic.World [2] | [map] [start] [bird]
 | Argument | Meaning |
 |---|---|
 | `2` | Runs the road-layout showcase (`Game2`) instead of the world. Only counts as the **first** argument; everything else is ignored. |
-| `home` / `coast` / `pass` | Which map to load: any map file in [Maps/](Maps) by its name, or a `.map.json` file by its path. Default `home`. A map from a file is built again whenever its files are saved (by the map studio, or anything else), with you where you were. |
+| `home` / `coast` / `pass` / `house` | Which map to load: any map file in [Maps/](Maps) by its name, or a `.map.json` file by its path (`house` is the house the game starts in, built in code). Default `home`. A map from a file is built again whenever its files are saved (by the map studio, or anything else), with you where you were. |
 | *start name* | Where to start on that map (see [Maps and starts](#maps-and-starts)). Default is the map's own default start. An unknown name falls back to the default. |
 | `bird` | Begin with the camera chasing the bird that roams round the start (toggle in game with `B`). |
 
@@ -35,6 +35,8 @@ Basic.World coast beach
 Basic.World pass lake
 Basic.World 2
 ```
+
+Across the top of the picture, a compass shows which way you're facing (or the car is): a heading tape with N, NE, E... and the heading in degrees under its pointer. `H` hides or shows it. In your own view, on foot, `R` / `F` tilt it up and down and `Home` levels it again.
 
 ## Droid.Playground
 
@@ -282,6 +284,18 @@ something on its own map, and with no map named it's the `home` map: `town` on i
 | `ford` | In the car, on the shelf, heading for the ford: a river across the road, too fast to wade (a stair climbs back up from the lake) |
 | `secondpass` | In the car, at the second pass |
 | `town` | On foot in the basin, north of the town's lake, looking over it |
+
+### `house` (default start: `house`)
+
+The house the game starts in ([Maps.Home/StartHouse.cs](Maps.Home/StartHouse.cs)), on a map of its own: the only way out is
+its front door, which takes you onto the `home` map at `hills`.
+
+| Start | Where |
+|---|---|
+| `house` | Just inside the front door, in the porch, facing into the house |
+| `landing` | Upstairs, on the landing between the bedroom doors, facing east along it |
+| `bedroom1` | In bedroom 1, looking north at the droid in its churn in the middle of the room, the bed beyond it |
+| `attic` | In the attic, under the ridge | (shut for now: you'd be shut in)
 
 Starts are defined per district: in each code district's `Starts` dictionary under `Maps.Home`, `Maps.Coast` and
 `Maps.Pass`, and in each district file's `starts`. A new one is picked up by every program automatically.

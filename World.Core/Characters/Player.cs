@@ -36,6 +36,19 @@ namespace World.Core.Characters
 
         public Vector3 Eye => Driving?.Eye ?? Body.Position + Vector3.Up * EyeHeight;
 
+        // How far your own view's tilted up (or, below zero, down) from level, on foot: radians, held to MaxLookUp and
+        // MaxLookDown (short of straight down, where which way's up in the picture would be lost)
+        public const float MaxLookUp = 1.05f, MaxLookDown = 1.4f;
+        private float _lookUp;
+        public float LookUp
+        {
+            get => _lookUp;
+            set => _lookUp = MathHelper.Clamp(value, -MaxLookDown, MaxLookUp);
+        }
+
+        // Which way your own view looks, on foot: along your heading, tilted LookUp
+        public Vector3 Looking => Body.Heading * MathF.Cos(_lookUp) + Vector3.Up * MathF.Sin(_lookUp);
+
         public Player(Vector3 feet, float yaw, IGround ground)
         {
             Body = new CharacterController(feet, yaw);

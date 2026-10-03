@@ -30,7 +30,7 @@ namespace World.Rendering
             foreach (var room in building.Rooms)
             {
                 _insides.AddRange(new RoomView(room, device, cache).Instances);
-                _doorless |= Array.Exists(room.Openings, o => o.LeadsOutside && !o.Door);
+                _doorless |= Array.Exists(room.Openings, o => o.LeadsOutside && !o.Door) || room.Windows.Length > 0;   // or a window to see in by
             }
             foreach (var door in doors)
                 _doors.Add((door, cache.CreateInstance(device, DoorMesh.Source(door))));

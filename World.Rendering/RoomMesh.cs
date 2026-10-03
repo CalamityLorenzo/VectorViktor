@@ -146,6 +146,11 @@ namespace World.Rendering
                 var across = new Vector2(-along.Y, along.X);
                 if (Vector2.Dot(across, (a + b) / 2f - centre) < 0f)
                     across = -across;   // out of the hole
+                if (hatch.Balusters)
+                {
+                    AddFence(mesh, a, b, along, across);
+                    continue;
+                }
                 var oa = a + across * thickness;
                 var ob = b + across * thickness;
                 Vector3 At(Vector2 p, float y) => new Vector3(p.X, y, p.Y);
@@ -161,6 +166,75 @@ namespace World.Rendering
                 mesh.AddLine(At(oa, 0f), At(oa, top));
                 mesh.AddLine(At(ob, 0f), At(ob, top));
                 mesh.AddLine(At(oa, 0f), At(ob, 0f));
+            }
+        }
+
+        // A railing as a fence (see HatchSpec.Balusters) from a to b, on the floor just outside the hole (`across` points
+        // out of it): a square newel post at each end, thin balusters with gaps between them, and a handrail along the
+        // top. In wireframe, each baluster is just its two front edges, so a row of them reads as posts, not a lattice.
+        private static void AddFence(MeshBuilder mesh, Vector2 a, Vector2 b, Vector2 along, Vector2 across)
+        {
+            const float top = HatchSpec.RailHeight;
+            const float newel = 0.08f, baluster = 0.035f, gap = 0.1f, rail = 0.07f, railDepth = 0.05f;
+            var length = Vector2.Distance(a, b);
+            Vector3 At(Vector2 p, float y) => new Vector3(p.X, y, p.Y);
+            var middle = across * (newel / 2f);   // the fence's centre line, off the hole's edge
+
+            // A square-ish post centred `at` along the fence, `size` along it and `depth` across, from y0 up to y1;
+            // `outlined`: all its edges, or only the two up its front (the floor's side)
+            void Post(float at, float size, float depth, float y0, float y1, bool outlined)
+            {
+                var c = a + along * at + middle;
+                var (u, v) = (along * (size / 2f), across * (depth / 2f));
+                var corners = new[] { c - u - v, c + u - v, c + u + v, c - u + v };
+                for (var i = 0; i < 4; i++)
+                {
+                    var (p, q) = (corners[i], corners[(i + 1) % 4]);
+                    mesh.AddQuad(Frame, At(p, y0), At(q, y0), At(q, y1), At(p, y1));
+                }
+                mesh.AddQuad(Frame, At(corners[0], y1), At(corners[1], y1), At(corners[2], y1), At(corners[3], y1));
+                if (outlined)
+                {
+                    mesh.AddLineLoop(Array.ConvertAll(corners, p => At(p, y1)));
+                    foreach (var p in corners)
+                        mesh.AddLine(At(p, y0), At(p, y1));
+                }
+                else
+                {
+                    mesh.AddLine(At(corners[2], y0), At(corners[2], y1));
+                    mesh.AddLine(At(corners[3], y0), At(corners[3], y1));
+                }
+            }
+
+            Post(newel / 2f, newel, newel, 0f, top + 0.05f, outlined: true);
+            Post(length - newel / 2f, newel, newel, 0f, top + 0.05f, outlined: true);
+
+            // As many balusters as fit between the newels with a gap no wider than `gap` either side of each
+            var inner = length - 2f * newel;
+            var count = Math.Max(0, (int)MathF.Ceiling((inner - gap) / (baluster + gap)));
+            var pitch = inner / (count + 1);
+            for (var i = 1; i <= count; i++)
+                Post(newel + pitch * i, baluster, baluster, 0f, top - rail, outlined: false);
+
+            // The handrail, newel to newel, and a bottom rail along the floor
+            var (r0, r1) = (newel, length - newel);
+            var rv = across * (railDepth / 2f);
+            var p0 = a + along * r0 + middle;
+            var p1 = a + along * r1 + middle;
+            foreach (var (y0, y1) in new[] { (top - rail, top), (0f, 0.04f) })
+            {
+                var box = new[] { p0 - rv, p1 - rv, p1 + rv, p0 + rv };
+                for (var i = 0; i < 4; i++)
+                {
+                    var (p, q) = (box[i], box[(i + 1) % 4]);
+                    mesh.AddQuad(Frame, At(p, y0), At(q, y0), At(q, y1), At(p, y1));
+                }
+                mesh.AddQuad(Frame, At(box[0], y1), At(box[1], y1), At(box[2], y1), At(box[3], y1));
+                mesh.AddQuad(Frame, At(box[0], y0), At(box[1], y0), At(box[2], y0), At(box[3], y0));
+                mesh.AddLine(At(box[0], y1), At(box[1], y1));
+                mesh.AddLine(At(box[3], y1), At(box[2], y1));
+                mesh.AddLine(At(box[3], y0), At(box[2], y0));
+                mesh.AddLine(At(box[0], y0), At(box[1], y0));
             }
         }
 
@@ -338,13 +412,13 @@ namespace World.Rendering
             }
         }
 
-        // One wall (one edge of the room's Outline) as flat quads (up to three round its opening, if it
-        // has one) and its outline. The top of a wall follows the ceiling, so the side walls of a
+        // One wall (one edge of the room's Outline) as flat quads round its holes, if it has any (its doorways and
+        // windows: see Building.Holes), and its outline. The top of a wall follows the ceiling, so the side walls of a
         // stairwell slope.
         private static void AddWall(MeshBuilder mesh, RoomSpec room, int wallIndex, int slot)
         {
             var half = room.WallLength(wallIndex) / 2f;
-            var opening = Array.Find(room.Openings, o => o.WallIndex == wallIndex);
+            var holes = Building.Holes(room, wallIndex);
 
             // Height of the wall's top at a distance `along` from its centre
             float Top(float along) => room.CeilingHeightAt(room.WallPoint(wallIndex, along));
@@ -385,7 +459,7 @@ namespace World.Rendering
                 mesh.AddQuad(slot, P(a0, bottom), P(a1, bottom), P(a1, Top(a1)), P(a0, Top(a0)));
             }
 
-            if (opening == null)
+            if (holes.Count == 0)
             {
                 Piece(-half, half, 0f);
                 Line(-half, 0f, half, 0f);
@@ -395,44 +469,60 @@ namespace World.Rendering
                 return;
             }
 
-            var left = MathHelper.Clamp(opening.Offset - opening.Width / 2f, -half, half);
-            var right = MathHelper.Clamp(opening.Offset + opening.Width / 2f, -half, half);
-            var lintel = opening.Height < Math.Min(Top(left), Top(right)) - Tiny;   // wall left above the gap
+            // The wall between the holes, under each window and over each hole that stops short of the top; along the
+            // floor and the top, a line wherever there's wall; round each hole, its sides, sill and head.
+            var from = -half;
+            var floorFrom = -half;
+            var topFrom = -half;
+            foreach (var hole in holes)
+            {
+                var (left, right) = (hole.Left, hole.Right);
+                var lintel = hole.Top < Math.Min(Top(left), Top(right)) - Tiny;   // wall left above the hole
+                Piece(from, left, 0f);
+                if (hole.Bottom > Tiny && right - left > Tiny)
+                {
+                    mesh.AddQuad(slot, P(left, 0f), P(right, 0f), P(right, hole.Bottom), P(left, hole.Bottom));
+                    Line(left, hole.Bottom, right, hole.Bottom);
+                }
+                else
+                {
+                    if (left - floorFrom > Tiny) Line(floorFrom, 0f, left, 0f);
+                    floorFrom = right;
+                }
+                if (lintel)
+                {
+                    Piece(left, right, hole.Top);
+                    Line(left, hole.Top, right, hole.Top);
+                }
+                else
+                {
+                    if (left - topFrom > Tiny) TopLine(topFrom, left);
+                    topFrom = right;
+                }
+                var head = MathF.Min(hole.Top, MathF.Min(Top(left), Top(right)));
+                if (left - -half > Tiny) Line(left, hole.Bottom, left, head);
+                if (half - right > Tiny) Line(right, hole.Bottom, right, head);
+                from = right;
+            }
+            Piece(from, half, 0f);
+            if (half - floorFrom > Tiny) Line(floorFrom, 0f, half, 0f);
+            if (half - topFrom > Tiny) TopLine(topFrom, half);
 
-            Piece(-half, left, 0f);
-            Piece(right, half, 0f);
-            if (lintel)
-                Piece(left, right, opening.Height);
-
-            // Outline: the floor line and top line where there is wall, the gap's edges, and the corners
-            var hasLeft = left - -half > Tiny;
-            var hasRight = half - right > Tiny;
-            if (hasLeft) Line(-half, 0f, left, 0f);
-            if (hasRight) Line(right, 0f, half, 0f);
-            if (lintel)
+            // The corners: wherever there's wall up them, not where a hole runs right up to the end
+            foreach (var end in new[] { -half, half })
             {
-                TopLine(-half, half);
-                Line(left, opening.Height, right, opening.Height);
+                var y = 0f;
+                foreach (var hole in holes)
+                {
+                    if (MathF.Abs((end < 0f ? hole.Left : hole.Right) - end) > Tiny)
+                        continue;
+                    if (hole.Bottom - y > Tiny)
+                        Line(end, y, end, hole.Bottom);
+                    y = MathF.Max(y, hole.Top);
+                }
+                if (Top(end) - y > Tiny)
+                    Line(end, y, end, Top(end));
             }
-            else
-            {
-                if (hasLeft) TopLine(-half, left);
-                if (hasRight) TopLine(right, half);
-            }
-            if (hasLeft)
-            {
-                Line(-half, 0f, -half, Top(-half));
-                Line(left, 0f, left, Math.Min(opening.Height, Top(left)));
-            }
-            else if (lintel)
-                Line(-half, opening.Height, -half, Top(-half));
-            if (hasRight)
-            {
-                Line(half, 0f, half, Top(half));
-                Line(right, 0f, right, Math.Min(opening.Height, Top(right)));
-            }
-            else if (lintel)
-                Line(half, opening.Height, half, Top(half));
         }
 
         // A frame, the door inside it, and a handle, all flat on the wall.

@@ -141,7 +141,7 @@ namespace World.Maps
             else if (player.View == ViewMode.FirstPerson)
             {
                 eye = player.Eye;
-                lookAt = eye + body.Heading;
+                lookAt = eye + player.Looking;   // tilted, if you've tilted it (see Player.LookUp)
             }
             else
             {

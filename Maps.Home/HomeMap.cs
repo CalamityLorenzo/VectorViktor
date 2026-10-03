@@ -38,7 +38,8 @@ namespace Maps.Home
 
         // Everything of the home map's that a map file can name (see MapLibrary): its terrain, "home"; its districts,
         // "home.countryside" and so on; its houses, "house.two-storey" and "house.bungalow" (see Houses), and a cottage
-        // like the lane's, "house.lane-cottage" (see LaneCottage); and the map itself.
+        // like the lane's, "house.lane-cottage" (see LaneCottage); the map itself; and the house the game starts in, "house", a
+        // map of its own (see StartHouse).
         public static void AddTo(MapLibrary library)
         {
             library.AddTerrain("home", (seed, pads) => TerrainGenerator.Create(seed, pads));
@@ -69,6 +70,7 @@ namespace Maps.Home
                     Doorway = b => new LaneCottage(b.Id, b.At, Array.Empty<Color>(), null, Facing(b.Door)).Doorway,
                 });
             library.Add(Map);
+            library.Add(StartHouse.Map);   // the house the game starts in: a map of its own (see StartHouse)
         }
 
         // What a cottage's window looks onto (see LaneCottage), by name, a parlour if it doesn't say; nothing: it's shut

@@ -33,6 +33,12 @@ namespace World.Buildings
         public bool LeadsOutside => TargetRoom == null;
     }
 
+    // A window in an outer wall: a hole Width wide (centred Offset along the edge, as an opening's is), from Sill above
+    // the floor up to Sill + Height, cut through the room's wall and the building's shell and lined across it. A wall
+    // can have several, and a doorway too, so long as none of them overlap along it. Glazed, it has glazing bars (a
+    // cross) and is meant to be looked out of through a pane (see Maps.Home's StartHouse); otherwise it's an open gap.
+    public record WindowSpec(int WallIndex, float Offset, float Width, float Sill, float Height, bool Glazed = true);
+
     // A hole in a room's ceiling or floor, leading into TargetRoom directly above or below it. Outline is a
     // convex polygon in the room's own (X, Z). The room below lists it in its CeilingHatches, the room above
     // in its FloorHatches, both at the same place in the world.
@@ -45,9 +51,14 @@ namespace World.Buildings
     // RailHeight tall, standing on the upper room's floor, so nobody walks off the floor into the hole there
     // (see WallStair.HatchRails). Give both rooms' HatchSpecs the same list: the one below needs it too, for
     // someone climbing the stair with their body up through the hatch.
+    //
+    // Balusters makes the railing a fence of posts with gaps between them under a handrail, rather than a solid panel.
+    // It's walked into the same either way: the gaps are too narrow to get through.
     public record HatchSpec(Vector2[] Outline, string TargetRoom, float SlabThickness = 0f, int[]? Railed = null)
     {
         public const float RailHeight = 0.9f;
+
+        public bool Balusters { get; init; }
 
         public bool Contains(Vector3 local) => Geometry2D.InPolygon(Outline, new Vector2(local.X, local.Z));
 
@@ -284,6 +295,9 @@ namespace World.Buildings
         public ScreenSpec[] Screens { get; init; } = Array.Empty<ScreenSpec>();
         public OpeningSpec[] Openings { get; init; } = Array.Empty<OpeningSpec>();
 
+        // Windows in its outer walls (see WindowSpec)
+        public WindowSpec[] Windows { get; init; } = Array.Empty<WindowSpec>();
+
         // Holes through to rooms stacked directly above or below (see HatchSpec). Stacked rooms need a real
         // slab between them, not the upper floor lying on this ceiling: two faces in one plane z-fight, and
         // every face is drawn pushed back in depth (MeshInstance's DepthBias, which grows with distance) so
@@ -306,6 +320,7 @@ namespace World.Buildings
             Doors = [.. Array.ConvertAll(Doors, d => d with { TargetRoom = string.IsNullOrEmpty(d.TargetRoom) ? d.TargetRoom : rename(d.TargetRoom) }), .. moreDoors],
             Props = Props, InnerWalls = InnerWalls, Cabinets = Cabinets, Screens = Screens,
             Openings = Array.ConvertAll(Openings, o => o.LeadsOutside ? o : o with { TargetRoom = rename(o.TargetRoom) }),
+            Windows = Windows,
             CeilingHatches = Array.ConvertAll(CeilingHatches, h => h with { TargetRoom = rename(h.TargetRoom) }),
             Pitched = Pitched,
             FloorHatches = Array.ConvertAll(FloorHatches, h => h with { TargetRoom = rename(h.TargetRoom) }),
