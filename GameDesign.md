@@ -24,6 +24,8 @@ Everything else in this document either follows from that or is a way of making 
 
 ### How the premise shapes what the player sees
 - **The picture is the droid's broadcast.** The low-resolution render, hard pixels, letterbox and wireframe are the droid's limits, not the game's. Colourless, white edges on a plain background, is what the world looks like *to it*, and is the state everything starts in (the wireframe view the game is meant to be mainly played in).
+- **The droid makes things up** (Paul, 2026-10-03). It's damaged and can't process what it sees properly, and its camera is somewhat broken, so it's filling in details as it goes: a hangar seen in the window of a house. The look and style of the game *are* that damage.
+- **The operator's desk is outside it** (Paul, 2026-10-03). Video calls to the operator come from outside the game's simulation, so they aren't bound by the broadcast's rules: they can be real video, in colour, at full resolution. Inside (the droid's picture) and outside (what reaches the operator directly) are two layers; see NarrativePlan.md section 2. The operator's own text is crisp. The droid's text starts at typewriter quality and improves towards console fonts as it's repaired.
 - **The HUD is the droid's own console**, and its messages are how the narrative arrives: what it notices, what it can't do yet, what it remembers. Your **orders** arrive on it too, so it carries two voices, the droid's and command's, and neither is always honest (see 3.7). Today the picture has no text at all (the window title shows how wet you are), so there is no HUD yet.
 - **Being damaged is felt.** Early on it is slow and limited, the picture may glitch or drop out, and things it can't do yet are simply not there (no jump, no stairs, one crude arm, no drone, a short link). Repairs remove those limits one at a time.
 - **The broadcast could improve as it's repaired** (see question 2): colour first, and perhaps also resolution, how far it can see, or how much detail comes through. This is an idea, not a decision.
@@ -134,7 +136,7 @@ Break wood to uncover hole.
 - **More than one ending.** Doing as ordered and reaching the satellite ends the game, but it is probably not the best ending. Since the orders aren't honest, the better endings presumably come from finding out the truth and acting on it.
 - **The tutorial is training**, so it belongs in the story: the operator learning the controls before being given command. It could be a simulator, or a practice droid somewhere safe.
 - Told as the droid recovers: in what it says and remembers, in what the worlds hold, and in what each repair or restored colour unlocks. It should be tied to the game state (3.5) so that story beats are gated by what's been done.
-- Needs text on screen (the console, in 1) and a way of scripting what is said and when.
+- Needs text on screen (the console, in 1) and a way of scripting what is said and when. Investigated 2026-10-03 in NarrativePlan.md: conversations, video calls, choices, the transcript and decision log, and scripted events.
 
 ### 3.8 Content of the worlds
 - **Paths**: roads, railways, tunnels (general enough for roads, railways and walkers), road crossings (a crossover with road meshes).

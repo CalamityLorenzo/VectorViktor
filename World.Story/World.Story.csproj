@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The story: conversations written in ink (ThirdParty/Ink), run for the game. Lines and who says them, choices and
+       what was decided, the transcript, the flags and parts conversations read and change, and saving all that. No
+       graphics: the games show it. See NarrativePlan.md. -->
+  <ItemGroup>
+    <!-- The scripts, copied beside whatever uses this (see ScriptFolder: inside the repository it reads them in place) -->
+    <None Include="..\Story and scripts\**\*.ink" Link="Story\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ThirdParty\Ink\Ink.csproj" />
+  </ItemGroup>
+</Project>

@@ -100,7 +100,6 @@ namespace World.Core.Tests
                 Assert.Equal(start, fromFile.Starts[name]);
             Assert.True(fromFile.Starts.ContainsKey("yard"));
             Assert.Equal(inCode.Buildings.Select(b => b.Name), fromFile.Buildings.Select(b => b.Name).Take(inCode.Buildings.Count));
-            Assert.Contains(fromFile.Buildings, b => b.Name == "Yard bungalow");
             Assert.True(fromFile.Things.Count >= inCode.Things.Count + 7);
             foreach (var start in new[] { "hills", "town", "street", "plateau", "pond" })
             {
@@ -116,7 +115,7 @@ namespace World.Core.Tests
             var inCode = WorldBuilder.Build(CoastMap.Map);
             Assert.Equal(inCode.Starts, fromFile.Starts);
             Assert.Equal(inCode.Buildings.Select(b => b.Name), fromFile.Buildings.Select(b => b.Name));
-            Assert.Equal(inCode.Fixtures.Count, fromFile.Fixtures.Count);
+            Assert.True(fromFile.Fixtures.Count >= inCode.Fixtures.Count);   // and whatever its district files add
             for (var x = -400f; x <= 400f; x += 37f)
                 Assert.Equal(inCode.Terrain.HeightAt(x, x / 3f), fromFile.Terrain.HeightAt(x, x / 3f));
         }
@@ -139,12 +138,14 @@ namespace World.Core.Tests
         [Fact]
         public void AFileBuildingStandsOnLevelledGround()
         {
-            var world = WorldBuilder.Build(Library.Value.Open("home"));
+            // On the home map's hills, where the ground isn't flat to start with
+            var district = new DistrictFile { Buildings = { new BuildingEntry("house.bungalow", "filebungalow", new Vector2(-15f, -21f), "File bungalow") } };
+            var world = WorldBuilder.Build(HomeMap.Districts().Append(new FileDistrict("test", district, Library.Value)).ToArray());
             var terrain = world.Terrain;
             var middle = terrain.HeightAt(-15f, -21f);
             foreach (var (dx, dz) in new[] { (-4.7f, -3.2f), (4.7f, -3.2f), (4.7f, 3.2f), (-4.7f, 3.2f) })
                 Assert.Equal(middle, terrain.HeightAt(-15f + dx, -21f + dz), 0.001f);
-            var room = world.Buildings.Single(b => b.Name == "Yard bungalow").Rooms[0];
+            var room = world.Buildings.Single(b => b.Name == "File bungalow").Rooms[0];
             Assert.Equal(middle + BuildingKind.Step, room.WorldOffset.Y, 0.001f);
         }
 

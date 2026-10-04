@@ -27,5 +27,6 @@
     <ProjectReference Include="..\World.Rendering\World.Rendering.csproj" />
     <ProjectReference Include="..\MeshCore.Library\MeshCore.Library.csproj" />
     <ProjectReference Include="..\MeshRendering\MeshRendering.csproj" />
+    <ProjectReference Include="..\World.Story\World.Story.csproj" />
   </ItemGroup>
 </Project>

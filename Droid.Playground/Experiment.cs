@@ -47,6 +47,7 @@ namespace Droid.Playground
             ("segway", () => new Segway()),
             ("fitarm", () => new FitArm()),
             ("colour", () => new ColourLab()),
+            ("talk", () => new Talk()),
         };
 
         public const string Default = "drive";

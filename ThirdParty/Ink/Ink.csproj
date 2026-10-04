@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- inkle's ink (https://github.com/inkle/ink, v1.2.1, MIT: LICENSE.txt), its runtime and compiler as one library.
+       The source is inkle's, copied unchanged from the v1.2.1 tag: their NuGet package stopped at 0.7.4, and inkle's
+       own advice outside Unity is to build from source. To update: replace the two folders from a newer tag.
+       Built for netstandard2.0, as inkle build it, so their code compiles as they wrote it. See NarrativePlan.md. -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <RootNamespace>Ink</RootNamespace>
+    <AssemblyName>Ink</AssemblyName>
+    <Nullable>disable</Nullable>
+    <NoWarn>$(NoWarn);1701;1702;1591;CS0168;CS0219;CS0414;CS0649;CS0618;CS0162;CS0659;CS0661;CS0660;CS0108</NoWarn>
+  </PropertyGroup>
+</Project>

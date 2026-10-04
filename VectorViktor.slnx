@@ -13,11 +13,16 @@
     <Project Path="LoadingModelMeshes/LoadingModelMeshes.csproj" Id="9768a101-db23-4524-92f4-6914108d7008" />
   </Folder>
   <Project Path="World.Core.Tests/World.Core.Tests.csproj" />
+  <Project Path="World.Story.Tests/World.Story.Tests.csproj" />
   <Project Path="Meshes.Tests/Meshes.Tests.csproj" />
   <Project Path="Map.Studio.Tests/Map.Studio.Tests.csproj" />
   <Project Path="World.Buildings/World.Buildings.csproj" />
   <Project Path="World.Core/World.Core.csproj" />
   <Project Path="World.Rendering/World.Rendering.csproj" />
+  <Project Path="World.Story/World.Story.csproj" />
+  <Folder Name="/ThirdParty/">
+    <Project Path="ThirdParty/Ink/Ink.csproj" />
+  </Folder>
   <Folder Name="/Tools/">
     <Project Path="Tools.DearImGui/Tools.DearImGui.csproj" />
     <Project Path="Droid.Playground/Droid.Playground.csproj" />
